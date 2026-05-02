@@ -11,7 +11,7 @@ from .call_template import TemplateStyle
 @dataclass(frozen=True)
 class VoiceGenerationSpec:
     text: str
-    voice: str = os.environ.get("OPENAI_TTS_VOICE", "nova")
+    voice: str = os.environ.get("OPENAI_TTS_VOICE", "cedar")
     model: str = "gpt-4o-mini-tts"
     style: TemplateStyle = TemplateStyle.PRO_AUDIO_WORKSTATION
     response_format: str = "wav"
@@ -56,6 +56,17 @@ def infer_content_guidance(text: str) -> dict[str, str]:
             "recorded",
         )
     )
+    sensitive_cues = (
+        "account number",
+        "zip code",
+        "social security",
+        "security code",
+        "verification code",
+        "date of birth",
+    )
+    has_sensitive_cue = any(cue in lowered for cue in sensitive_cues)
+    has_long_digit_run = bool(re.search(r"\d{10,}", normalized))
+    has_sensitive_input = has_sensitive_cue or has_long_digit_run
     has_digits = bool(re.search(r"\d", normalized))
     has_phone = bool(re.search(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b", normalized))
     has_date = bool(re.search(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b", normalized))
@@ -71,6 +82,11 @@ def infer_content_guidance(text: str) -> dict[str, str]:
         pacing = "relaxed but clear, leaving just enough space for the listener to process."
         pronunciation_notes.append("Keep it completely conversational even when asking for input.")
         pauses = "Pause naturally before requested values, like a real person waiting."
+
+    if has_sensitive_input:
+        tone = "calm, compliant, and unmistakably clear, treating sensitive values with care."
+        pacing = "measured, with deliberate spacing around each requested input so the caller can keep up."
+        pauses = "Pause briefly before and after each requested value."
 
     if has_phone or has_date:
         pronunciation_notes.append("Read numbers carefully and group them in the most natural spoken units.")
