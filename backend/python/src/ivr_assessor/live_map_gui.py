@@ -120,7 +120,13 @@ def _diagnose() -> dict:
             twilio["error"] = str(exc)
             issues.append(f"Twilio auth failed: {exc}")
 
-    # 2. Stream server (port 8081 listening)
+    # 2. Deepgram API key
+    deepgram_key = os.environ.get("DEEPGRAM_API_KEY", "")
+    deepgram = {"ok": bool(deepgram_key), "error": None if deepgram_key else "Missing DEEPGRAM_API_KEY"}
+    if not deepgram_key:
+        issues.append("Deepgram API key missing — transcription will not work (set DEEPGRAM_API_KEY in .env)")
+
+    # 3. Stream server (port 8081 listening)
     import socket
     stream_listening = False
     try:
@@ -143,10 +149,11 @@ def _diagnose() -> dict:
         issues.append(f"ngrok is not running — run: ngrok http {_STREAM_PORT}")
         fixes.append({"action": "start_ngrok", "label": f"Start ngrok on :{_STREAM_PORT}"})
 
-    # 4. Stream URL match — does the configured URL match ngrok?
+    # 5. Stream URL match — does the configured URL match ngrok?
     suggested_wss = _to_wss(ngrok_url) if ngrok_url else None
     return {
         "twilio": twilio,
+        "deepgram": deepgram,
         "stream_server": {"listening": stream_listening, "port": _STREAM_PORT},
         "ngrok": ngrok,
         "suggested_stream_url": suggested_wss,
@@ -1204,6 +1211,22 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
 def launch(default_stream_url: str | None = None) -> None:
     global _default_stream_url
     _default_stream_url = default_stream_url
+
+    # Credential check — print a clear summary so missing keys are obvious at startup.
+    _REQUIRED = {
+        "TWILIO_ACCOUNT_SID": "place calls",
+        "TWILIO_AUTH_TOKEN": "place calls",
+        "TWILIO_PHONE_NUMBER": "caller ID",
+        "DEEPGRAM_API_KEY": "transcription",
+    }
+    missing = [k for k in _REQUIRED if not os.environ.get(k)]
+    if missing:
+        print("\n⚠  Missing credentials — add these to your .env file:")
+        for k in missing:
+            print(f"   {k}  →  needed for {_REQUIRED[k]}")
+        print("   See .env.example at the repo root for all options.\n")
+    else:
+        print("✓  All required credentials present")
 
     # Pre-warm the streaming server so transcription is ready BEFORE the first dial.
     # If we wait until the user clicks Start, Twilio may connect before uvicorn binds

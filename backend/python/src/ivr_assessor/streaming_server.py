@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import os
+from pathlib import Path
 from secrets import compare_digest, token_urlsafe
 import threading
 from typing import Callable
@@ -16,27 +17,35 @@ from .transcription import DeepgramTranscriber
 logger = logging.getLogger(__name__)
 
 _STREAM_AUTH_ENV = "IVR_STREAM_AUTH_TOKEN"
-_GENERATED_STREAM_AUTH_TOKEN = token_urlsafe(32)
+_TOKEN_FILE = Path.home() / ".ivr_assessor" / ".stream_token"
 
 
 def default_stream_auth_token() -> str:
-    """Return the process-wide stream token.
+    """Return the stable stream auth token.
 
-    **For production/stable setups:**
-    Set IVR_STREAM_AUTH_TOKEN environment variable to a fixed value. This ensures
-    the token remains consistent across server restarts, preventing Twilio
-    "unauthorized connection" errors when it reconnects after the server restarts.
+    Priority:
+    1. IVR_STREAM_AUTH_TOKEN env var (explicit override)
+    2. ~/.ivr_assessor/.stream_token (persisted across restarts)
+    3. Generated fresh and saved to disk for future restarts
 
-    **For development/testing:**
-    If not set, a random per-process token is generated on startup and automatically
-    injected into GUI URLs. If the server restarts, the token changes and the GUI
-    will auto-refresh the stream URL on the next session start.
-
-    Example:
-        export IVR_STREAM_AUTH_TOKEN="your-stable-token-here"
-        ./run_ivr_assessor.sh live-map-gui
+    This ensures Twilio never gets a stale token after a server restart.
     """
-    return os.environ.get(_STREAM_AUTH_ENV) or _GENERATED_STREAM_AUTH_TOKEN
+    env_token = os.environ.get(_STREAM_AUTH_ENV)
+    if env_token:
+        return env_token
+
+    if _TOKEN_FILE.exists():
+        saved = _TOKEN_FILE.read_text().strip()
+        if saved:
+            return saved
+
+    new_token = token_urlsafe(32)
+    try:
+        _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _TOKEN_FILE.write_text(new_token)
+    except OSError:
+        pass  # fall back to in-process token; not ideal but safe
+    return new_token
 
 
 def append_stream_auth_token(url: str | None, token: str | None = None) -> str | None:
