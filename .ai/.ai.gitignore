@@ -1,0 +1,8 @@
+repomix-output.txt
+private-notes.md
+secrets.md
+*.secret
+*.key
+*.pem
+.env
+.env.*
