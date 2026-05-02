@@ -491,6 +491,11 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
 .smart-input-chip.dtmf{background:rgba(110,141,255,.12);color:var(--accent);border-color:rgba(110,141,255,.3)}
 .smart-input-chip.speech{background:rgba(168,85,247,.12);color:#a855f7;border-color:rgba(168,85,247,.3)}
 .send-btn{width:100%;padding:12px;background:linear-gradient(135deg,#6e8dff 0%,#5577ee 100%);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s;box-shadow:0 2px 6px rgba(110,141,255,.25);margin-top:4px}
+.mode-toggle{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;cursor:pointer;user-select:none;transition:all .15s}
+.mode-toggle:hover{border-color:rgba(110,141,255,.4)}
+.mode-toggle-label{font-size:12px;font-weight:600;color:var(--text-1);display:flex;align-items:center;gap:8px}
+.mode-toggle-state{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:rgba(110,141,255,.16);color:var(--accent);border:1px solid rgba(110,141,255,.3)}
+.mode-toggle.is-manual .mode-toggle-state{background:var(--bg-3);color:var(--text-3);border-color:var(--border)}
 .send-btn:hover{filter:brightness(1.1)}
 .keypad{display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;margin-top:8px}
 .kbtn{aspect-ratio:1/1;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;font-size:18px;font-weight:600;color:var(--text-1);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all .12s;user-select:none}
@@ -556,6 +561,15 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
 
   <!-- RIGHT: CONTROLS -->
   <div class="sidebar">
+    <!-- AUTO-PILOT TOGGLE -->
+    <div class="control-section">
+      <div class="section-title">Mode</div>
+      <div class="mode-toggle" id="mode-toggle" title="Auto-pilot lets the mapper choose responses; manual hands control to you.">
+        <span class="mode-toggle-label">🤖 <span id="mode-toggle-text">Auto-pilot</span></span>
+        <span class="mode-toggle-state" id="mode-toggle-state">ON</span>
+      </div>
+    </div>
+
     <!-- SMART INPUT -->
     <div class="control-section">
       <div class="section-title">Input</div>
@@ -703,6 +717,12 @@ async function fetchStatus() {
       statusEl.style.color = 'var(--warn)';
     }
 
+    // Sync auto-pilot toggle from server
+    if (typeof data.manual_mode === 'boolean' && data.manual_mode !== manualMode) {
+      manualMode = data.manual_mode;
+      applyModeUI();
+    }
+
     // Add new logs
     if (data.logs) {
       data.logs.forEach(addLog);
@@ -813,6 +833,39 @@ document.getElementById('smart-input').addEventListener('keydown', (e) => {
 });
 
 document.querySelector('.send-btn').addEventListener('click', sendInput);
+
+let manualMode = false;
+function applyModeUI() {
+  const wrap = document.getElementById('mode-toggle');
+  const state = document.getElementById('mode-toggle-state');
+  const text = document.getElementById('mode-toggle-text');
+  if (manualMode) {
+    wrap.classList.add('is-manual');
+    state.textContent = 'OFF';
+    text.textContent = 'Manual';
+  } else {
+    wrap.classList.remove('is-manual');
+    state.textContent = 'ON';
+    text.textContent = 'Auto-pilot';
+  }
+}
+async function toggleMode() {
+  const next = !manualMode;
+  try {
+    const resp = await fetch('/api/set-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manual_mode: next })
+    });
+    const data = await resp.json();
+    manualMode = !!data.manual_mode;
+    applyModeUI();
+  } catch(e) {
+    addLog('[error] Failed to toggle mode: ' + e.message);
+  }
+}
+document.getElementById('mode-toggle').addEventListener('click', toggleMode);
+applyModeUI();
 
 document.querySelectorAll('.keypad .kbtn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1119,6 +1172,7 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             "active_prompt": _STATE.active_prompt(),
             "live_caption": _STATE.live_caption,
             "error": _STATE.error,
+            "manual_mode": bool(session.manual_mode) if session else False,
         }
 
     def _html(self, content: str) -> None:
