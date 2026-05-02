@@ -1,0 +1,5 @@
+[
+  {"kind": "prompt", "text": "Press 1 for billing", "t_ms": 0},
+  {"kind": "action", "text": "dtmf:1", "t_ms": 150},
+  {"kind": "prompt", "text": "Billing menu", "t_ms": 300}
+]

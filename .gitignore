@@ -1,0 +1,16 @@
+# cspell:ignore xcodeproj xcworkspace pycache pytest venv
+
+.DS_Store
+.build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.codex/
+.derived-data/
+.venv/
+backend/python/.venv/
+generated-answer-sheet.txt
+.env

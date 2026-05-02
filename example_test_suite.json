@@ -1,0 +1,52 @@
+{
+  "name": "Billing System Tests",
+  "target_number": "+18005550199",
+  "cases": [
+    {
+      "name": "Pay bill with account number",
+      "target_number": "+18005550199",
+      "initial_path": ["1"],
+      "triggers": [
+        {
+          "phrase": "account number",
+          "response": "5551234567",
+          "kind": "dtmf"
+        },
+        {
+          "phrase": "zip code",
+          "response": "90210",
+          "kind": "dtmf"
+        },
+        {
+          "phrase": "Thank you",
+          "response": "yes",
+          "kind": "speech"
+        }
+      ]
+    },
+    {
+      "name": "Check account balance",
+      "target_number": "+18005550199",
+      "initial_path": ["2"],
+      "triggers": [
+        {
+          "phrase": "account number",
+          "response": "5559876543",
+          "kind": "dtmf"
+        }
+      ]
+    },
+    {
+      "name": "Transfer to billing agent",
+      "target_number": "+18005550199",
+      "initial_path": ["3"],
+      "triggers": [
+        {
+          "phrase": "agent",
+          "response": "yes please",
+          "kind": "speech"
+        }
+      ]
+    }
+  ]
+}

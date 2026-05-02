@@ -1,0 +1,662 @@
+# cspell:ignore dtmf ngrok uvicorn typer
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import typer
+
+from . import __version__
+from .ai_voice import VoiceGenerationSpec, generate_voice_file
+from .batch_template import batch_entries_from_payload, run_batch_template
+from .call_template import (
+    InjectionMode,
+    TemplateStyle,
+    build_call_template_plan,
+    parse_mode_overrides,
+)
+from .discovery_loop import (
+    DiscoveryReport,
+    SessionOutcome,
+    plan_dfs_path,
+    run_discovery_loop,
+)
+from .execution_controller import ExecutionController
+from .ivr_mapper import IvrMapper
+from .live_map import (
+    InteractivePromptSource,
+    LiveMappingSession,
+    RecordingTelephonyClient,
+    ScriptedPromptSource,
+    build_default_response_library,
+)
+from .multi_session import MultiSessionOrchestrator
+from .models import CallEvent
+from .replay_mode import replay_trace
+from .response_library import ResponseClip, ResponseLibrary
+from .telephony import TelephonyClient
+
+
+app = typer.Typer(help="IVR assessor CLI")
+
+
+@app.command()
+def version() -> None:
+    """Print the IVR assessor CLI version."""
+    typer.echo(f"ivr-assessor {__version__}")
+
+
+@app.command()
+def dry_run(
+    target_number: str = typer.Option(..., "--target-number"),
+) -> None:
+    controller = ExecutionController(allowlist=[target_number])
+    if not controller.can_dial(target_number):
+        raise typer.Exit(code=2)
+
+    typer.echo(f"Dry run for {target_number}")
+
+
+@app.command()
+def replay(
+    trace_path: Path = typer.Option(..., "--trace-path"),
+) -> None:
+    result = replay_trace(trace_path)
+    typer.echo(f"Replayed {result.summary['event_count']} events")
+    typer.echo(f"Mapped {result.summary['node_count']} IVR nodes")
+    typer.echo(result.report.text)
+
+
+@app.command()
+def map(
+    target_number: list[str] = typer.Option(..., "--target-number"),
+    response_mode: str = typer.Option("dtmf", "--response-mode"),
+    session_mode: str = typer.Option(
+        "single-session",
+        "--session-mode",
+        case_sensitive=False,
+        help="Choose single-session or multi-session.",
+    ),
+    prompt: list[str] = typer.Option([], "--prompt", help="Scripted prompt text."),
+    response_label: str = typer.Option("general", "--response-label"),
+    response_style: str | None = typer.Option(None, "--response-style"),
+    response_clip: list[str] = typer.Option(
+        [],
+        "--response-clip",
+        help="A specific audio response clip in the format label=filepath. "
+        "Repeat for multiple clips.",
+    ),
+    mode: str = typer.Option(
+        "scripted",
+        "--mode",
+        help="Use 'scripted' for simulated runs or 'interactive' for real-time manual runs.",
+    ),
+    twilio_account_sid: str | None = typer.Option(
+        None, "--twilio-account-sid", envvar="TWILIO_ACCOUNT_SID"
+    ),
+    twilio_auth_token: str | None = typer.Option(
+        None, "--twilio-auth-token", envvar="TWILIO_AUTH_TOKEN"
+    ),
+    twilio_phone_number: str | None = typer.Option(
+        None, "--twilio-phone-number", envvar="TWILIO_PHONE_NUMBER"
+    ),
+    user_phone_number: str | None = typer.Option(
+        None, "--user-phone-number", envvar="USER_PHONE_NUMBER", help="Your phone number to join the call simultaneously."
+    ),
+) -> None:
+    if not target_number:
+        raise typer.Exit(code=2)
+
+    if session_mode == "single-session":
+        if len(target_number) != 1:
+            typer.echo("single-session mapping expects exactly one target number")
+            raise typer.Exit(code=2)
+
+        summary = _run_single_session(
+            target_number=target_number[0],
+            response_mode=response_mode,
+            prompt=prompt,
+            response_label=response_label,
+            response_style=response_style,
+            response_clip=response_clip,
+            mode=mode,
+            twilio_account_sid=twilio_account_sid,
+            twilio_auth_token=twilio_auth_token,
+            twilio_phone_number=twilio_phone_number,
+            user_phone_number=user_phone_number,
+        )
+        typer.echo(json.dumps(summary.as_dict(), indent=2, sort_keys=True))
+        return
+
+    if session_mode == "multi-session":
+        payload = _run_multi_session(
+            target_numbers=target_number,
+            response_mode=response_mode,
+            prompt=prompt,
+            response_label=response_label,
+            response_style=response_style,
+            response_clip=response_clip,
+        )
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+        return
+
+    typer.echo(f"Unsupported session mode: {session_mode}")
+    raise typer.Exit(code=2)
+
+
+@app.command("iterate-map")
+def iterate_map(
+    target_number: str = typer.Option(..., "--target-number"),
+    prompt: list[str] = typer.Option(
+        [],
+        "--prompt",
+        help="Scripted prompt text. Repeat for multiple prompts. Each call replays "
+        "this list (use scripted mode to dry-run the loop without real telephony).",
+    ),
+    max_calls: int = typer.Option(12, "--max-calls", help="Hard cap on number of calls."),
+    wall_clock_cap_s: float = typer.Option(
+        30.0,
+        "--wall-clock-cap-s",
+        help="Soft cap per call. After this many seconds we stop pulling new prompts "
+        "but still finish processing the current one.",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="Optional path to write the JSON report. Always echoed to stdout.",
+    ),
+) -> None:
+    """Run the iterative discovery loop until the IVR tree saturates.
+
+    Each call lasts at most --wall-clock-cap-s seconds (soft cap). Between
+    calls, the accumulated graph is replanned DFS-deepest into the next
+    unexplored option. The loop stops when two consecutive calls add no
+    new nodes, when every announced option has been walked, or when
+    --max-calls is reached — whichever comes first.
+    """
+
+    def _runner(
+        target: str,
+        planned_path: list[str],
+        mapper: IvrMapper,
+    ) -> SessionOutcome:
+        before_nodes = len(mapper.graph())
+        before_branches = sum(
+            1
+            for node in mapper.graph().values()
+            for b in (node.get("branches") or {}).values()
+            if int((b or {}).get("count", 0) or 0) > 0
+        )
+        telephony = RecordingTelephonyClient()
+        prompt_source = ScriptedPromptSource(
+            [
+                CallEvent(kind="prompt", text=text, t_ms=index * 250)
+                for index, text in enumerate(prompt)
+            ]
+        )
+        session = LiveMappingSession(
+            target_number=target,
+            response_mode="dtmf",
+            prompt_source=prompt_source,
+            telephony=telephony,
+            response_library=build_default_response_library("general"),
+            mapper=mapper,
+            wall_clock_cap_s=wall_clock_cap_s,
+            forced_branches=list(planned_path),
+        )
+        try:
+            summary = session.run()
+        except Exception as exc:  # pragma: no cover — surfaced to user
+            return SessionOutcome(
+                nodes_added=0,
+                branches_walked=0,
+                events=0,
+                aborted=True,
+                error=str(exc),
+            )
+        after_nodes = len(mapper.graph())
+        after_branches = sum(
+            1
+            for node in mapper.graph().values()
+            for b in (node.get("branches") or {}).values()
+            if int((b or {}).get("count", 0) or 0) > 0
+        )
+        return SessionOutcome(
+            nodes_added=max(0, after_nodes - before_nodes),
+            branches_walked=max(0, after_branches - before_branches),
+            events=len(summary.events),
+        )
+
+    mapper, report = run_discovery_loop(
+        target_number=target_number,
+        runner=_runner,
+        max_calls=max_calls,
+    )
+
+    payload = {
+        "report": report.as_dict(),
+        "graph": mapper.graph(),
+    }
+    blob = json.dumps(payload, indent=2, sort_keys=True, default=_json_default)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(blob, encoding="utf-8")
+    typer.echo(blob)
+
+
+def _json_default(value: object) -> object:
+    if isinstance(value, set):
+        return sorted(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON-serializable")
+
+
+@app.command("live-map-gui")
+def live_map_gui(
+    stream_url: str | None = typer.Option(
+        None,
+        "--stream-url",
+        envvar="IVR_STREAM_URL",
+        help="WebSocket URL for Twilio media streaming (e.g. wss://xxxx.ngrok-free.app/stream).",
+    ),
+) -> None:
+    """Launch the live map GUI."""
+    try:
+        from .live_map_gui import launch as launch_live_map
+        launch_live_map(default_stream_url=stream_url)
+    except Exception as exc:  # pragma: no cover - surfaced to user at runtime
+        typer.echo(f"Unable to launch live map GUI: {exc}")
+        raise typer.Exit(code=1)
+
+@app.command("tracker-gui")
+def tracker_gui() -> None:
+    """Launch the local phone tracker GUI."""
+    try:
+        from .phone_tracker_gui import launch as launch_phone_tracker
+
+        launch_phone_tracker()
+    except ModuleNotFoundError as exc:
+        if exc.name == "_tkinter":
+            typer.echo("Unable to launch tracker GUI: tkinter is not available in this Python build")
+            raise typer.Exit(code=1)
+        raise
+    except Exception as exc:  # pragma: no cover - surfaced to user at runtime
+        typer.echo(f"Unable to launch tracker GUI: {exc}")
+        raise typer.Exit(code=1)
+
+
+@app.command("sms-serve")
+def sms_serve(
+    host: str = typer.Option("0.0.0.0", "--host"),
+    port: int = typer.Option(8080, "--port"),
+    no_verify_signature: bool = typer.Option(
+        False,
+        "--no-verify-signature",
+        help="Disable Twilio request signature validation (debug only).",
+    ),
+) -> None:
+    """Run the SMS bridge server (Twilio inbound webhook -> mapping job -> SMS reply)."""
+    import uvicorn
+
+    from .sms_server import build_state_from_env, create_app
+
+    try:
+        state = build_state_from_env()
+    except RuntimeError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(code=2)
+
+    if no_verify_signature:
+        state.validate_signature = False
+        typer.echo("WARNING: Twilio signature validation DISABLED.")
+
+    typer.echo(f"Allowed senders: {sorted(state.allowed)}")
+    typer.echo(f"Twilio number:   {state.twilio_number}")
+    base = state.public_base_url or f"http://{host}:{port}"
+    typer.echo(f"Webhook URL:     {base.rstrip('/')}/sms  (set this in Twilio console)")
+    if not state.public_base_url:
+        typer.echo("Tip: set SMS_PUBLIC_BASE_URL to your ngrok https URL for signature validation.")
+
+    uvicorn.run(create_app(state), host=host, port=port)
+
+
+@app.command("call-template")
+def call_template(
+    target_number: str = typer.Option(..., "--target-number"),
+    default_mode: InjectionMode = typer.Option(InjectionMode.DTMF, "--default-mode"),
+    style: TemplateStyle = typer.Option(TemplateStyle.PRO_AUDIO_WORKSTATION, "--style"),
+    field: list[str] = typer.Option(
+        [],
+        "--field",
+        help="Placeholder field in the form key=value. Repeat for multiple fields.",
+    ),
+    field_mode: list[str] = typer.Option(
+        [],
+        "--field-mode",
+        help="Per-field mode override in the form key=dtmf|mixed. Repeat for multiple fields.",
+    ),
+    export: Path | None = typer.Option(
+        None,
+        "--export",
+        help="Write the template plan to a text file.",
+    ),
+    render_wav: Path | None = typer.Option(
+        None,
+        "--render-wav",
+        help="Render a placeholder beep WAV for the template plan.",
+    ),
+) -> None:
+    parsed_fields: dict[str, str] = {}
+    for item in field:
+        if "=" not in item:
+            typer.echo(f"Invalid field entry: {item!r}. Expected key=value.")
+            raise typer.Exit(code=2)
+        key, value = item.split("=", 1)
+        key = key.strip()
+        if not key or not value:
+            typer.echo(f"Invalid field entry: {item!r}. Expected key=value.")
+            raise typer.Exit(code=2)
+        parsed_fields[key] = value
+
+    try:
+        parsed_modes = parse_mode_overrides(field_mode)
+    except ValueError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(code=2)
+
+    plan = build_call_template_plan(
+        target_number=target_number,
+        fields=parsed_fields,
+        default_mode=default_mode,
+        style=style,
+        mode_overrides=parsed_modes,
+    )
+
+    if export is not None:
+        export.parent.mkdir(parents=True, exist_ok=True)
+        export.write_text(plan.to_text(), encoding="utf-8")
+
+    if render_wav is not None:
+        plan.render_beep_wav(render_wav)
+
+    typer.echo(json.dumps(plan.as_dict(), indent=2, sort_keys=True))
+
+
+@app.command("batch-template")
+def batch_template(
+    config: Path = typer.Option(
+        ...,
+        "--config",
+        help="Path to a JSON config with base_fields and entries.",
+    ),
+    default_mode: InjectionMode = typer.Option(InjectionMode.DTMF, "--default-mode"),
+    style: TemplateStyle = typer.Option(TemplateStyle.PRO_AUDIO_WORKSTATION, "--style"),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="Optional path to write the JSON result. Always echoed to stdout.",
+    ),
+) -> None:
+    """Run a template against multiple entries sequentially and emit JSON transcripts."""
+    if not config.exists():
+        typer.echo(f"Config file not found: {config}")
+        raise typer.Exit(code=2)
+
+    try:
+        payload = json.loads(config.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        typer.echo(f"Invalid JSON in {config}: {exc}")
+        raise typer.Exit(code=2)
+
+    base_fields_raw = payload.get("base_fields") or {}
+    if not isinstance(base_fields_raw, dict):
+        typer.echo("base_fields must be a JSON object")
+        raise typer.Exit(code=2)
+    base_fields = {str(key): str(value) for key, value in base_fields_raw.items()}
+
+    entries_raw = payload.get("entries") or []
+    if not isinstance(entries_raw, list):
+        typer.echo("entries must be a JSON array")
+        raise typer.Exit(code=2)
+
+    try:
+        entries = batch_entries_from_payload(entries_raw)
+    except ValueError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(code=2)
+
+    if not entries:
+        typer.echo("No entries provided")
+        raise typer.Exit(code=2)
+
+    result = run_batch_template(
+        base_fields=base_fields,
+        entries=entries,
+        default_mode=default_mode,
+        style=style,
+    )
+    blob = json.dumps(result.as_dict(), indent=2, sort_keys=True)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(blob, encoding="utf-8")
+    typer.echo(blob)
+
+
+@app.command("test-suite")
+def test_suite_command(
+    suite: Path = typer.Option(..., "--suite", help="Path to a JSON test suite file"),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="Optional directory to write results. Defaults to ~/.ivr_assessor/reports.",
+    ),
+) -> None:
+    """Run a test suite from a JSON file and generate transcript reports."""
+    from .test_suite import run_test_suite_from_file, save_suite_result
+
+    if not suite.exists():
+        typer.echo(f"Suite file not found: {suite}")
+        raise typer.Exit(code=2)
+
+    try:
+        result = run_test_suite_from_file(suite)
+    except Exception as exc:
+        typer.echo(f"Error running test suite: {exc}")
+        raise typer.Exit(code=2)
+
+    json_path, md_path = save_suite_result(result, output_dir=output)
+    typer.echo(f"Results saved:")
+    typer.echo(f"  JSON: {json_path}")
+    typer.echo(f"  Markdown: {md_path}")
+    typer.echo(f"\nSummary: {result.passed_cases}/{result.total_cases} cases passed")
+
+
+@app.command("voice-generate")
+def voice_generate(
+    text: str = typer.Option(..., "--text"),
+    out: Path = typer.Option(..., "--out"),
+    voice: str = typer.Option("nova", "--voice", help="TTS voice (e.g., alloy, echo, fable, onyx, nova, shimmer)"),
+    style: TemplateStyle = typer.Option(TemplateStyle.PRO_AUDIO_WORKSTATION, "--style"),
+    model: str = typer.Option("tts-1-hd", "--model", help="Use tts-1-hd for higher quality audio"),
+    response_format: str = typer.Option("wav", "--response-format"),
+) -> None:
+    spec = VoiceGenerationSpec(
+        text=text,
+        voice=voice,
+        style=style,
+        model=model,
+        response_format=response_format,
+    )
+    try:
+        generate_voice_file(spec, out)
+    except Exception as exc:
+        typer.echo(f"Unable to generate voice: {exc}")
+        raise typer.Exit(code=1)
+    typer.echo(str(out))
+
+
+def _parse_response_clips(entries: list[str]) -> list[ResponseClip]:
+    """Parses 'label=filepath' strings into ResponseClip objects."""
+    clips = []
+    for item in entries:
+        if "=" not in item:
+            typer.echo(f"Warning: Skipping invalid response clip entry: {item!r}", err=True)
+            continue
+        label, path_str = item.split("=", 1)
+        path = Path(path_str)
+        if not path.exists():
+            typer.echo(f"Warning: Response clip file not found: {path}", err=True)
+            continue
+
+        # Create a simple ID and assume duration.
+        clip = ResponseClip(
+            id=f"custom-{label}",
+            label=label.strip(),
+            file_path=path,
+            style="custom",
+            duration_ms=2000,  # Placeholder
+        )
+        clips.append(clip)
+    return clips
+
+
+def _build_response_library(
+    response_label: str,
+    response_style: str | None,
+    custom_clips: list[str],
+) -> ResponseLibrary:
+    """Builds a response library merging default clips for the label with any custom clips."""
+    default_clips = build_default_response_library(response_label, response_style=response_style).clips
+    parsed_custom = _parse_response_clips(custom_clips)
+    return ResponseLibrary(clips=default_clips + parsed_custom)
+
+
+def _get_clients_for_mode(
+    mode: str,
+    prompt: list[str],
+    twilio_sid: str | None,
+    twilio_token: str | None,
+    twilio_number: str | None,
+    user_phone_number: str | None = None,
+) -> tuple[TelephonyClient, object]:
+    """Selects the telephony client and prompt source based on the run mode."""
+    if mode == "interactive":
+        try:
+            from .twilio_client import TwilioTelephonyClient
+
+            telephony = TwilioTelephonyClient(
+                account_sid=twilio_sid,
+                auth_token=twilio_token,
+                twilio_number=twilio_number,
+                user_phone_number=user_phone_number,
+            )
+            prompt_source = InteractivePromptSource()
+            typer.echo("Using Twilio for live call in interactive mode.", err=True)
+            return telephony, prompt_source
+        except (ImportError, ValueError) as e:
+            typer.echo(f"Error setting up Twilio client: {e}", err=True)
+            raise typer.Exit(code=1)
+
+    # Default to scripted mode for simulation
+    telephony = RecordingTelephonyClient()
+    prompt_source = ScriptedPromptSource(
+        [
+            CallEvent(kind="prompt", text=text, t_ms=index * 250)
+            for index, text in enumerate(prompt)
+        ]
+    )
+    return telephony, prompt_source
+
+
+def _run_single_session(
+    target_number: str,
+    response_mode: str,
+    prompt: list[str],
+    response_label: str,
+    response_style: str | None,
+    response_clip: list[str],
+    mode: str,
+    twilio_account_sid: str | None,
+    twilio_auth_token: str | None,
+    twilio_phone_number: str | None,
+    user_phone_number: str | None = None,
+) -> object:
+    telephony, prompt_source = _get_clients_for_mode(
+        mode=mode,
+        prompt=prompt,
+        twilio_sid=twilio_account_sid,
+        twilio_token=twilio_auth_token,
+        twilio_number=twilio_phone_number,
+        user_phone_number=user_phone_number,
+    )
+    response_library = _build_response_library(
+        response_label=response_label,
+        response_style=response_style,
+        custom_clips=response_clip,
+    )
+    session = LiveMappingSession(
+        target_number=target_number,
+        response_mode=response_mode,
+        prompt_source=prompt_source,
+        telephony=telephony,
+        response_library=response_library,
+        response_label=response_label,
+        response_style=response_style,
+    )
+    return session.run()
+
+
+def _run_multi_session(
+    target_numbers: list[str],
+    response_mode: str,
+    prompt: list[str],
+    response_label: str,
+    response_style: str | None,
+    response_clip: list[str],
+) -> dict[str, object]:
+    telephony = RecordingTelephonyClient()
+    orchestrator = MultiSessionOrchestrator()
+    response_library = _build_response_library(
+        response_label=response_label,
+        response_style=response_style,
+        custom_clips=response_clip,
+    )
+
+    for index, target in enumerate(target_numbers):
+        prompt_source = ScriptedPromptSource(
+            [
+                CallEvent(kind="prompt", text=text, t_ms=event_index * 250)
+                for event_index, text in enumerate(prompt)
+            ]
+        )
+        session = LiveMappingSession(
+            target_number=target,
+            response_mode=response_mode,
+            prompt_source=prompt_source,
+            telephony=telephony,
+            response_library=response_library,
+            response_label=response_label,
+            response_style=response_style,
+        )
+        summary = session.run()
+        orchestrator.start_session(summary.session_id or f"session-{index + 1}", target)
+        for event in summary.events:
+            orchestrator.record_event(
+                summary.session_id or f"session-{index + 1}",
+                CallEvent(**event),
+                branch_confidence=0.8,
+            )
+
+    return {
+        "session_mode": "multi-session",
+        "session_index": orchestrator.session_index(),
+        "graph": orchestrator.combined_graph(),
+    }
+
+
+def main() -> None:
+    app()
+
+
+if __name__ == "__main__":
+    main()
