@@ -37,6 +37,32 @@ def test_stream_websocket_accepts_valid_token() -> None:
             websocket.send_text(json.dumps({"event": "stop"}))
 
 
+def test_recording_status_ignores_non_completed() -> None:
+    server = StreamingServer(stream_auth_token="secret")
+    with TestClient(server.app) as client:
+        resp = client.post("/recording-status", data={"RecordingStatus": "in-progress"})
+        assert resp.status_code == 204
+
+
+def test_recording_status_completed_returns_200() -> None:
+    server = StreamingServer(stream_auth_token="secret")
+    statuses: list[str] = []
+    server.register_status_callback(statuses.append)
+
+    with TestClient(server.app) as client:
+        resp = client.post(
+            "/recording-status",
+            data={
+                "RecordingStatus": "completed",
+                "RecordingUrl": "https://api.twilio.com/recordings/RE123",
+                "RecordingSid": "RE123",
+                "CallSid": "CA456",
+            },
+        )
+    assert resp.status_code == 200
+    assert any("RE123" in s for s in statuses)
+
+
 def test_listen_websocket_requires_same_token() -> None:
     server = StreamingServer(stream_auth_token="secret")
 

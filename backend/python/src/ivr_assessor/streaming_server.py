@@ -1,58 +1,65 @@
+"""WebSocket server for Twilio media streaming and transcription.
+
+# spellcheck: ignore=Deepgram,deepgram,DEEPGRAM,mulaw,uvicorn
+"""
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
 import os
+import hashlib
 from pathlib import Path
-from secrets import compare_digest, token_urlsafe
+from secrets import compare_digest
 import threading
 from typing import Callable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import httpx
+from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
 
 from .transcription import DeepgramTranscriber
 
 logger = logging.getLogger(__name__)
 
 _STREAM_AUTH_ENV = "IVR_STREAM_AUTH_TOKEN"
-_TOKEN_FILE = Path.home() / ".ivr_assessor" / ".stream_token"
+
+
+def _redact_token(token: str | None) -> str:
+    if not token:
+        return "<empty>"
+    if len(token) <= 8:
+        return "<redacted>"
+    return f"{token[:4]}…{token[-4:]}"
 
 
 def default_stream_auth_token() -> str:
-    """Return the stable stream auth token.
+    """Return a stable stream auth token.
 
-    Priority:
-    1. IVR_STREAM_AUTH_TOKEN env var (explicit override)
-    2. ~/.ivr_assessor/.stream_token (persisted across restarts)
-    3. Generated fresh and saved to disk for future restarts
-
-    This ensures Twilio never gets a stale token after a server restart.
+    Uses a deterministic hash of the Twilio credentials so that multiple
+    processes (e.g., the GUI server and a separate CLI test runner)
+    agree on the token without needing to sync via a file that could
+    go stale or cause unauthorized connection rejections.
     """
     env_token = os.environ.get(_STREAM_AUTH_ENV)
     if env_token:
         return env_token
 
-    if _TOKEN_FILE.exists():
-        saved = _TOKEN_FILE.read_text().strip()
-        if saved:
-            return saved
-
-    new_token = token_urlsafe(32)
-    try:
-        _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _TOKEN_FILE.write_text(new_token)
-    except OSError:
-        pass  # fall back to in-process token; not ideal but safe
-    return new_token
+    sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    if sid and token:
+        combined = f"{sid}:{token}".encode("utf-8")
+        return hashlib.sha256(combined).hexdigest()[:32]
+        
+    return "local-dev-insecure-token"
 
 
-def append_stream_auth_token(url: str | None, token: str | None = None) -> str | None:
+def append_stream_auth_token(url: str | None, token: str) -> str | None:
+    """Append a stream auth token to a URL, removing any existing one."""
     if not url:
         return url
-
-    token = default_stream_auth_token() if token is None else token
     if not token:
         return url
 
@@ -88,6 +95,7 @@ class StreamingServer:
         self.app = FastAPI()
         self.app.add_api_websocket_route("/stream", self._handle_stream)
         self.app.add_api_websocket_route("/listen", self._handle_listen)
+        self.app.add_api_route("/recording-status", self._handle_recording_status, methods=["POST"])
 
     @property
     def stream_auth_token(self) -> str:
@@ -131,7 +139,16 @@ class StreamingServer:
         return bool(supplied) and compare_digest(supplied, self._stream_auth_token)
 
     async def _reject_unauthorized(self, websocket: WebSocket, endpoint: str) -> None:
-        logger.warning("Rejected unauthorized WebSocket connection to %s", endpoint)
+        supplied = (
+            websocket.query_params.get("token")
+            or websocket.query_params.get("stream_token")
+        )
+        logger.warning(
+            "Rejected unauthorized WebSocket connection to %s (expected=%s supplied=%s)",
+            endpoint,
+            _redact_token(self._stream_auth_token),
+            _redact_token(supplied),
+        )
         self._dispatch_status(f"[stream] rejected unauthorized connection to {endpoint}")
         await websocket.close(code=1008)
 
@@ -190,6 +207,8 @@ class StreamingServer:
 
         media_count = 0
         last_status_count = 0
+        audio_buffer = bytearray()
+        BUFFER_FLUSH_SIZE = 160 * 5  # 160 bytes (20ms) * 5 frames = 100ms
         try:
             while True:
                 data = await websocket.receive_text()
@@ -204,6 +223,8 @@ class StreamingServer:
                     payload = message["media"]["payload"]
                     audio_bytes = base64.b64decode(payload)
                     media_count += 1
+                    audio_buffer.extend(audio_bytes)
+
                     # Heartbeat every 5s of audio (250 frames at 20ms each)
                     if media_count - last_status_count >= 250:
                         self._dispatch_status(
@@ -211,13 +232,19 @@ class StreamingServer:
                             f"({media_count * 20 // 1000}s)"
                         )
                         last_status_count = media_count
-                    if connected:
-                        await transcriber.process_audio(audio_bytes)
+
+                    # Flush buffer to Deepgram in larger chunks to prevent network jitter
+                    if connected and len(audio_buffer) >= BUFFER_FLUSH_SIZE:
+                        await transcriber.process_audio(bytes(audio_buffer))
+                        audio_buffer.clear()
+
                     # Forward raw audio to any browser /listen clients
                     await self._broadcast_audio(audio_bytes)
                 elif message["event"] == "stop":
                     logger.info("Twilio stream stopped")
                     self._dispatch_status(f"[stream] stopped after {media_count} audio frames")
+                    if connected and audio_buffer:
+                        await transcriber.process_audio(bytes(audio_buffer))
                     break
         except WebSocketDisconnect:
             logger.info("Twilio stream disconnected")
@@ -233,6 +260,81 @@ class StreamingServer:
                     f"[stream] final stats: frames={media_count} transcriber={stats}"
                 )
                 await transcriber.close()
+
+    async def _handle_recording_status(self, request: Request) -> Response:
+        """Receive Twilio recording-completed webhook, download the .wav, and
+        transcribe it with Whisper in a background thread."""
+        form = await request.form()
+        status = form.get("RecordingStatus", "")
+        recording_url = str(form.get("RecordingUrl", ""))
+        recording_sid = str(form.get("RecordingSid", "unknown"))
+        call_sid = str(form.get("CallSid", "unknown"))
+
+        logger.info(
+            "recording-status: status=%s call=%s recording=%s url=%s",
+            status, call_sid, recording_sid, recording_url,
+        )
+
+        if status != "completed" or not recording_url:
+            return Response(status_code=204)
+
+        self._dispatch_status(f"[recording] completed for call {call_sid} — queuing transcription")
+
+        # Run download + transcription in a background task so we return 200 fast.
+        asyncio.create_task(self._transcribe_recording(recording_url, recording_sid, call_sid))
+        return Response(status_code=200)
+
+    async def _transcribe_recording(
+        self, recording_url: str, recording_sid: str, call_sid: str
+    ) -> None:
+        reports_dir = Path(os.environ.get("IVR_REPORTS_DIR", "~/.ivr_assessor/reports")).expanduser()
+        recordings_dir = reports_dir / "recordings"
+        recordings_dir.mkdir(parents=True, exist_ok=True)
+
+        wav_path = recordings_dir / f"{recording_sid}.wav"
+        transcript_path = recordings_dir / f"{recording_sid}.txt"
+
+        # Twilio requires auth to download recordings.
+        account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+        auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+        dl_url = recording_url if recording_url.endswith(".wav") else recording_url + ".wav"
+
+        try:
+            self._dispatch_status(f"[recording] downloading {recording_sid}…")
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.get(dl_url, auth=(account_sid, auth_token))
+                resp.raise_for_status()
+                wav_path.write_bytes(resp.content)
+            logger.info("recording saved: %s (%d bytes)", wav_path, wav_path.stat().st_size)
+        except Exception as exc:
+            logger.error("recording download failed: %s", exc)
+            self._dispatch_status(f"[recording] download failed: {exc}")
+            return
+
+        # Transcribe in a thread pool so we don't block the event loop.
+        loop = asyncio.get_running_loop()
+        try:
+            self._dispatch_status(f"[recording] transcribing {recording_sid} with Whisper…")
+            transcript = await loop.run_in_executor(None, self._run_whisper, wav_path)
+            transcript_path.write_text(transcript, encoding="utf-8")
+            logger.info("transcript saved: %s (%d chars)", transcript_path, len(transcript))
+            self._dispatch_status(
+                f"[recording] ✓ transcript ready ({len(transcript)} chars) → {transcript_path}"
+            )
+        except ImportError:
+            self._dispatch_status(
+                "[recording] Whisper not installed — run: pip install openai-whisper && brew install ffmpeg"
+            )
+        except Exception as exc:
+            logger.error("whisper transcription failed: %s", exc, exc_info=True)
+            self._dispatch_status(f"[recording] transcription failed: {exc}")
+
+    @staticmethod
+    def _run_whisper(wav_path: Path) -> str:
+        from .audio_quality import LocalWhisperTranscriber
+        model_size = os.environ.get("WHISPER_MODEL", "base")
+        t = LocalWhisperTranscriber(model_size=model_size)
+        return t.transcribe(wav_path)
 
     def start_in_background(self, host: str = "127.0.0.1", port: int = 8000) -> threading.Thread:
         import uvicorn
