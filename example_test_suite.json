@@ -1,6 +1,11 @@
 {
   "name": "Billing System Tests",
   "target_number": "+18005550199",
+  "variables": {
+    "account_number": "5551234567",
+    "zip_code": "90210",
+    "alt_account": "5559876543"
+  },
   "cases": [
     {
       "name": "Pay bill with account number",
@@ -8,18 +13,21 @@
       "initial_path": ["1"],
       "triggers": [
         {
+          "title": "Account Number",
           "phrase": "account number",
-          "response": "5551234567",
+          "response": "$account_number",
           "kind": "dtmf"
         },
         {
+          "title": "ZIP Code",
           "phrase": "zip code",
-          "response": "90210",
+          "response": "$zip_code",
           "kind": "dtmf"
         },
         {
+          "title": "Confirm Payment",
           "phrase": "Thank you",
-          "response": "yes",
+          "response": "yes please",
           "kind": "speech"
         }
       ]
@@ -30,8 +38,9 @@
       "initial_path": ["2"],
       "triggers": [
         {
+          "title": "Account Number",
           "phrase": "account number",
-          "response": "5559876543",
+          "response": "$alt_account",
           "kind": "dtmf"
         }
       ]
@@ -42,6 +51,7 @@
       "initial_path": ["3"],
       "triggers": [
         {
+          "title": "Request Agent",
           "phrase": "agent",
           "response": "yes please",
           "kind": "speech"

@@ -8,6 +8,7 @@ import time
 import webbrowser
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -31,9 +32,44 @@ from .twilio_client import TwilioTelephonyClient
 _STREAM_PORT = 8081
 _GUI_PORT = 8080
 
+_SUITES_DIR = Path.home() / ".ivr_assessor" / "suites"
+
 # Persistent streaming server — started once at GUI launch so it's always ready
 # when Twilio connects. Sessions just register/clear their callbacks.
 _persistent_stream: StreamingServer | None = None
+
+
+def _normalize_suite_filename(filename: object) -> str:
+    """Validate GUI-provided suite filename and return a safe local .json filename."""
+    if not isinstance(filename, str):
+        raise ValueError("Missing suite filename")
+
+    raw = filename.strip()
+    if not raw:
+        raise ValueError("Missing suite filename")
+
+    # Disallow directory traversal or nested paths from GUI input.
+    if "/" in raw or "\\" in raw:
+        raise ValueError("Invalid suite filename")
+
+    if not raw.endswith(".json"):
+        raw += ".json"
+
+    name = Path(raw).name
+    if name != raw:
+        raise ValueError("Invalid suite filename")
+    if name.startswith("."):
+        raise ValueError("Invalid suite filename")
+
+    stem = Path(name).stem.strip()
+    if not stem:
+        raise ValueError("Invalid suite filename")
+
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+    if any(ch not in allowed for ch in name):
+        raise ValueError("Invalid suite filename")
+
+    return name
 
 
 def _wait_for_port(host: str, port: int, timeout: float = 8.0) -> bool:
@@ -49,9 +85,29 @@ def _wait_for_port(host: str, port: int, timeout: float = 8.0) -> bool:
     return False
 
 
+def _free_port(port: int) -> None:
+    import subprocess, os, signal
+    try:
+        out = subprocess.check_output(["lsof", "-t", f"-i:{port}"], stderr=subprocess.DEVNULL)
+        for pid in out.decode().splitlines():
+            if pid.strip():
+                try:
+                    os.kill(int(pid.strip()), signal.SIGKILL)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    try:
+        subprocess.call(["fuser", "-k", "-9", f"{port}/tcp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+    time.sleep(0.5)
+
+
 def _ensure_stream_server() -> StreamingServer | None:
     global _persistent_stream
     if _persistent_stream is None:
+        _free_port(_STREAM_PORT)
         try:
             srv = StreamingServer()
             srv.start_in_background(host="0.0.0.0", port=_STREAM_PORT)
@@ -85,7 +141,7 @@ def _detect_ngrok_url() -> str | None:
     return None
 
 
-def _to_wss(url: str | None) -> str | None:
+def _to_wss(url: str | None, force_token: str | None = None) -> str | None:
     if not url:
         return None
     wss = url.strip().replace("https://", "wss://", 1).replace("http://", "ws://", 1)
@@ -93,8 +149,11 @@ def _to_wss(url: str | None) -> str | None:
     path = parts.path.rstrip("/")
     if not path.endswith("/stream"):
         path = f"{path}/stream" if path else "/stream"
+    
+    token = force_token if force_token else (_persistent_stream.stream_auth_token if _persistent_stream else default_stream_auth_token())
     return append_stream_auth_token(
-        urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
+        urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment)),
+        token=token
     )
 
 
@@ -277,29 +336,43 @@ def _run_session_thread(
     stream_url: str | None,
     manual_mode: bool = False,
 ) -> None:
+    _STATE.logs.append(f"[debug] Starting session thread for target: {target}")
+    
+    # Fallback to the module's default stream URL if the frontend didn't supply one
+    stream_url = stream_url or _default_stream_url
+
+    _STATE.logs.append(f"[debug] Input stream_url: {stream_url}")
     try:
         source = QueuePromptSource()
         _STATE.source = source
         _STATE.target = target
         _STATE.start_time = time.time()
 
-        # Auto-detect ngrok URL and override any stale one in settings
+        # Ensure the stream server is up first to get its definitive auth token
+        active_token = None
         live_ngrok = _detect_ngrok_url()
+        if stream_url or live_ngrok:
+            srv = _ensure_stream_server()
+            _STATE.streaming_server = srv
+            active_token = srv.stream_auth_token if srv else default_stream_auth_token()
+
+        # Auto-detect ngrok URL and override any stale one in settings
         if live_ngrok:
-            corrected = _to_wss(live_ngrok)
+            corrected = _to_wss(live_ngrok, force_token=active_token)
             if stream_url and stream_url != corrected:
                 _STATE.logs.append(f"[fix] stream URL was '{stream_url}'")
                 _STATE.logs.append(f"[fix] using live ngrok URL '{corrected}' instead")
             stream_url = corrected
         elif stream_url:
-            stream_url = _to_wss(stream_url)
+            stream_url = _to_wss(stream_url, force_token=active_token)
             _STATE.logs.append(f"[warn] ngrok not detected on :4040 — using saved stream URL")
         else:
             _STATE.logs.append("[warn] no stream URL and no ngrok detected — transcription will be disabled")
+            
+        _STATE.logs.append(f"[debug] Final computed stream_url for Twilio: {stream_url}")
 
         if stream_url:
-            srv = _ensure_stream_server()
-            _STATE.streaming_server = srv
+            srv = _STATE.streaming_server
 
             # IVR prompts arrive as multiple is_final chunks (~1-2s each); we
             # accumulate them into one utterance and only push to the prompt
@@ -492,11 +565,13 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
 .sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}
 .control-section{background:var(--bg-1);border:1px solid var(--border);border-radius:13px;padding:16px;display:flex;flex-direction:column;gap:12px}
 .section-title{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3)}
-.smart-input{width:100%;padding:12px 14px;background:var(--bg-2);border:1px solid rgba(110,141,255,.55);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text-1);outline:none;resize:none;height:44px;transition:all .15s}
+.smart-input-wrapper{position:relative;display:flex;align-items:center;width:100%}
+.smart-input{width:100%;padding:12px 90px 12px 14px;background:var(--bg-2);border:1px solid rgba(110,141,255,.55);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text-1);outline:none;resize:none;height:44px;transition:all .15s}
 .smart-input:focus{background:var(--bg-3);border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.smart-input-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:99px;font-size:10px;font-weight:600;background:var(--bg-2);color:var(--text-3);border:1px solid var(--border);width:100%;justify-content:center;margin-top:4px}
+.smart-input-chip{position:absolute;right:6px;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:600;background:transparent;color:var(--text-3);pointer-events:none;transition:all .15s}
 .smart-input-chip.dtmf{background:rgba(110,141,255,.12);color:var(--accent);border-color:rgba(110,141,255,.3)}
 .smart-input-chip.speech{background:rgba(168,85,247,.12);color:#a855f7;border-color:rgba(168,85,247,.3)}
+.input-hint{font-size:10px;color:var(--text-3);margin-top:-4px;text-align:center}
 .send-btn{width:100%;padding:12px;background:linear-gradient(135deg,#6e8dff 0%,#5577ee 100%);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s;box-shadow:0 2px 6px rgba(110,141,255,.25);margin-top:4px}
 .mode-toggle{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;cursor:pointer;user-select:none;transition:all .15s}
 .mode-toggle:hover{border-color:rgba(110,141,255,.4)}
@@ -522,6 +597,36 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
 .status-text{color:var(--text-2)}
 .status-value{color:var(--text-1);font-weight:600;margin-left:auto}
 .info-box{background:var(--bg-2);border:1px solid var(--border);border-radius:13px;padding:12px 14px;font-size:11px;color:var(--text-3);line-height:1.6}
+
+/* ── MODAL ──────────────────────────────────────────── */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-content{background:var(--bg-1);width:900px;height:700px;border-radius:13px;border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--bg-2)}
+.modal-header h2{font-size:15px;font-weight:600;color:#fff}
+.modal-close{background:none;border:none;color:var(--text-3);font-size:18px;cursor:pointer}
+.modal-close:hover{color:var(--danger)}
+.ts-item{padding:10px 12px; border-radius:8px; cursor:pointer; color:var(--text-2); margin-bottom:4px; font-size:13px; transition:all .15s;}
+.ts-item:hover{background:rgba(255,255,255,.04);}
+.ts-item.active{background:var(--accent-soft); color:var(--accent); font-weight:600;}
+.case-card{background:var(--bg-2); border:1px solid var(--border); border-radius:9px; padding:16px; display:flex; flex-direction:column; gap:12px;}
+.trigger-block{display:flex;flex-direction:column;gap:4px;margin-top:10px;background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:10px;}
+.trigger-title-row{display:flex;align-items:center;gap:6px;}
+.trigger-title-label{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);width:36px;flex-shrink:0;}
+.trigger-title-input{flex:1;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text-1);padding:3px 0;font-size:12px;font-weight:600;outline:none;}
+.trigger-title-input:focus{border-bottom-color:var(--accent);}
+.trigger-row{display:flex;gap:6px;align-items:center;margin-top:4px;}
+.trigger-input{flex:1;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;color:var(--text-1);padding:7px;font-size:12px;outline:none;}
+.trigger-input:focus{border-color:var(--accent);}
+.trigger-select{background:var(--bg-2);border:1px solid var(--border);border-radius:6px;color:var(--text-1);padding:7px;font-size:12px;outline:none;width:80px;}
+.trigger-del{background:none;border:none;color:var(--danger);cursor:pointer;padding:4px;}
+.var-section{margin-bottom:16px;}
+.var-row{display:flex;gap:6px;align-items:center;margin-top:6px;}
+.var-key{width:140px;background:var(--bg-1);border:1px solid var(--border);border-radius:6px;color:var(--accent);padding:7px;font-size:12px;font-weight:600;outline:none;font-family:'JetBrains Mono','SF Mono',monospace;}
+.var-key:focus{border-color:var(--accent);}
+.var-val{flex:1;background:var(--bg-1);border:1px solid var(--border);border-radius:6px;color:var(--text-1);padding:7px;font-size:12px;outline:none;}
+.var-val:focus{border-color:var(--accent);}
+.var-hint{font-size:10px;color:var(--text-3);margin-top:4px;}
+.var-hint code{color:var(--accent);background:var(--bg-2);padding:1px 4px;border-radius:3px;font-size:10px;}
 </style>
 </head>
 <body>
@@ -538,6 +643,7 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
   <div class="hdr-spacer"></div>
   <span class="hdr-status" id="hdr-status">⚠ Idle</span>
   <button class="btn-primary" id="btn-start">📞 Start Call</button>
+  <button class="hdr-btn" title="Test Suites" id="btn-test-suite">🧪</button>
   <button class="hdr-btn" title="Settings">⚙️</button>
 </header>
 
@@ -580,8 +686,11 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
     <!-- SMART INPUT -->
     <div class="control-section">
       <div class="section-title">Input</div>
-      <input id="smart-input" class="smart-input" type="text" placeholder="Enter DTMF or text…">
-      <div class="smart-input-chip" id="input-chip">Auto-detect</div>
+      <div class="smart-input-wrapper">
+        <input id="smart-input" class="smart-input" type="text" placeholder="Enter DTMF or text…">
+        <div class="smart-input-chip" id="input-chip">Auto-detect</div>
+      </div>
+      <div class="input-hint">digits, *, # → DTMF · everything else → speech</div>
       <button class="send-btn">Send ↵</button>
     </div>
 
@@ -638,6 +747,50 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
   </div>
 </div>
 
+<!-- TEST SUITE MODAL -->
+<div class="modal" id="ts-modal" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>🧪 Test Suites</h2>
+      <button class="modal-close" id="ts-close">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex; height:calc(100% - 53px);">
+      <div style="width:240px; border-right:1px solid var(--border); background:var(--bg-2); display:flex; flex-direction:column;">
+        <div style="padding:16px;">
+          <button class="btn-primary" id="ts-new-btn" style="width:100%; height:32px; font-size:12px;">+ New Suite</button>
+        </div>
+        <div id="ts-list" style="flex:1; overflow-y:auto; padding:0 8px;"></div>
+      </div>
+      <div id="ts-editor" style="flex:1; padding:20px; overflow-y:auto; background:var(--bg-0); display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <input type="text" id="ts-filename" placeholder="suite_name" style="background:transparent; border:none; font-size:18px; color:var(--text-1); font-weight:600; outline:none; border-bottom:1px solid var(--border); padding-bottom:4px;">
+          <div style="display:flex; gap:10px;">
+            <button class="btn-primary" id="ts-run-btn" style="height:32px; font-size:12px; background:linear-gradient(135deg,#6e8dff 0%,#5577ee 100%); box-shadow:none;">▶ Run Suite</button>
+            <button class="btn-primary" id="ts-save-btn" style="height:32px; font-size:12px;">💾 Save</button>
+          </div>
+        </div>
+        <div class="control-section" style="margin-bottom:20px;">
+          <div class="section-title">Target Number (Fallback)</div>
+          <input type="text" id="ts-target" class="smart-input" placeholder="+18005550199">
+        </div>
+        <div class="control-section var-section" style="margin-bottom:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="section-title">Variables</div>
+            <button id="ts-add-var" style="background:none;border:1px solid var(--border);color:var(--text-2);border-radius:6px;cursor:pointer;padding:4px 8px;font-size:11px;">+ Add</button>
+          </div>
+          <div class="var-hint">Define values once, reference with <code>$variable_name</code> in any response.</div>
+          <div id="ts-vars-container"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div class="section-title">Test Cases</div>
+          <button id="ts-add-case" style="background:none; border:1px solid var(--border); color:var(--text-2); border-radius:6px; cursor:pointer; padding:4px 8px; font-size:11px;">+ Add Case</button>
+        </div>
+        <div id="ts-cases-container" style="display:flex; flex-direction:column; gap:16px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 let padBuffer = '';
 let isRunning = false;
@@ -645,15 +798,17 @@ let startTime = null;
 let seenLogs = new Set();
 
 function detectInputType(text) {
-  return /^[\s0-9*#]+$/.test(text) ? 'dtmf' : 'speech';
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  return /^[\s0-9*#]+$/.test(trimmed) ? 'dtmf' : 'speech';
 }
 
 function updateInputChip() {
   const input = document.getElementById('smart-input');
   const chip = document.getElementById('input-chip');
   const type = detectInputType(input.value);
-  chip.textContent = input.value === '' ? 'Auto-detect' : (type === 'dtmf' ? '⚡ DTMF' : '🎙️ Speech');
-  chip.className = `smart-input-chip ${input.value === '' ? '' : type}`;
+  chip.textContent = type === '' ? 'Auto-detect' : (type === 'dtmf' ? '⚡ DTMF' : '🗣 Speech');
+  chip.className = `smart-input-chip ${type}`;
 }
 
 function addLog(message) {
@@ -926,6 +1081,258 @@ fetch('/api/config').then(r => r.json()).then(cfg => {
   }
 }).catch(e => console.log('Config load failed:', e));
 
+// --- Test Suites Logic ---
+let suites = [];
+let currentSuiteFilename = null;
+
+async function loadSuites() {
+  const resp = await fetch('/api/suites');
+  const data = await resp.json();
+  suites = data.suites || [];
+  renderSuitesList();
+}
+
+function renderSuitesList() {
+  const container = document.getElementById('ts-list');
+  container.innerHTML = '';
+  suites.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'ts-item' + (currentSuiteFilename === s.filename ? ' active' : '');
+    el.textContent = s.filename;
+    el.onclick = () => openSuite(s.filename);
+    container.appendChild(el);
+  });
+}
+
+function openSuite(filename) {
+  currentSuiteFilename = filename;
+  const suite = suites.find(s => s.filename === filename) || { filename: filename, data: { name: filename.replace('.json',''), target_number: '', cases: [], variables: {} } };
+  document.getElementById('ts-editor').style.display = 'block';
+  document.getElementById('ts-filename').value = suite.filename.replace('.json','');
+  document.getElementById('ts-target').value = suite.data.target_number || '';
+  renderVariables(suite.data.variables || {});
+  renderCases(suite.data.cases || []);
+  renderSuitesList();
+}
+
+function renderVariables(vars) {
+  const container = document.getElementById('ts-vars-container');
+  container.innerHTML = '';
+  Object.entries(vars).forEach(([k, v]) => {
+    container.appendChild(makeVarRow(k, v));
+  });
+}
+
+function makeVarRow(key='', val='') {
+  const row = document.createElement('div');
+  row.className = 'var-row';
+  row.innerHTML = `<input class="var-key trigger-input" placeholder="variable_name" value="${key.replace(/"/g,'&quot;')}">
+    <span style="color:var(--text-3);font-size:13px;">=</span>
+    <input class="var-val trigger-input" placeholder="value" value="${val.replace(/"/g,'&quot;')}">
+    <button class="trigger-del" onclick="this.closest('.var-row').remove()">✕</button>`;
+  return row;
+}
+
+function getVariables() {
+  const vars = {};
+  document.querySelectorAll('#ts-vars-container .var-row').forEach(row => {
+    const k = row.querySelector('.var-key').value.trim();
+    const v = row.querySelector('.var-val').value.trim();
+    if (k) vars[k] = v;
+  });
+  return vars;
+}
+
+function renderCases(cases) {
+  const container = document.getElementById('ts-cases-container');
+  container.innerHTML = '';
+  cases.forEach((c, cIdx) => {
+    const card = document.createElement('div');
+    card.className = 'case-card';
+
+    const hdr = document.createElement('div');
+    hdr.style.display = 'flex'; hdr.style.justifyContent = 'space-between';
+    hdr.innerHTML = `<input type="text" class="trigger-input" value="${c.name || ''}" placeholder="Case Name" style="font-weight:600; font-size:13px; border:none; background:transparent; padding:0; flex:none; width:200px;">
+                     <button class="trigger-del" onclick="deleteCase(${cIdx})">🗑 Remove</button>`;
+    card.appendChild(hdr);
+
+    const pathRow = document.createElement('div');
+    pathRow.style.display = 'flex'; pathRow.style.gap = '8px'; pathRow.style.alignItems = 'center';
+    pathRow.innerHTML = `<span style="font-size:11px; color:var(--text-3); width:80px;">Initial Path</span>
+                         <input type="text" class="trigger-input path-input" value="${(c.initial_path || []).join(', ')}" placeholder="e.g. 1, 3, 2">`;
+    card.appendChild(pathRow);
+
+    const triggersDiv = document.createElement('div');
+    triggersDiv.className = 'triggers-container';
+    (c.triggers || []).forEach((t, tIdx) => {
+      const tr = document.createElement('div');
+      tr.className = 'trigger-block';
+      const esc = s => (s || '').replace(/"/g, '&quot;');
+      tr.innerHTML = `
+        <div class="trigger-title-row">
+          <span class="trigger-title-label">Title</span>
+          <input type="text" class="trigger-title-input t-title" value="${esc(t.title)}" placeholder="e.g. Account Number">
+          <button class="trigger-del" onclick="deleteTrigger(${cIdx}, ${tIdx})" style="margin-left:4px;">✕</button>
+        </div>
+        <div class="trigger-row">
+          <input type="text" class="trigger-input t-phrase" value="${esc(t.phrase)}" placeholder="IVR says… (e.g. account number)">
+          <input type="text" class="trigger-input t-resp" value="${esc(t.response)}" placeholder="Reply (or $variable)">
+          <select class="trigger-select t-kind">
+            <option value="dtmf" ${t.kind === 'dtmf' ? 'selected' : ''}>DTMF</option>
+            <option value="speech" ${t.kind === 'speech' ? 'selected' : ''}>Speech</option>
+          </select>
+        </div>
+      `;
+      triggersDiv.appendChild(tr);
+    });
+    card.appendChild(triggersDiv);
+
+    const addTrigBtn = document.createElement('button');
+    addTrigBtn.textContent = '+ Add Trigger';
+    addTrigBtn.style = 'background:none; border:none; color:var(--accent); font-size:11px; cursor:pointer; text-align:left; margin-top:4px;';
+    addTrigBtn.onclick = () => addTrigger(cIdx);
+    card.appendChild(addTrigBtn);
+
+    container.appendChild(card);
+  });
+}
+
+function getEditorData() {
+  const filename = document.getElementById('ts-filename').value.trim() || 'new_suite';
+  const data = {
+    name: filename,
+    target_number: document.getElementById('ts-target').value.trim(),
+    variables: getVariables(),
+    cases: []
+  };
+
+  const cards = document.querySelectorAll('.case-card');
+  cards.forEach(card => {
+    const name = card.querySelector('input[placeholder="Case Name"]').value.trim();
+    const pathStr = card.querySelector('.path-input').value.trim();
+    const initial_path = pathStr ? pathStr.split(',').map(s => s.trim()).filter(s => s) : [];
+
+    const triggers = [];
+    card.querySelectorAll('.trigger-block').forEach(tr => {
+      const title = tr.querySelector('.t-title')?.value.trim() || '';
+      const phrase = tr.querySelector('.t-phrase').value.trim();
+      const response = tr.querySelector('.t-resp').value.trim();
+      const kind = tr.querySelector('.t-kind').value;
+      const t = { phrase, response, kind };
+      if (title) t.title = title;
+      triggers.push(t);
+    });
+
+    data.cases.push({ name, initial_path, triggers });
+  });
+  return { filename, data };
+}
+
+async function saveSuite() {
+  const { filename, data } = getEditorData();
+  if (!data.target_number) {
+    alert('Please enter a default target number for the suite.');
+    return false;
+  }
+  if (!data.cases.length) {
+    alert('Please add at least one test case.');
+    return false;
+  }
+  for (const c of data.cases) {
+    if (!c.name) {
+      alert('Each test case must have a name.');
+      return false;
+    }
+    for (const t of (c.triggers || [])) {
+      if (!t.phrase || !t.response) {
+        alert(`Case "${c.name}" has a trigger missing phrase or response.`);
+        return false;
+      }
+    }
+  }
+
+  const resp = await fetch('/api/suites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename, data })
+  });
+  if (!resp.ok) {
+    let msg = 'Failed to save suite.';
+    try {
+      const payload = await resp.json();
+      if (payload && payload.error) msg = payload.error;
+    } catch (e) {
+      // no-op
+    }
+    alert(msg);
+    return false;
+  }
+  await loadSuites();
+  openSuite(filename + (filename.endsWith('.json') ? '' : '.json'));
+  return true;
+}
+
+async function runSuite() {
+  const saved = await saveSuite();
+  if (!saved) return;
+  const { filename } = getEditorData();
+  const fname = filename + (filename.endsWith('.json') ? '' : '.json');
+  document.getElementById('ts-modal').style.display = 'none';
+  const resp = await fetch('/api/suites/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: fname })
+  });
+  if (!resp.ok) {
+    let msg = 'Failed to start test suite.';
+    try {
+      const payload = await resp.json();
+      if (payload && payload.error) msg = payload.error;
+    } catch (e) {
+      // no-op
+    }
+    addLog('[error] ' + msg);
+    alert(msg);
+    return;
+  }
+  addLog(`[system] Test suite ${fname} started in background.`);
+}
+
+document.getElementById('btn-test-suite').onclick = () => {
+  document.getElementById('ts-modal').style.display = 'flex';
+  loadSuites();
+};
+document.getElementById('ts-close').onclick = () => {
+  document.getElementById('ts-modal').style.display = 'none';
+};
+document.getElementById('ts-new-btn').onclick = () => openSuite('new_suite');
+document.getElementById('ts-save-btn').onclick = saveSuite;
+document.getElementById('ts-run-btn').onclick = runSuite;
+document.getElementById('ts-add-case').onclick = () => {
+   const { data } = getEditorData();
+   data.cases.push({ name: 'New Case', initial_path: [], triggers: [] });
+   renderCases(data.cases);
+};
+window.deleteCase = (idx) => {
+   const { data } = getEditorData();
+   data.cases.splice(idx, 1);
+   renderCases(data.cases);
+};
+window.deleteTrigger = (cIdx, tIdx) => {
+   const { data } = getEditorData();
+   data.cases[cIdx].triggers.splice(tIdx, 1);
+   renderCases(data.cases);
+};
+window.addTrigger = (cIdx) => {
+   const { data } = getEditorData();
+   data.cases[cIdx].triggers.push({ title: '', phrase: '', response: '', kind: 'dtmf' });
+   renderCases(data.cases);
+};
+
+document.getElementById('ts-add-var').onclick = () => {
+  document.getElementById('ts-vars-container').appendChild(makeVarRow());
+};
+
 // Poll status
 setInterval(fetchStatus, 500);
 fetchStatus();
@@ -942,6 +1349,14 @@ _default_stream_url: str | None = None
 
 
 class LiveMapRequestHandler(BaseHTTPRequestHandler):
+    def _json_error(self, status_code: int, message: str) -> None:
+        body = json.dumps({"error": message}).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:
         if self.path == "/":
             self._html(HTML_PAGE)
@@ -950,7 +1365,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             self._json(self._status_payload())
             return
         if self.path == "/api/config":
-            wss = _to_wss(_default_stream_url) or ""
+            active_token = _persistent_stream.stream_auth_token if _persistent_stream else default_stream_auth_token()
+            wss = _to_wss(_default_stream_url, force_token=active_token) or ""
             self._json({
                 "target":  os.environ.get("TARGET_NUMBER", ""),
                 "user":    os.environ.get("USER_PHONE_NUMBER", ""),
@@ -959,7 +1375,7 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
                 "twilio_token_configured": bool(os.environ.get("TWILIO_AUTH_TOKEN")),
                 "tnum":    os.environ.get("TWILIO_PHONE_NUMBER", ""),
                 "stream":  wss,
-                "stream_auth_token": default_stream_auth_token(),
+                "stream_auth_token": active_token,
             })
             return
         if self.path == "/api/maps":
@@ -967,6 +1383,17 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/diagnose":
             self._json(_diagnose())
+            return
+        if self.path == "/api/suites":
+            _SUITES_DIR.mkdir(parents=True, exist_ok=True)
+            suites = []
+            for p in _SUITES_DIR.glob("*.json"):
+                try:
+                    with p.open() as f:
+                        suites.append({"filename": p.name, "data": json.load(f)})
+                except Exception:
+                    pass
+            self._json({"suites": suites})
             return
         if self.path.startswith("/api/maps/"):
             from urllib.parse import unquote
@@ -1095,6 +1522,69 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             notes = data.get("notes", "")
             ok = map_store.set_node_notes(target, prompt, notes) if target and prompt else False
             self._json({"ok": ok}); return
+        if self.path == "/api/suites":
+            _SUITES_DIR.mkdir(parents=True, exist_ok=True)
+            filename = data.get("filename")
+            suite_data = data.get("data")
+            try:
+                normalized_filename = _normalize_suite_filename(filename)
+            except ValueError as exc:
+                self._json_error(400, str(exc))
+                return
+            if not isinstance(suite_data, dict):
+                self._json_error(400, "Missing or invalid suite data")
+                return
+
+            from .test_suite import validate_suite_payload
+
+            try:
+                normalized = validate_suite_payload(suite_data)
+            except ValueError as exc:
+                self._json_error(400, str(exc))
+                return
+
+            with (_SUITES_DIR / normalized_filename).open("w") as f:
+                json.dump(normalized, f, indent=2)
+            self._json({"status": "ok"})
+            return
+        if self.path == "/api/suites/run":
+            filename = data.get("filename")
+            try:
+                normalized_filename = _normalize_suite_filename(filename)
+            except ValueError as exc:
+                self._json_error(400, str(exc))
+                return
+            suite_path = _SUITES_DIR / normalized_filename
+            if not suite_path.exists():
+                self._json_error(404, f"Suite not found: {normalized_filename}")
+                return
+
+            def _run_suite():
+                from .test_suite import run_test_suite_from_file, save_suite_result
+                from .twilio_client import TwilioTelephonyClient
+                sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+                token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+                tnum = os.environ.get("TWILIO_PHONE_NUMBER", "")
+                user = os.environ.get("USER_PHONE_NUMBER", "")
+
+                runner = None
+                if sid and token:
+                    runner = TwilioTelephonyClient(
+                        account_sid=sid, auth_token=token, twilio_number=tnum,
+                        user_phone_number=user, stream_url=_to_wss(_detect_ngrok_url() or _default_stream_url)
+                    )
+                _STATE.logs.append(f"[test-suite] Starting suite: {normalized_filename}")
+                try:
+                    result = run_test_suite_from_file(suite_path, runner=runner)
+                    json_path, md_path = save_suite_result(result)
+                    _STATE.logs.append(f"[test-suite] Finished {normalized_filename}. Passed: {result.passed_cases}/{result.total_cases}")
+                    _STATE.logs.append(f"[test-suite] Report saved to: {md_path.name}")
+                except Exception as e:
+                    _STATE.logs.append(f"[error] Test suite failed: {e}")
+
+            threading.Thread(target=_run_suite, daemon=True).start()
+            self._json({"status": "started"})
+            return
         self.send_response(404); self.end_headers()
 
     def do_DELETE(self) -> None:
@@ -1108,6 +1598,7 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
     # ── handlers ──────────────────────────────────────────────────────────────
 
     def _handle_start(self, data: dict) -> None:
+        _STATE.logs.append(f"[debug] /api/start payload: {data}")
         if not _STATE.is_running:
             _STATE.reset()
             _STATE.is_running = True
@@ -1211,6 +1702,7 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
 def launch(default_stream_url: str | None = None) -> None:
     global _default_stream_url
     _default_stream_url = default_stream_url
+    print(f"[DEBUG] Expected stream auth token: {default_stream_auth_token()}")
 
     # Credential check — print a clear summary so missing keys are obvious at startup.
     _REQUIRED = {

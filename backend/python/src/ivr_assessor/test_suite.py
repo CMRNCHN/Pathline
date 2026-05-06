@@ -4,12 +4,20 @@ import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Mapping, Sequence
 
-from .ivr_mapper import IvrMapper
-from .live_map import RecordingTelephonyClient
+from .live_map import (
+    LiveMappingSession,
+    PromptSource,
+    RecordingTelephonyClient,
+    ScriptedPromptSource,
+    build_default_response_library,
+)
 from .models import CallEvent
 from .telephony import TelephonyClient
+
+# Prevent pytest from attempting to collect dataclasses in this runtime module
+# as test classes due to their `Test*` names.
+__test__ = False
 
 
 @dataclass(frozen=True)
@@ -17,6 +25,7 @@ class TestTrigger:
     phrase: str
     response: str
     kind: str  # "dtmf" or "speech"
+    title: str = ""  # human label, e.g. "Account Number"
 
     def __post_init__(self):
         if self.kind not in ("dtmf", "speech"):
@@ -99,83 +108,201 @@ class TestSuiteResult:
         return "\n".join(lines)
 
 
+def validate_suite_payload(payload: object) -> dict[str, object]:
+    """Validate and normalize a suite payload loaded from JSON/UI.
+
+    Returns a normalized dict with `name`, `target_number`, and `cases`.
+    Raises ValueError with user-friendly messages on invalid input.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError("Suite payload must be a JSON object")
+
+    suite_name = str(payload.get("name", "")).strip() or "untitled-suite"
+    default_target = str(payload.get("target_number", "")).strip()
+    cases_raw = payload.get("cases", [])
+
+    if not isinstance(cases_raw, list):
+        raise ValueError("Suite 'cases' must be a JSON array")
+    if not cases_raw:
+        raise ValueError("Suite must include at least one test case")
+
+    normalized_cases: list[dict[str, object]] = []
+    for idx, item in enumerate(cases_raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"Case #{idx + 1} must be an object")
+
+        case_name = str(item.get("name", "")).strip() or f"case-{idx + 1}"
+        target_number = str(item.get("target_number", default_target)).strip()
+        if not target_number:
+            raise ValueError(
+                f"Case '{case_name}' is missing target_number (and no suite default provided)"
+            )
+
+        initial_path_raw = item.get("initial_path", [])
+        if not isinstance(initial_path_raw, list):
+            raise ValueError(f"Case '{case_name}' initial_path must be an array")
+        initial_path = [str(step).strip() for step in initial_path_raw if str(step).strip()]
+
+        triggers_raw = item.get("triggers", [])
+        if not isinstance(triggers_raw, list):
+            raise ValueError(f"Case '{case_name}' triggers must be an array")
+
+        normalized_triggers: list[dict[str, str]] = []
+        for t_idx, trigger in enumerate(triggers_raw):
+            if not isinstance(trigger, dict):
+                raise ValueError(
+                    f"Case '{case_name}' trigger #{t_idx + 1} must be an object"
+                )
+            phrase = str(trigger.get("phrase", "")).strip()
+            response = str(trigger.get("response", "")).strip()
+            kind = str(trigger.get("kind", "dtmf")).strip() or "dtmf"
+
+            if not phrase:
+                raise ValueError(f"Case '{case_name}' has a trigger with empty phrase")
+            if not response:
+                raise ValueError(f"Case '{case_name}' has a trigger with empty response")
+            if kind not in ("dtmf", "speech"):
+                raise ValueError(
+                    f"Case '{case_name}' trigger '{phrase}' has invalid kind '{kind}'"
+                )
+
+            title = str(trigger.get("title", "")).strip()
+            entry: dict[str, str] = {"phrase": phrase, "response": response, "kind": kind}
+            if title:
+                entry["title"] = title
+            normalized_triggers.append(entry)
+
+        normalized_cases.append(
+            {
+                "name": case_name,
+                "target_number": target_number,
+                "initial_path": initial_path,
+                "triggers": normalized_triggers,
+            }
+        )
+
+    variables_raw = payload.get("variables", {})
+    variables = {str(k): str(v) for k, v in variables_raw.items()} if isinstance(variables_raw, dict) else {}
+
+    return {
+        "name": suite_name,
+        "target_number": default_target,
+        "variables": variables,
+        "cases": normalized_cases,
+    }
+
+
+class _TestInterceptor(PromptSource):
+    """Wraps a prompt source to fire triggers and initial path digits."""
+
+    def __init__(
+        self,
+        source: PromptSource,
+        triggers: list[TestTrigger],
+        initial_path: list[str],
+        telephony: TelephonyClient,
+        session: LiveMappingSession,
+    ):
+        self.source = source
+        self.triggers = triggers
+        self.initial_path = list(initial_path)
+        self.telephony = telephony
+        self.session = session
+        self.fired_triggers: list[FiredTrigger] = []
+        self.fired_indices: set[int] = set()
+        self._initial_path_injected = False
+
+    def next_event(self, session_id: str) -> CallEvent | None:
+        # Send initial path immediately on first event poll
+        if not self._initial_path_injected:
+            self._initial_path_injected = True
+            for i, digit in enumerate(self.initial_path):
+                self.telephony.send_dtmf(session_id, digit)
+                evt = CallEvent(kind="action", text=f"dtmf:{digit}", t_ms=(i + 1) * 100)
+                self.session._record_event(evt, branch_confidence=1.0)
+
+        event = self.source.next_event(session_id)
+        if event and event.kind == "prompt":
+            text_lower = event.text.lower()
+            for idx, trigger in enumerate(self.triggers):
+                if idx in self.fired_indices:
+                    continue
+                if trigger.phrase.lower() in text_lower:
+                    if trigger.kind == "dtmf":
+                        self.telephony.send_dtmf(session_id, trigger.response)
+                        action_text = f"dtmf:{trigger.response}"
+                    else:
+                        self.telephony.say(session_id, trigger.response)
+                        action_text = f"say:{trigger.response}"
+
+                    self.fired_triggers.append(
+                        FiredTrigger(
+                            trigger_index=idx,
+                            phrase=trigger.phrase,
+                            t_ms=event.t_ms,
+                            response=trigger.response,
+                            kind=trigger.kind,
+                        )
+                    )
+                    self.fired_indices.add(idx)
+
+                    # Record the action directly into the session ledger
+                    evt = CallEvent(kind="action", text=action_text, t_ms=event.t_ms + 10)
+                    self.session._record_event(evt, branch_confidence=1.0)
+
+        return event
+
+
 def run_test_case(
     test_case: TestCase,
     runner: TelephonyClient | None = None,
+    prompt_source: PromptSource | None = None,
 ) -> TestCaseResult:
     client = runner or RecordingTelephonyClient()
-    session_id = client.dial(test_case.target_number)
-    mapper = IvrMapper()
-    transcript: list[dict[str, object]] = []
-    fired_triggers: list[FiredTrigger] = []
-    t_start = 0
-    final_node: str | None = None
 
-    # Inject initial path as DTMF
-    for i, digit in enumerate(test_case.initial_path):
-        client.send_dtmf(session_id, digit)
-        t_ms = (i + 1) * 100
-        transcript.append({"kind": "action", "text": f"dtmf:{digit}", "t_ms": t_ms})
-
-    # Simulate call progression with transcript events
-    # In a real scenario, these would come from Deepgram/Twilio
-    # For now, we'll process a dummy transcript and fire triggers based on it
-    simulated_events = [
+    source = prompt_source or ScriptedPromptSource([
         CallEvent(kind="prompt", text="Welcome to billing. Press 1 for account info.", t_ms=1000),
         CallEvent(kind="prompt", text="Please enter your account number.", t_ms=2000),
         CallEvent(kind="prompt", text="Thank you. Your account is confirmed.", t_ms=3000),
-    ]
+    ])
 
-    for event in simulated_events:
-        transcript.append({"kind": event.kind, "text": event.text, "t_ms": event.t_ms})
-        mapper.observe(event, branch_confidence=0.9, session_id=session_id)
+    session = LiveMappingSession(
+        target_number=test_case.target_number,
+        response_mode="mixed",
+        prompt_source=source,
+        telephony=client,
+        response_library=build_default_response_library("general"),
+        manual_mode=True,  # Prevent auto-exploration; test runner drives actions
+    )
 
-        # Check for trigger matches in this prompt
-        if event.kind == "prompt":
-            for idx, trigger in enumerate(test_case.triggers):
-                if trigger.phrase.lower() in event.text.lower():
-                    # Fire the trigger
-                    if trigger.kind == "dtmf":
-                        client.send_dtmf(session_id, trigger.response)
-                    elif trigger.kind == "speech":
-                        client.say(session_id, trigger.response)
+    interceptor = _TestInterceptor(
+        source=source,
+        triggers=test_case.triggers,
+        initial_path=test_case.initial_path,
+        telephony=client,
+        session=session,
+    )
+    session.prompt_source = interceptor
 
-                    fired = FiredTrigger(
-                        trigger_index=idx,
-                        phrase=trigger.phrase,
-                        t_ms=event.t_ms,
-                        response=trigger.response,
-                        kind=trigger.kind,
-                    )
-                    fired_triggers.append(fired)
-                    transcript.append(
-                        {
-                            "kind": "action",
-                            "text": f"{trigger.kind}:{trigger.response}",
-                            "t_ms": event.t_ms + 10,
-                        }
-                    )
+    summary = session.run()
 
-    client.hangup(session_id)
-
-    # Get final node from mapper
-    graph = mapper.graph()
-    if graph:
-        final_node = list(graph.keys())[-1] if graph else None
+    graph = summary.graph
+    final_node = list(graph.keys())[-1] if graph else None
+    transcript = [asdict(e) for e in session.ledger.all()]
 
     duration_ms = (
         transcript[-1]["t_ms"] - transcript[0]["t_ms"]
         if transcript
         else 0
     )
-    success = len(fired_triggers) == len(test_case.triggers)
+    success = len(interceptor.fired_triggers) == len(test_case.triggers)
 
     return TestCaseResult(
         name=test_case.name,
         target_number=test_case.target_number,
-        session_id=session_id,
+        session_id=summary.session_id,
         transcript=transcript,
-        fired_triggers=[asdict(ft) for ft in fired_triggers],
+        fired_triggers=[asdict(ft) for ft in interceptor.fired_triggers],
         final_node=final_node,
         duration_ms=duration_ms,
         success=success,
@@ -193,22 +320,37 @@ def run_test_suite_from_file(
     with open(path) as f:
         payload = json.load(f)
 
-    suite_name = payload.get("name", path.stem)
-    cases_data = payload.get("cases", [])
+    normalized = validate_suite_payload(payload)
+    suite_name = str(normalized.get("name", path.stem))
+    cases_data = normalized.get("cases", [])
+
+    # Build variable substitution map from suite-level `variables` dict.
+    # Values referenced as $variable_name in trigger responses are replaced here.
+    variables: dict[str, str] = {
+        str(k): str(v)
+        for k, v in (payload.get("variables") or {}).items()
+        if k and v is not None
+    }
+
+    def _interpolate(text: str) -> str:
+        for k, v in variables.items():
+            text = text.replace(f"${k}", v)
+        return text
 
     test_cases = []
     for item in cases_data:
         triggers = [
             TestTrigger(
                 phrase=t["phrase"],
-                response=t["response"],
+                response=_interpolate(t["response"]),
                 kind=t.get("kind", "dtmf"),
+                title=t.get("title", ""),
             )
             for t in item.get("triggers", [])
         ]
         case = TestCase(
             name=item.get("name", f"case-{len(test_cases)}"),
-            target_number=item.get("target_number", payload.get("target_number", "")),
+            target_number=item.get("target_number", normalized.get("target_number", "")),
             initial_path=item.get("initial_path", []),
             triggers=triggers,
         )
