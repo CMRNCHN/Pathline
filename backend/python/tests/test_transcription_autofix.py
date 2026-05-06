@@ -147,10 +147,10 @@ def test_autofix_walks_until_a_variant_accepts(monkeypatch: pytest.MonkeyPatch) 
 
     asyncio.run(go())
     assert t._connect_attempts >= 2
-    assert DeepgramTranscriber._learned_connect_params == {
-        "smart_format": True,
-        "interim_results": True,
-    }
+    learned = DeepgramTranscriber._learned_connect_params
+    assert learned is not None
+    assert learned.get("smart_format") is True
+    assert learned.get("interim_results") is True
 
 
 def test_autofix_falls_back_to_alternate_model(monkeypatch: pytest.MonkeyPatch) -> None:

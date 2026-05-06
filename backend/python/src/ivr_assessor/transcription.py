@@ -15,13 +15,42 @@ logger = logging.getLogger(__name__)
 # strings "true"/"false"). The autofix layer walks this list until one succeeds,
 # then remembers the winning shape on the class for the next connection.
 _CONNECT_PARAM_VARIANTS: list[dict[str, Any]] = [
+    {"smart_format": "true", "interim_results": "true", "punctuate": "true", "diarize": "false"},
+    {"smart_format": True, "interim_results": True, "punctuate": True, "diarize": False},
+    {"smart_format": "true", "interim_results": True, "punctuate": "true"},
+    {"smart_format": True, "interim_results": "true"},
     {"smart_format": "true", "interim_results": "true"},
     {"smart_format": True, "interim_results": True},
-    {"smart_format": "true", "interim_results": True},
-    {"smart_format": True, "interim_results": "true"},
 ]
 
 _MODEL_FALLBACKS: list[str] = ["nova-3", "nova-2", "nova", "base"]
+
+# Default IVR keyword boosts — improves recognition of common IVR phrases.
+# Extend via DEEPGRAM_KEYWORDS env var (comma-separated, e.g. "routing:2,balance:1").
+_DEFAULT_IVR_KEYWORDS: list[str] = [
+    "account number:2",
+    "credit card:2",
+    "card number:2",
+    "security code:2",
+    "CVV:2",
+    "zip code:2",
+    "billing:1",
+    "routing number:2",
+    "social security:2",
+    "date of birth:2",
+    "expiration:1",
+    "press one:1",
+    "press two:1",
+    "representative:1",
+    "agent:1",
+]
+
+
+def _build_keywords() -> list[str]:
+    """Merge default IVR keyword boosts with any from DEEPGRAM_KEYWORDS env var."""
+    extras_raw = os.getenv("DEEPGRAM_KEYWORDS", "")
+    extras = [k.strip() for k in extras_raw.split(",") if k.strip()]
+    return _DEFAULT_IVR_KEYWORDS + extras
 
 
 def _get(obj: Any, key: str, default: Any = None) -> Any:
@@ -176,6 +205,7 @@ class DeepgramTranscriber:
                 # 500ms of silence ⇒ Deepgram emits speech_final=True. Without
                 # this, speech_final never fires and prompts stay fragmented.
                 endpointing=500,
+                keywords=_build_keywords(),
                 **variant,
             )
             self._socket = await self._connect_cm.__aenter__()
