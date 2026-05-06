@@ -23,3 +23,19 @@ Run the test suite:
 ```bash
 python -m pytest -q
 ```
+
+## Optional Audio Quality Add-ons
+
+These are optional and **disabled by default** unless you set the related env var.
+
+- **AssemblyAI real-time transcription** (paid)
+  - Env: `ASSEMBLYAI_API_KEY`
+  - Current status: placeholder class present (`AssemblyAITranscriber`) with graceful disabled behavior when key is missing.
+- **Twilio Voice Intelligence post-call analytics** (paid)
+  - Env: `TWILIO_INTELLIGENCE_SERVICE_SID`
+  - Current status: placeholder class present (`TwilioVoiceIntelligence`) with graceful disabled behavior when SID is missing.
+- **Dolby.io audio enhancement** (free tier then paid)
+  - Env: `DOLBY_API_KEY`
+  - Current status: placeholder class present (`DolbyAudioEnhancer`) with graceful disabled behavior when key is missing.
+
+Reference env entries are already included in `backend/python/.env.example`.

@@ -20,6 +20,8 @@ import httpx
 from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
+from .audio_pipeline import VoiceActivityDetector, process_audio_frame
+from .transcript_filter import TranscriptFilter
 from .transcription import DeepgramTranscriber
 
 logger = logging.getLogger(__name__)
@@ -92,10 +94,17 @@ class StreamingServer:
         self._stream_auth_token = (
             default_stream_auth_token() if stream_auth_token is None else stream_auth_token
         )
+        # Transcript filter wraps _dispatch_transcript to dedup and drop noise.
+        # reset() is called at the start of each stream connection.
+        self._transcript_filter = TranscriptFilter(
+            on_transcript=self._raw_dispatch_transcript
+        )
+        self._active_streams = 0
         self.app = FastAPI()
         self.app.add_api_websocket_route("/stream", self._handle_stream)
         self.app.add_api_websocket_route("/listen", self._handle_listen)
         self.app.add_api_route("/recording-status", self._handle_recording_status, methods=["POST"])
+        self.app.add_api_route("/healthz", self._health_check, methods=["GET"])
 
     @property
     def stream_auth_token(self) -> str:
@@ -114,6 +123,11 @@ class StreamingServer:
         self._status_callbacks.clear()
 
     def _dispatch_transcript(self, text: str, is_final: bool, speech_final: bool) -> None:
+        """Entry point from transcribers — routes through the dedup filter."""
+        self._transcript_filter(text, is_final, speech_final)
+
+    def _raw_dispatch_transcript(self, text: str, is_final: bool, speech_final: bool) -> None:
+        """Deliver a transcript to registered callbacks (post-filter)."""
         for cb in self._callbacks:
             try:
                 cb(text, is_final, speech_final)
@@ -191,24 +205,51 @@ class StreamingServer:
             return
 
         await websocket.accept()
-        logger.info("Twilio stream connected")
+        self._active_streams += 1
+        logger.info("Twilio stream connected (active=%d)", self._active_streams)
         self._dispatch_status("[stream] Twilio connected to /stream")
 
-        transcriber = DeepgramTranscriber(
-            on_transcript=self._dispatch_transcript,
-            on_status=self._dispatch_status,
-        )
+        # Phase 2: factory selects backend via STT_BACKEND env var.
+        # Until stt_service.py exists, fall back to DeepgramTranscriber directly.
+        try:
+            from .stt_service import create_transcriber
+            transcriber = create_transcriber(
+                on_transcript=self._dispatch_transcript,
+                on_status=self._dispatch_status,
+            )
+        except ImportError:
+            transcriber = DeepgramTranscriber(
+                on_transcript=self._dispatch_transcript,
+                on_status=self._dispatch_status,
+            )
+
+        stt_backend = os.getenv("STT_BACKEND", "faster-whisper")
+        uses_pcm = getattr(transcriber, "INPUT_FORMAT", "mulaw_8k") == "pcm16_16k"
+
+        # Fresh dedup window per call.
+        self._transcript_filter.reset()
+
+        # VAD is only used when the backend expects processed PCM.
+        vad: VoiceActivityDetector | None = None
+        if uses_pcm:
+            def _on_vad_utterance(pcm_bytes: bytes) -> None:
+                asyncio.ensure_future(transcriber.process_audio(pcm_bytes))
+            vad = VoiceActivityDetector(on_utterance=_on_vad_utterance)
+
         connected = await transcriber.connect()
         if connected:
-            self._dispatch_status("[deepgram] ✓ connected — transcripts will flow")
+            self._dispatch_status(f"[{stt_backend}] ✓ connected — transcripts will flow")
         else:
-            self._dispatch_status("[deepgram] ✗ FAILED to connect — check DEEPGRAM_API_KEY")
-            logger.error("Could not connect to Deepgram. Transcripts will not be available.")
+            self._dispatch_status(f"[{stt_backend}] ✗ FAILED to connect")
+            logger.error("Could not connect to STT backend (%s). Transcripts unavailable.", stt_backend)
 
         media_count = 0
         last_status_count = 0
+        # Deepgram path: bounded queue (maxsize=50 ≈ 1s of audio at 20ms/frame)
+        # prevents unbounded memory growth if the transcriber falls behind.
+        _DEEPGRAM_QUEUE_MAX = 50
         audio_buffer = bytearray()
-        BUFFER_FLUSH_SIZE = 160 * 5  # 160 bytes (20ms) * 5 frames = 100ms
+        BUFFER_FLUSH_SIZE = 160 * 5  # 5 × 20ms = 100ms
         try:
             while True:
                 data = await websocket.receive_text()
@@ -217,15 +258,13 @@ class StreamingServer:
                 if message["event"] == "connected":
                     logger.info("Twilio stream started (connected event)")
                 elif message["event"] == "start":
-                    logger.info("Twilio stream details: %s", message["start"])
+                    logger.info("Twilio stream details: %s", message.get("start"))
                     self._dispatch_status("[stream] Twilio start event received")
                 elif message["event"] == "media":
-                    payload = message["media"]["payload"]
-                    audio_bytes = base64.b64decode(payload)
+                    audio_bytes = base64.b64decode(message["media"]["payload"])
                     media_count += 1
-                    audio_buffer.extend(audio_bytes)
 
-                    # Heartbeat every 5s of audio (250 frames at 20ms each)
+                    # Heartbeat every 5s (250 frames × 20ms)
                     if media_count - last_status_count >= 250:
                         self._dispatch_status(
                             f"[stream] {media_count} audio frames received "
@@ -233,18 +272,36 @@ class StreamingServer:
                         )
                         last_status_count = media_count
 
-                    # Flush buffer to Deepgram in larger chunks to prevent network jitter
-                    if connected and len(audio_buffer) >= BUFFER_FLUSH_SIZE:
-                        await transcriber.process_audio(bytes(audio_buffer))
-                        audio_buffer.clear()
+                    if connected:
+                        if uses_pcm and vad is not None:
+                            # PCM path: decode + resample + VAD → utterance → transcriber
+                            pcm = process_audio_frame(audio_bytes)
+                            vad.feed(pcm)
+                        else:
+                            # Deepgram path: buffer mulaw, flush in chunks
+                            # Drop oldest buffered chunk if we're backing up
+                            if len(audio_buffer) >= BUFFER_FLUSH_SIZE * _DEEPGRAM_QUEUE_MAX:
+                                audio_buffer = audio_buffer[-BUFFER_FLUSH_SIZE:]
+                                logger.warning(
+                                    "audio buffer overflow — dropped oldest frames "
+                                    "(media_count=%d)", media_count
+                                )
+                            audio_buffer.extend(audio_bytes)
+                            if len(audio_buffer) >= BUFFER_FLUSH_SIZE:
+                                await transcriber.process_audio(bytes(audio_buffer))
+                                audio_buffer.clear()
 
-                    # Forward raw audio to any browser /listen clients
+                    # Always forward raw mulaw to browser /listen clients
                     await self._broadcast_audio(audio_bytes)
+
                 elif message["event"] == "stop":
                     logger.info("Twilio stream stopped")
                     self._dispatch_status(f"[stream] stopped after {media_count} audio frames")
-                    if connected and audio_buffer:
-                        await transcriber.process_audio(bytes(audio_buffer))
+                    if connected:
+                        if uses_pcm and vad is not None:
+                            vad.flush()
+                        elif audio_buffer:
+                            await transcriber.process_audio(bytes(audio_buffer))
                     break
         except WebSocketDisconnect:
             logger.info("Twilio stream disconnected")
@@ -253,13 +310,25 @@ class StreamingServer:
             logger.error("Error handling Twilio stream: %s", e, exc_info=True)
             self._dispatch_status(f"[stream] error: {e}")
         finally:
+            self._active_streams = max(0, self._active_streams - 1)
             if connected:
+                if uses_pcm and vad is not None:
+                    vad.flush()
                 stats = transcriber.stats() if hasattr(transcriber, "stats") else {}
                 logger.info("Stream finished: media_count=%d transcriber_stats=%s", media_count, stats)
                 self._dispatch_status(
                     f"[stream] final stats: frames={media_count} transcriber={stats}"
                 )
                 await transcriber.close()
+
+    async def _health_check(self) -> dict:
+        return {
+            "status": "ok",
+            "stt_backend": os.getenv("STT_BACKEND", "faster-whisper"),
+            "tts_backend": os.getenv("TTS_BACKEND", "piper"),
+            "active_streams": self._active_streams,
+            "listen_clients": len(self._listeners),
+        }
 
     async def _handle_recording_status(self, request: Request) -> Response:
         """Receive Twilio recording-completed webhook, download the .wav, and

@@ -87,6 +87,15 @@ Wires `LiveMappingSession` into the discovery loop. Currently uses `RecordingTel
 ### Tests — NEW `tests/test_discovery_loop.py`
 Covers `plan_dfs_path` (4 cases) and `run_discovery_loop` (3 cases: stops on no-progress, stops on all-walked, respects max_calls).
 
+### Priority 1 — Test-suite runner
+Completed. JSON schema defined, `test_suite.py` implemented and outputs Markdown/JSON reports. GUI has a functional visual test suite editor modal.
+
+### Priority 2 — Smart input with strict DTMF detection
+Completed. Replaced old manual sections with a single smart input that auto-detects `DTMF` vs `Speech` using strict regex `^[\s0-9*#]+$`.
+
+### Priority 3 — Translate Cockpit (Frame A v1) to `live_map_gui.py`
+Completed. `live_map_gui.py` now uses the 320px right-rail Cockpit layout.
+
 ### Figma file — created
 - File: **IVR Mapper — Redesign Directions**
 - File key: `WDaOyHEifp9cySf8MC1Wxh`
@@ -102,52 +111,6 @@ Covers `plan_dfs_path` (4 cases) and `run_discovery_loop` (3 cases: stops on no-
 ## 4. What's pending / what to do next
 
 In **user-stated priority order:**
-
-### Priority 1 — Test-suite runner (the user's most recent ask)
-Build keyword-triggered DTMF/speech responses + batch test cases + transcript report. Spec from the user:
-
-> "I want to have words within prompts that trigger pre-entered dtmf responses where i can load up a series of tests with different responses and you let me know via recording or transcript what the ivrs responses are"
-
-**Design (decided this session):**
-- **Test case JSON schema:**
-  ```json
-  {
-    "name": "Pay bill — account 12345",
-    "target_number": "+18005550199",
-    "initial_path": ["1", "3"],
-    "triggers": [
-      {"phrase": "account number", "response": "12345", "kind": "dtmf"},
-      {"phrase": "billing department", "response": "billing please", "kind": "speech"}
-    ]
-  }
-  ```
-- **Suite file** = a JSON array of test cases.
-- **Runner** = new module `src/ivr_assessor/test_suite.py`. Reuses `LiveMappingSession` per case. Triggers fire when the live transcript contains the phrase (case-insensitive substring). Capture full transcript via the existing Deepgram callback path in `live_map_gui.py:_on_transcript`.
-- **Output:** per-case JSON report at `~/.ivr_assessor/reports/<suite>/<case>.json` with: every prompt, every action sent, which triggers fired, final node, full timeline. Plus a Markdown summary.
-- **GUI:** add a "Test Suite" tab in the left sidebar (next to Controls/Activity/Flows/Library). Editor reads/writes the same JSON files. Reuses existing Flow editor patterns where possible (`renderFlowEditor` in `live_map_gui.py`).
-
-There is already a `Flow` system in the GUI (`flow-list`, `flow-item`, `runFlow`, `tickFlow`, `checkFlowAgainstTranscript`) — read it before designing the test suite. The test suite is conceptually a *batch* of flows with reporting. **Don't duplicate. Extend.**
-
-### Priority 2 — Smart input with strict DTMF detection (task #9)
-**Where:** `src/ivr_assessor/live_map_gui.py`. Replace the three manual sections inside `<details class="adv">` with a single input.
-
-**Spec:**
-- Single-line input box. CSS: `bg-2` background, `accent` border at 0.55 opacity, accent glow shadow.
-- Detection chip in top-right of the input wrapper:
-  - `⚡ DTMF` (accent color) when text matches `^[\s0-9*#]+$` after trimming
-  - `🗣 Speech` (accent2 / purple) otherwise
-  - Empty → faded "Auto-detect" label
-- Hint line below: `digits, *, # → DTMF · everything else → speech`
-- Send button (compact, accent gradient, `Send ↵`)
-- Submit on Enter. The send handler dispatches to either `sendDigitSequence` (DTMF) or `sendSay` (speech) based on detection.
-- Live re-classification on every `input` event.
-
-JS regex: `/^[\s0-9*#]+$/` after `.trim()`. Empty string → no chip.
-
-### Priority 3 — Translate Cockpit (Frame A v1) to `live_map_gui.py` (task #10)
-The v1 Cockpit is in Figma. Rail dimensions: 320px wide. Pinned content: smart input + keypad + presets. Auto-pilot toggle moves to top of rail (currently in the toolbar above the map).
-
-Preserve all existing JS hooks: `poll`, `padPress`, `sendPrompt`, `renderFlow`, `pasteFire`, `firePreset`, `runFlow`, etc. Only the markup, CSS, and where buttons live should change.
 
 ### Priority 4 — Run pytest end-to-end
 Sandbox bash was offline this whole session (`Workspace still starting...`) so **no test ran**. The previous agent traced through every test case mentally and believes them to pass, but verify:

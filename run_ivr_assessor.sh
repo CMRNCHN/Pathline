@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+VENV_PYTHON="$DIR/backend/python/.venv/bin/python"
 
-if [ -f "$DIR/.env" ]; then
-    set -a
-    source "$DIR/.env"
-    set +a
+if [[ -x "$VENV_PYTHON" ]]; then
+  PYTHON_BIN="$VENV_PYTHON"
+else
+  PYTHON_BIN="${PYTHON_BIN:-python3}"
 fi
 
-"$DIR/backend/python/.venv/bin/python" -m ivr_assessor.cli "$@"
-# Check if the command failed and exit with its code
-exit $?
+PYTHONPATH="$DIR/backend/python/src${PYTHONPATH:+:$PYTHONPATH}" \
+  "$PYTHON_BIN" -m ivr_assessor.cli "$@"

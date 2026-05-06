@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-cleanmacgui",
+      "type": "shell",
+      "command": "swiftc",
+      "args": [
+        "-parse-as-library",
+        "-o",
+        "CleanMacGUI",
+        "CleanMacGUI.swift"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

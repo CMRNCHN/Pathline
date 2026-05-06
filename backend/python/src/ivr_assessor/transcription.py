@@ -85,6 +85,10 @@ class DeepgramTranscriber:
     on first connect and caches the winning combination.
     """
 
+    # Audio format expected by process_audio() — used by streaming_server to
+    # decide whether to apply the PCM pipeline or send raw mulaw.
+    INPUT_FORMAT = "mulaw_8k"
+
     # Cached winning connect parameters. Persists across instances within the
     # same process so the second call doesn't re-probe.
     _learned_connect_params: dict[str, Any] | None = None

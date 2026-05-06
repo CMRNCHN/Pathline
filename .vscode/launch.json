@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch with codelldb",
+            "preLaunchTask": "build-cleanmacgui",
+            "program": "${workspaceFolder}/CleanMacGUI",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "terminal": "integrated",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ]
+}

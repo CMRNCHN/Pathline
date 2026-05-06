@@ -14,3 +14,22 @@ __pycache__/
 backend/python/.venv/
 generated-answer-sheet.txt
 .env
+.ai/repomix-output.txt
+.ai/private-notes.md
+.ai/secrets.md
+
+# Audio artifacts — never commit recordings or model files
+*.wav
+*.mp3
+recordings/
+
+# Piper TTS model files (large, downloaded at runtime)
+*.onnx
+*.onnx.json
+voices/
+
+# Whisper / HuggingFace model cache
+.cache/
+
+# Secret scanning baseline
+.secrets.baseline

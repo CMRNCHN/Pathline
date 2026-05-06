@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import queue
+import time
 from pathlib import Path
 
 import typer
@@ -39,6 +41,26 @@ from .telephony import TelephonyClient
 
 
 app = typer.Typer(help="IVR assessor CLI")
+
+
+class StreamQueuePromptSource:
+    def __init__(self, q: queue.Queue, timeout: float):
+        self.q = q
+        self.timeout = timeout
+        self._t_start = time.time()
+
+    def next_event(self, session_id: str) -> CallEvent | None:
+        try:
+            text = self.q.get(timeout=self.timeout)
+        except queue.Empty:
+            return None
+        if text is None:
+            return None
+        t_ms = int((time.time() - self._t_start) * 1000)
+        return CallEvent(kind="prompt", text=text, t_ms=t_ms)
+
+    def elapsed_ms(self) -> int:
+        return int((time.time() - self._t_start) * 1000)
 
 
 @app.command()
@@ -166,6 +188,26 @@ def iterate_map(
         "--output",
         help="Optional path to write the JSON report. Always echoed to stdout.",
     ),
+    mode: str = typer.Option(
+        "scripted",
+        "--mode",
+        help="Use 'scripted' for simulated runs or 'interactive' for real Twilio calls.",
+    ),
+    stream_url: str | None = typer.Option(
+        None,
+        "--stream-url",
+        envvar="IVR_STREAM_URL",
+        help="ngrok wss:// URL for Twilio to stream audio to.",
+    ),
+    twilio_account_sid: str | None = typer.Option(
+        None, "--twilio-account-sid", envvar="TWILIO_ACCOUNT_SID"
+    ),
+    twilio_auth_token: str | None = typer.Option(
+        None, "--twilio-auth-token", envvar="TWILIO_AUTH_TOKEN"
+    ),
+    twilio_phone_number: str | None = typer.Option(
+        None, "--twilio-phone-number", envvar="TWILIO_PHONE_NUMBER"
+    ),
 ) -> None:
     """Run the iterative discovery loop until the IVR tree saturates.
 
@@ -175,6 +217,48 @@ def iterate_map(
     new nodes, when every announced option has been walked, or when
     --max-calls is reached — whichever comes first.
     """
+    prompt_queue = None
+    if mode == "interactive":
+        from .streaming_server import (
+            start_server_in_background,
+            register_transcript_callback,
+            default_stream_auth_token,
+            append_stream_auth_token,
+        )
+
+        if not stream_url:
+            typer.echo("Error: --stream-url is required for interactive mode.", err=True)
+            raise typer.Exit(code=1)
+
+        prompt_queue = queue.Queue()
+
+        wss = stream_url.strip().replace("https://", "wss://", 1).replace("http://", "ws://", 1)
+        if not wss.rstrip("/").endswith("/stream"):
+            wss = f"{wss.rstrip('/')}/stream"
+        stream_url = append_stream_auth_token(wss, default_stream_auth_token())
+
+        start_server_in_background(port=8081)
+
+        _utterance: dict[str, list[str]] = {"chunks": []}
+
+        def _flush_utterance() -> None:
+            joined = " ".join(_utterance["chunks"]).strip()
+            _utterance["chunks"] = []
+            if joined:
+                prompt_queue.put(joined)
+
+        def _on_transcript(text: str, is_final: bool, speech_final: bool) -> None:
+            t = text.strip()
+            if not t:
+                if speech_final:
+                    _flush_utterance()
+                return
+            if is_final:
+                _utterance["chunks"].append(t)
+                if speech_final:
+                    _flush_utterance()
+
+        register_transcript_callback(_on_transcript)
 
     def _runner(
         target: str,
@@ -188,17 +272,29 @@ def iterate_map(
             for b in (node.get("branches") or {}).values()
             if int((b or {}).get("count", 0) or 0) > 0
         )
-        telephony = RecordingTelephonyClient()
-        prompt_source = ScriptedPromptSource(
-            [
-                CallEvent(kind="prompt", text=text, t_ms=index * 250)
-                for index, text in enumerate(prompt)
-            ]
-        )
+        
+        if mode == "interactive":
+            from .twilio_client import TwilioTelephonyClient
+            telephony = TwilioTelephonyClient(
+                account_sid=twilio_account_sid,
+                auth_token=twilio_auth_token,
+                twilio_number=twilio_phone_number,
+                stream_url=stream_url,
+            )
+            psource = StreamQueuePromptSource(prompt_queue, timeout=10.0)
+        else:
+            telephony = RecordingTelephonyClient()
+            psource = ScriptedPromptSource(
+                [
+                    CallEvent(kind="prompt", text=text, t_ms=index * 250)
+                    for index, text in enumerate(prompt)
+                ]
+            )
+
         session = LiveMappingSession(
             target_number=target,
             response_mode="dtmf",
-            prompt_source=prompt_source,
+            prompt_source=psource,
             telephony=telephony,
             response_library=build_default_response_library("general"),
             mapper=mapper,
@@ -215,6 +311,19 @@ def iterate_map(
                 aborted=True,
                 error=str(exc),
             )
+        finally:
+            if mode == "interactive" and session.session_id:
+                try:
+                    telephony.hangup(session.session_id)
+                except Exception:
+                    pass
+            if prompt_queue:
+                while True:
+                    try:
+                        prompt_queue.get_nowait()
+                    except queue.Empty:
+                        break
+
         after_nodes = len(mapper.graph())
         after_branches = sum(
             1
@@ -469,6 +578,63 @@ def test_suite_command(
     typer.echo(f"  JSON: {json_path}")
     typer.echo(f"  Markdown: {md_path}")
     typer.echo(f"\nSummary: {result.passed_cases}/{result.total_cases} cases passed")
+
+
+@app.command("test-suite-wizard")
+def test_suite_wizard(
+    output: Path = typer.Option(..., "--output", help="Path to save the generated JSON suite"),
+) -> None:
+    """Interactive wizard to build a test suite without writing JSON."""
+    typer.echo("🧪 Test Suite Wizard")
+    typer.echo("Let's build a fill-in-the-blanks test suite.\n")
+
+    suite_name = typer.prompt("Suite Name", default="My Test Suite")
+    suite_target = typer.prompt("Default Target Number", default="+18005550199")
+
+    cases = []
+    while True:
+        typer.echo(f"\n--- Adding Case #{len(cases) + 1} ---")
+        case_name = typer.prompt("Case Name", default=f"Case {len(cases) + 1}")
+
+        target = typer.prompt("Target Number (leave blank to use suite default)", default="")
+        if not target.strip():
+            target = suite_target
+
+        path_str = typer.prompt("Initial DTMF Path (comma separated digits, or leave blank)", default="")
+        initial_path = [p.strip() for p in path_str.split(",") if p.strip()]
+
+        triggers = []
+        while True:
+            add_trigger = typer.confirm(f"Add a trigger to '{case_name}'?", default=True)
+            if not add_trigger:
+                break
+
+            phrase = typer.prompt("When the IVR says (phrase)")
+            response = typer.prompt("Respond with")
+            kind = typer.prompt("Response kind (dtmf or speech)", default="dtmf")
+
+            triggers.append({
+                "phrase": phrase,
+                "response": response,
+                "kind": kind
+            })
+
+        cases.append({
+            "name": case_name,
+            "target_number": target,
+            "initial_path": initial_path,
+            "triggers": triggers
+        })
+
+        add_case = typer.confirm("\nAdd another test case?", default=False)
+        if not add_case:
+            break
+
+    suite = {"name": suite_name, "target_number": suite_target, "cases": cases}
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(suite, indent=2), encoding="utf-8")
+    typer.echo(f"\n✅ Saved test suite to {output}")
+    typer.echo(f"Run it with: ivr-assessor test-suite --suite {output}")
 
 
 @app.command("voice-generate")
