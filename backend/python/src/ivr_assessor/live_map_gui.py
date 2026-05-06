@@ -1132,9 +1132,32 @@ function renderSuitesList() {
   });
 }
 
+const DEFAULT_SCHEMA = '_id|bin|base|level|cc|exp|expmonth|expyear|cvv|name|firstname|lastname|address|city|zip|state|country|bank|type|brand|phone|dob|ua|ssn|mmn|dl|other|email|ip';
+const DEFAULT_VARIABLE_LABELS = {
+  _id:'ID', bin:'BIN', base:'Base', level:'Level',
+  cc:'Card Number', exp:'Expiration', expmonth:'Exp Month', expyear:'Exp Year', cvv:'CVV',
+  name:'Full Name', firstname:'First Name', lastname:'Last Name',
+  address:'Address', city:'City', zip:'ZIP Code', state:'State', country:'Country',
+  bank:'Bank', type:'Card Type', brand:'Brand', phone:'Phone', dob:'Date of Birth',
+  ua:'User Agent', ssn:'SSN', mmn:'Mother\'s Maiden Name', dl:'Driver\'s License',
+  other:'Other', email:'Email', ip:'IP Address'
+};
+const DEFAULT_VARIABLES = Object.fromEntries(Object.keys(DEFAULT_VARIABLE_LABELS).map(k => [k, '']));
+
 function openSuite(filename) {
   currentSuiteFilename = filename;
-  const suite = suites.find(s => s.filename === filename) || { filename: filename, data: { name: filename.replace('.json',''), target_number: '', cases: [], variables: {}, variable_labels: {} } };
+  const isNew = !suites.find(s => s.filename === filename);
+  const suite = suites.find(s => s.filename === filename) || {
+    filename: filename,
+    data: {
+      name: filename.replace('.json',''),
+      target_number: '',
+      cases: [],
+      data_schema: DEFAULT_SCHEMA,
+      variable_labels: DEFAULT_VARIABLE_LABELS,
+      variables: DEFAULT_VARIABLES
+    }
+  };
   document.getElementById('ts-editor').style.display = 'block';
   document.getElementById('ts-filename').value = suite.filename.replace('.json','');
   document.getElementById('ts-target').value = suite.data.target_number || '';
