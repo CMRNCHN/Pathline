@@ -1,0 +1,63 @@
+version: "3.9"
+
+volumes:
+  whisper_cache:
+  piper_voices:
+
+services:
+  # ── API (streaming server + GUI) ─────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    ports:
+      - "8081:8081"
+    env_file: .env
+    environment:
+      STT_BACKEND: faster-whisper
+      TTS_BACKEND: piper
+      PIPER_BINARY: /usr/local/bin/piper
+      PIPER_VOICE: /app/voices/en_US-lessac-medium.onnx
+      WHISPER_MODEL: small.en
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      LOG_FORMAT: json
+    volumes:
+      - whisper_cache:/root/.cache/huggingface
+      - piper_voices:/app/voices
+    depends_on:
+      stt:
+        condition: service_completed_successfully
+      tts:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/healthz"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+
+  # ── STT model pre-warmer ──────────────────────────────────────────────────────
+  # Runs once to ensure the Whisper model is cached; exits 0 when done.
+  stt:
+    build:
+      context: .
+      dockerfile: docker/stt/Dockerfile
+      args:
+        WHISPER_MODEL: small.en
+    environment:
+      WHISPER_MODEL: small.en
+    volumes:
+      - whisper_cache:/root/.cache/huggingface
+    restart: "no"
+
+  # ── TTS voice pre-warmer ──────────────────────────────────────────────────────
+  # Ensures piper binary + voice model are in the shared volume; exits 0 when done.
+  tts:
+    build:
+      context: .
+      dockerfile: docker/tts/Dockerfile
+    volumes:
+      - piper_voices:/app/voices
+    restart: "no"
