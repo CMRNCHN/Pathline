@@ -1,8 +1,18 @@
 from __future__ import annotations
 
 import os
+import random
 from typing import Any
 from xml.sax.saxutils import escape, quoteattr
+
+
+def pick_caller_id(twilio_number: str | None = None) -> str:
+    """Return a random number from TWILIO_PHONE_NUMBERS pool, or fall back to TWILIO_PHONE_NUMBER."""
+    pool_raw = os.environ.get("TWILIO_PHONE_NUMBERS", "")
+    pool = [n.strip() for n in pool_raw.split(",") if n.strip()]
+    if pool:
+        return random.choice(pool)
+    return twilio_number or os.environ.get("TWILIO_PHONE_NUMBER", "")
 
 
 class TwilioTelephonyClient:
@@ -24,7 +34,7 @@ class TwilioTelephonyClient:
 
         self._sid = account_sid or os.environ.get("TWILIO_ACCOUNT_SID")
         self._token = auth_token or os.environ.get("TWILIO_AUTH_TOKEN")
-        self._from = twilio_number or os.environ.get("TWILIO_PHONE_NUMBER")
+        self._from = pick_caller_id(twilio_number)
         self._user_phone_number = user_phone_number
         self._stream_url = stream_url
         self._recording_status_callback = recording_status_callback or os.environ.get("TWILIO_RECORDING_STATUS_CALLBACK")
@@ -40,6 +50,13 @@ class TwilioTelephonyClient:
 
     def dial(self, target_number: str) -> str:
         """Dials the target number and returns a call SID."""
+        # Re-pick caller ID each call so a pool rotates across cases in a suite.
+        caller = pick_caller_id(self._from)
+        if caller != self._from:
+            import logging
+            logging.getLogger(__name__).info("[caller-id] using %s", caller)
+        self._from = caller
+
         if self._user_phone_number:
             import uuid
             conference_name = f"ivr-{uuid.uuid4().hex[:8]}"
