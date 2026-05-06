@@ -620,13 +620,26 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
 .trigger-select{background:var(--bg-2);border:1px solid var(--border);border-radius:6px;color:var(--text-1);padding:7px;font-size:12px;outline:none;width:80px;}
 .trigger-del{background:none;border:none;color:var(--danger);cursor:pointer;padding:4px;}
 .var-section{margin-bottom:16px;}
-.var-row{display:flex;gap:6px;align-items:center;margin-top:6px;}
-.var-key{width:140px;background:var(--bg-1);border:1px solid var(--border);border-radius:6px;color:var(--accent);padding:7px;font-size:12px;font-weight:600;outline:none;font-family:'JetBrains Mono','SF Mono',monospace;}
+.var-col-heads{display:grid;grid-template-columns:1fr 120px 1fr 24px;gap:6px;padding:0 2px;margin-top:8px;}
+.var-col-head{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);}
+.var-row{display:grid;grid-template-columns:1fr 120px 1fr 24px;gap:6px;align-items:center;margin-top:4px;}
+.var-label{background:var(--bg-1);border:1px solid var(--border);border-radius:6px;color:var(--text-1);padding:7px;font-size:12px;outline:none;}
+.var-label:focus{border-color:var(--accent);}
+.var-key{background:var(--bg-1);border:1px solid var(--border);border-radius:6px;color:var(--accent);padding:7px;font-size:12px;font-weight:600;outline:none;font-family:'JetBrains Mono','SF Mono',monospace;}
 .var-key:focus{border-color:var(--accent);}
-.var-val{flex:1;background:var(--bg-1);border:1px solid var(--border);border-radius:6px;color:var(--text-1);padding:7px;font-size:12px;outline:none;}
+.var-val{background:var(--bg-1);border:1px solid var(--border);border-radius:6px;color:var(--text-1);padding:7px;font-size:12px;outline:none;}
 .var-val:focus{border-color:var(--accent);}
-.var-hint{font-size:10px;color:var(--text-3);margin-top:4px;}
+.var-val.filled{border-color:rgba(110,141,255,.4);color:#38bdf8;}
+.var-hint{font-size:10px;color:var(--text-3);margin-top:6px;}
 .var-hint code{color:var(--accent);background:var(--bg-2);padding:1px 4px;border-radius:3px;font-size:10px;}
+.data-loader{background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+.data-loader-title{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);}
+.data-loader-input{background:var(--bg-1);border:1px solid var(--border);border-radius:6px;color:var(--text-2);padding:8px;font-size:11px;font-family:'JetBrains Mono','SF Mono',monospace;outline:none;resize:none;width:100%;box-sizing:border-box;}
+.data-loader-input:focus{border-color:var(--accent);}
+.data-loader-row{display:flex;gap:8px;align-items:center;}
+.parse-btn{background:linear-gradient(135deg,#6e8dff,#5577ee);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.parse-btn:hover{filter:brightness(1.1);}
+.parse-status{font-size:11px;color:var(--text-3);}
 </style>
 </head>
 <body>
@@ -778,8 +791,23 @@ header{height:70px;background:linear-gradient(180deg,#11162a 0%,#0c1020 100%);bo
             <div class="section-title">Variables</div>
             <button id="ts-add-var" style="background:none;border:1px solid var(--border);color:var(--text-2);border-radius:6px;cursor:pointer;padding:4px 8px;font-size:11px;">+ Add</button>
           </div>
-          <div class="var-hint">Define values once, reference with <code>$variable_name</code> in any response.</div>
+          <div class="var-hint">Reference any variable in a trigger response as <code>$json_key</code></div>
+          <div class="var-col-heads">
+            <span class="var-col-head">Variable Name</span>
+            <span class="var-col-head">JSON Key</span>
+            <span class="var-col-head">Value</span>
+            <span></span>
+          </div>
           <div id="ts-vars-container"></div>
+          <div class="data-loader">
+            <div class="data-loader-title">⚡ Load from Data Row</div>
+            <textarea id="ts-schema" class="data-loader-input" rows="2" placeholder="Paste header row: _id|bin|cc|exp|cvv|zip|name|..."></textarea>
+            <div class="data-loader-row">
+              <textarea id="ts-datarow" class="data-loader-input" rows="2" placeholder="Paste data row: 001|411111|4111111111111111|12/26|123|90210|John Doe|..." style="flex:1;"></textarea>
+              <button class="parse-btn" id="ts-parse-btn">Fill ↵</button>
+            </div>
+            <div id="ts-parse-status" class="parse-status"></div>
+          </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
           <div class="section-title">Test Cases</div>
@@ -1106,42 +1134,86 @@ function renderSuitesList() {
 
 function openSuite(filename) {
   currentSuiteFilename = filename;
-  const suite = suites.find(s => s.filename === filename) || { filename: filename, data: { name: filename.replace('.json',''), target_number: '', cases: [], variables: {} } };
+  const suite = suites.find(s => s.filename === filename) || { filename: filename, data: { name: filename.replace('.json',''), target_number: '', cases: [], variables: {}, variable_labels: {} } };
   document.getElementById('ts-editor').style.display = 'block';
   document.getElementById('ts-filename').value = suite.filename.replace('.json','');
   document.getElementById('ts-target').value = suite.data.target_number || '';
-  renderVariables(suite.data.variables || {});
+  document.getElementById('ts-schema').value = suite.data.data_schema || '';
+  document.getElementById('ts-parse-status').textContent = '';
+  renderVariables(suite.data.variables || {}, suite.data.variable_labels || {});
   renderCases(suite.data.cases || []);
   renderSuitesList();
 }
 
-function renderVariables(vars) {
+function renderVariables(vars, labels) {
+  // vars: {key: value}, labels: {key: label}
   const container = document.getElementById('ts-vars-container');
   container.innerHTML = '';
-  Object.entries(vars).forEach(([k, v]) => {
-    container.appendChild(makeVarRow(k, v));
+  const entries = Object.keys(vars).length
+    ? Object.entries(vars)
+    : Object.entries(labels || {}).map(([k]) => [k, '']);
+  const seen = new Set();
+  entries.forEach(([k, v]) => {
+    seen.add(k);
+    container.appendChild(makeVarRow(labels?.[k] || '', k, v));
+  });
+  // also add rows for labels without values
+  Object.entries(labels || {}).forEach(([k, lbl]) => {
+    if (!seen.has(k)) container.appendChild(makeVarRow(lbl, k, ''));
   });
 }
 
-function makeVarRow(key='', val='') {
+function makeVarRow(label='', key='', val='') {
+  const esc = s => (s || '').replace(/"/g, '&quot;');
   const row = document.createElement('div');
   row.className = 'var-row';
-  row.innerHTML = `<input class="var-key trigger-input" placeholder="variable_name" value="${key.replace(/"/g,'&quot;')}">
-    <span style="color:var(--text-3);font-size:13px;">=</span>
-    <input class="var-val trigger-input" placeholder="value" value="${val.replace(/"/g,'&quot;')}">
+  row.innerHTML = `
+    <input class="var-label" placeholder="Card Number" value="${esc(label)}">
+    <input class="var-key" placeholder="cc_num" value="${esc(key)}">
+    <input class="var-val${val ? ' filled' : ''}" placeholder="value or auto-filled" value="${esc(val)}">
     <button class="trigger-del" onclick="this.closest('.var-row').remove()">✕</button>`;
   return row;
 }
 
 function getVariables() {
-  const vars = {};
+  const vars = {}, labels = {};
+  document.querySelectorAll('#ts-vars-container .var-row').forEach(row => {
+    const lbl = row.querySelector('.var-label').value.trim();
+    const k   = row.querySelector('.var-key').value.trim();
+    const v   = row.querySelector('.var-val').value.trim();
+    if (k) { vars[k] = v; if (lbl) labels[k] = lbl; }
+  });
+  return { vars, labels };
+}
+
+function parseDataRow() {
+  const schemaRaw = document.getElementById('ts-schema').value.trim();
+  const dataRaw   = document.getElementById('ts-datarow').value.trim();
+  const status    = document.getElementById('ts-parse-status');
+  if (!schemaRaw || !dataRaw) { status.textContent = 'Paste both header and data row first.'; return; }
+
+  const headers = schemaRaw.split('|').map(h => h.trim());
+  const values  = dataRaw.split('|');
+  const parsed  = {};
+  headers.forEach((h, i) => { if (h) parsed[h] = (values[i] || '').trim(); });
+
+  // Fill matching var-val fields where key matches a parsed column
+  let filled = 0;
   document.querySelectorAll('#ts-vars-container .var-row').forEach(row => {
     const k = row.querySelector('.var-key').value.trim();
-    const v = row.querySelector('.var-val').value.trim();
-    if (k) vars[k] = v;
+    if (k && parsed[k] !== undefined) {
+      const inp = row.querySelector('.var-val');
+      inp.value = parsed[k];
+      inp.classList.add('filled');
+      filled++;
+    }
   });
-  return vars;
+  status.textContent = filled
+    ? `✓ Filled ${filled} variable${filled > 1 ? 's' : ''} from data row.`
+    : 'No matching JSON keys found. Check key names match your header columns.';
 }
+
+document.getElementById('ts-parse-btn').onclick = parseDataRow;
 
 function renderCases(cases) {
   const container = document.getElementById('ts-cases-container');
@@ -1199,10 +1271,14 @@ function renderCases(cases) {
 
 function getEditorData() {
   const filename = document.getElementById('ts-filename').value.trim() || 'new_suite';
+  const { vars, labels } = getVariables();
+  const schema = document.getElementById('ts-schema').value.trim();
   const data = {
     name: filename,
     target_number: document.getElementById('ts-target').value.trim(),
-    variables: getVariables(),
+    variables: vars,
+    variable_labels: labels,
+    ...(schema && { data_schema: schema }),
     cases: []
   };
 
@@ -1330,7 +1406,7 @@ window.addTrigger = (cIdx) => {
 };
 
 document.getElementById('ts-add-var').onclick = () => {
-  document.getElementById('ts-vars-container').appendChild(makeVarRow());
+  document.getElementById('ts-vars-container').appendChild(makeVarRow('', '', ''));
 };
 
 // Poll status

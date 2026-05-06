@@ -1,60 +1,54 @@
 {
   "name": "Billing System Tests",
   "target_number": "+18005550199",
+  "data_schema": "_id|bin|base|level|cc|exp|expmonth|expyear|cvv|name|firstname|lastname|address|city|zip|state|country|bank|type|brand|phone|dob|ua|ssn|mmn|dl|other|email|ip",
+  "variable_labels": {
+    "cc": "Card Number",
+    "exp": "Expiration",
+    "cvv": "CVV",
+    "zip": "ZIP Code",
+    "phone": "Phone Number",
+    "ssn": "SSN",
+    "dob": "Date of Birth"
+  },
   "variables": {
-    "account_number": "5551234567",
-    "zip_code": "90210",
-    "alt_account": "5559876543"
+    "cc": "",
+    "exp": "",
+    "cvv": "",
+    "zip": "",
+    "phone": "",
+    "ssn": "",
+    "dob": ""
   },
   "cases": [
     {
-      "name": "Pay bill with account number",
+      "name": "Pay bill with card",
       "target_number": "+18005550199",
       "initial_path": ["1"],
       "triggers": [
         {
-          "title": "Account Number",
-          "phrase": "account number",
-          "response": "$account_number",
+          "title": "Card Number",
+          "phrase": "credit card number",
+          "response": "$cc",
+          "kind": "dtmf"
+        },
+        {
+          "title": "Expiration",
+          "phrase": "expiration",
+          "response": "$exp",
+          "kind": "dtmf"
+        },
+        {
+          "title": "CVV",
+          "phrase": "security code",
+          "response": "$cvv",
           "kind": "dtmf"
         },
         {
           "title": "ZIP Code",
           "phrase": "zip code",
-          "response": "$zip_code",
+          "response": "$zip",
           "kind": "dtmf"
-        },
-        {
-          "title": "Confirm Payment",
-          "phrase": "Thank you",
-          "response": "yes please",
-          "kind": "speech"
-        }
-      ]
-    },
-    {
-      "name": "Check account balance",
-      "target_number": "+18005550199",
-      "initial_path": ["2"],
-      "triggers": [
-        {
-          "title": "Account Number",
-          "phrase": "account number",
-          "response": "$alt_account",
-          "kind": "dtmf"
-        }
-      ]
-    },
-    {
-      "name": "Transfer to billing agent",
-      "target_number": "+18005550199",
-      "initial_path": ["3"],
-      "triggers": [
-        {
-          "title": "Request Agent",
-          "phrase": "agent",
-          "response": "yes please",
-          "kind": "speech"
         }
       ]
     }
