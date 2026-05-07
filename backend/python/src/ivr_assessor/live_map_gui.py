@@ -327,6 +327,41 @@ class _AppState:
 _STATE = _AppState()
 
 
+# ── Run Suite state ───────────────────────────────────────────────────────────
+
+_RUN_SUITES_DIR = Path.home() / ".ivr_assessor" / "run_suites"
+
+
+class _RunSuiteState:
+    """Holds the active SuiteRunner and its result for the HTTP poll layer."""
+
+    def __init__(self) -> None:
+        self._runner: "Any | None" = None
+        self._lock = threading.Lock()
+
+    def set_runner(self, runner: "Any") -> None:
+        with self._lock:
+            self._runner = runner
+
+    def get_runner(self) -> "Any | None":
+        with self._lock:
+            return self._runner
+
+    def poll(self) -> list[dict]:
+        runner = self.get_runner()
+        if runner is None:
+            return []
+        return runner.poll_events()
+
+    def abort(self) -> None:
+        runner = self.get_runner()
+        if runner:
+            runner.abort()
+
+
+_RS_STATE = _RunSuiteState()
+
+
 def _run_session_thread(
     target: str,
     user: str,
@@ -1437,6 +1472,502 @@ setInterval(fetchStatus, 500);
 fetchStatus();
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     RUN SUITES MODAL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<style>
+.rs-modal{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.rs-content{background:var(--bg-0,#0f1117);width:min(1100px,96vw);height:min(780px,92vh);border-radius:14px;border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 60px rgba(0,0,0,.6)}
+.rs-header{padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg-2);display:flex;align-items:center;gap:12px}
+.rs-header h2{font-size:15px;font-weight:700;color:#fff;flex:1}
+.rs-body{display:flex;flex:1;overflow:hidden}
+.rs-left{width:220px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-1)}
+.rs-left-title{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3);padding:14px 14px 6px}
+.rs-suite-list{flex:1;overflow-y:auto;padding:0 8px 8px}
+.rs-suite-item{padding:9px 10px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--text-2);margin-bottom:2px;transition:all .12s;border:1px solid transparent}
+.rs-suite-item:hover{background:rgba(255,255,255,.04);border-color:var(--border)}
+.rs-suite-item.active{background:var(--accent-soft);color:var(--accent);border-color:rgba(110,141,255,.3);font-weight:600}
+.rs-suite-item-name{font-weight:600;margin-bottom:2px}
+.rs-suite-item-meta{font-size:10px;color:var(--text-3)}
+.rs-left-actions{padding:8px;display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border)}
+.rs-center{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.rs-center-top{padding:14px 16px 10px;border-bottom:1px solid var(--border)}
+.rs-suite-name{font-size:16px;font-weight:700;color:#fff}
+.rs-suite-desc{font-size:12px;color:var(--text-3);margin-top:4px}
+.rs-scenario-tabs{display:flex;gap:6px;padding:10px 16px 0;border-bottom:1px solid var(--border);overflow-x:auto}
+.rs-tab{padding:7px 14px;border-radius:7px 7px 0 0;font-size:12px;font-weight:600;cursor:pointer;color:var(--text-3);background:none;border:1px solid transparent;border-bottom:none;white-space:nowrap;transition:all .12s}
+.rs-tab.active{color:var(--accent);background:var(--accent-soft);border-color:rgba(110,141,255,.3)}
+.rs-step-list{flex:1;overflow-y:auto;padding:12px 16px}
+.rs-step{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:9px;margin-bottom:6px;border:1px solid var(--border);background:var(--bg-1);cursor:pointer;transition:all .12s}
+.rs-step:hover{border-color:rgba(110,141,255,.3);background:var(--bg-2)}
+.rs-step.active-step{border-color:var(--accent);background:var(--accent-soft)}
+.rs-step-status{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-top:1px}
+.rs-step-status.pending{background:rgba(255,255,255,.06);color:var(--text-3)}
+.rs-step-status.running{background:rgba(59,130,246,.2);color:#60a5fa;animation:pulse 1s infinite}
+.rs-step-status.passed{background:rgba(52,211,153,.15);color:#34d399}
+.rs-step-status.failed{background:rgba(248,113,113,.15);color:#f87171}
+.rs-step-status.timed_out{background:rgba(251,191,36,.15);color:#fbbf24}
+.rs-step-status.retrying{background:rgba(251,191,36,.1);color:#fbbf24}
+.rs-step-status.skipped{background:rgba(255,255,255,.04);color:var(--text-3)}
+.rs-step-status.errored{background:rgba(248,113,113,.15);color:#f87171}
+.rs-step-id{font-size:11px;font-weight:700;color:var(--text-1);margin-bottom:2px}
+.rs-step-action{font-size:10px;color:var(--accent);font-family:'JetBrains Mono','SF Mono',monospace;margin-bottom:3px}
+.rs-step-expected{font-size:10px;color:var(--text-3)}
+.rs-step-dur{font-size:10px;color:var(--text-3);margin-left:auto;white-space:nowrap}
+.rs-right{width:260px;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-1);overflow-y:auto}
+.rs-detail-section{padding:12px 14px;border-bottom:1px solid var(--border)}
+.rs-detail-title{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px}
+.rs-detail-row{display:flex;gap:6px;margin-bottom:5px;font-size:12px}
+.rs-detail-label{color:var(--text-3);width:80px;flex-shrink:0}
+.rs-detail-value{color:var(--text-1);font-family:'JetBrains Mono','SF Mono',monospace;font-size:11px;word-break:break-all}
+.rs-detail-value.pass{color:#34d399}
+.rs-detail-value.fail{color:#f87171}
+.rs-detail-value.neutral{color:var(--text-2)}
+.rs-event-feed{flex:1;overflow-y:auto;padding:8px 14px;font-size:11px;font-family:'JetBrains Mono','SF Mono',monospace}
+.rs-event-line{padding:3px 0;color:var(--text-3);border-bottom:1px solid rgba(255,255,255,.04)}
+.rs-event-line.pass{color:#34d399}
+.rs-event-line.fail{color:#f87171}
+.rs-event-line.info{color:#60a5fa}
+.rs-bottom{height:120px;border-top:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-2)}
+.rs-bottom-title{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);padding:8px 14px 4px}
+.rs-live-feed{flex:1;overflow-y:auto;padding:0 14px 8px;font-size:11px;font-family:'JetBrains Mono','SF Mono',monospace;color:var(--text-3)}
+.rs-import-area{display:none;padding:12px;flex-direction:column;gap:8px}
+.rs-import-area.visible{display:flex}
+.rs-import-ta{width:100%;height:80px;background:var(--bg-1);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:11px;font-family:'JetBrains Mono','SF Mono',monospace;padding:8px;outline:none;resize:none;box-sizing:border-box}
+.rs-import-ta:focus{border-color:var(--accent)}
+.rs-run-btn{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;transition:filter .15s}
+.rs-run-btn:hover{filter:brightness(1.1)}
+.rs-run-btn:disabled{opacity:.5;cursor:default;filter:none}
+.rs-abort-btn{background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
+.rs-abort-btn:hover{background:rgba(248,113,113,.25)}
+.rs-small-btn{background:var(--bg-2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;transition:all .12s;text-align:left}
+.rs-small-btn:hover{border-color:rgba(110,141,255,.4);color:var(--text-1)}
+.rs-small-btn.danger:hover{border-color:rgba(248,113,113,.4);color:#f87171}
+.rs-progress-bar{height:3px;background:var(--bg-2);border-radius:99px;overflow:hidden;margin:0 16px 8px}
+.rs-progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#22c55e);border-radius:99px;transition:width .3s}
+.rs-summary-chips{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 10px}
+.rs-chip{padding:3px 8px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.4px}
+.rs-chip.pass{background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.25)}
+.rs-chip.fail{background:rgba(248,113,113,.12);color:#f87171;border:1px solid rgba(248,113,113,.25)}
+.rs-chip.skip{background:rgba(255,255,255,.05);color:var(--text-3);border:1px solid var(--border)}
+.rs-chip.time{background:rgba(251,191,36,.1);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
+</style>
+
+<!-- Run Suites Modal -->
+<div class="rs-modal" id="rs-modal" style="display:none;">
+  <div class="rs-content">
+    <div class="rs-header">
+      <h2>🧪 Run Suites</h2>
+      <button class="rs-run-btn" id="rs-run-btn" disabled>▶ Run Suite</button>
+      <button class="rs-abort-btn" id="rs-abort-btn" style="display:none">⏹ Abort</button>
+      <button class="modal-close" id="rs-close" style="margin-left:8px">✕</button>
+    </div>
+    <div class="rs-body">
+      <!-- LEFT: suite list -->
+      <div class="rs-left">
+        <div class="rs-left-title">Saved Suites</div>
+        <div class="rs-suite-list" id="rs-suite-list">
+          <div style="font-size:11px;color:var(--text-3);padding:8px 2px">No run suites saved</div>
+        </div>
+        <div class="rs-left-actions">
+          <button class="rs-small-btn" id="rs-import-toggle">+ Import JSON</button>
+          <div class="rs-import-area" id="rs-import-area">
+            <textarea class="rs-import-ta" id="rs-import-ta" placeholder='Paste run suite JSON here…'></textarea>
+            <button class="rs-small-btn" id="rs-import-btn" style="background:var(--accent-soft);color:var(--accent);border-color:rgba(110,141,255,.3)">Import</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: scenario tabs + step timeline -->
+      <div class="rs-center">
+        <div class="rs-center-top" id="rs-suite-header">
+          <div class="rs-suite-name" id="rs-suite-name">Select a suite →</div>
+          <div class="rs-suite-desc" id="rs-suite-desc"></div>
+        </div>
+        <div class="rs-progress-bar" id="rs-progress-bar" style="display:none">
+          <div class="rs-progress-fill" id="rs-progress-fill" style="width:0%"></div>
+        </div>
+        <div class="rs-summary-chips" id="rs-summary-chips"></div>
+        <div class="rs-scenario-tabs" id="rs-scenario-tabs"></div>
+        <div class="rs-step-list" id="rs-step-list">
+          <div style="font-size:12px;color:var(--text-3);text-align:center;padding:32px">
+            Select a run suite to see its steps
+          </div>
+        </div>
+        <!-- Bottom live feed -->
+        <div class="rs-bottom">
+          <div class="rs-bottom-title">Live Events</div>
+          <div class="rs-live-feed" id="rs-live-feed"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: step detail -->
+      <div class="rs-right">
+        <div class="rs-detail-section">
+          <div class="rs-detail-title">Step Detail</div>
+          <div id="rs-step-detail">
+            <div style="font-size:11px;color:var(--text-3)">Click a step to inspect</div>
+          </div>
+        </div>
+        <div class="rs-detail-section" id="rs-secure-card-section" style="display:none">
+          <div class="rs-detail-title">Secure Card</div>
+          <div id="rs-secure-card-detail"></div>
+        </div>
+        <div class="rs-detail-section">
+          <div class="rs-detail-title">Suite Actions</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <button class="rs-small-btn" id="rs-export-btn" disabled>↓ Export Suite JSON</button>
+            <button class="rs-small-btn danger" id="rs-delete-btn" disabled>🗑 Delete Suite</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Run Suites Panel ──────────────────────────────────────────────────────────
+(function() {
+  let _suites = [];
+  let _activeSuiteId = null;
+  let _activeScenarioIdx = 0;
+  let _stepStatuses = {};  // step_id -> {status, actual, duration_ms, error, confidence}
+  let _pollInterval = null;
+  let _isRunning = false;
+  let _selectedStepId = null;
+
+  const STATUS_ICONS = {
+    pending: '○', running: '▶', passed: '✓', failed: '✗',
+    timed_out: '⏱', retrying: '↺', skipped: '⏭', errored: '!'
+  };
+
+  function rsOpen() {
+    document.getElementById('rs-modal').style.display = 'flex';
+    loadRunSuites();
+  }
+  function rsClose() {
+    document.getElementById('rs-modal').style.display = 'none';
+    stopPoll();
+  }
+
+  // ── Suite list ─────────────────────────────────────────────────────────────
+  async function loadRunSuites() {
+    try {
+      const r = await fetch('/api/run-suites');
+      const d = await r.json();
+      _suites = d.suites || [];
+      renderSuiteList();
+    } catch(e) {
+      console.error('loadRunSuites:', e);
+    }
+  }
+
+  function renderSuiteList() {
+    const el = document.getElementById('rs-suite-list');
+    if (!_suites.length) {
+      el.innerHTML = '<div style="font-size:11px;color:var(--text-3);padding:8px 2px">No run suites saved</div>';
+      return;
+    }
+    el.innerHTML = _suites.map(s => `
+      <div class="rs-suite-item ${_activeSuiteId === s.suite_id ? 'active' : ''}"
+           onclick="window._rsSelectSuite('${s.suite_id}')">
+        <div class="rs-suite-item-name">${s.name}</div>
+        <div class="rs-suite-item-meta">${s.scenario_count} scenario${s.scenario_count !== 1 ? 's' : ''}</div>
+      </div>
+    `).join('');
+  }
+
+  window._rsSelectSuite = function(suite_id) {
+    _activeSuiteId = suite_id;
+    _activeScenarioIdx = 0;
+    _stepStatuses = {};
+    _selectedStepId = null;
+    renderSuiteList();
+
+    const suite = _suites.find(s => s.suite_id === suite_id);
+    // Fetch full suite for rendering
+    fetch(`/api/run-suites/${suite_id}/export`)
+      .then(r => r.json())
+      .then(data => renderSuiteDetail(data))
+      .catch(() => {});
+
+    document.getElementById('rs-run-btn').disabled = false;
+    document.getElementById('rs-export-btn').disabled = false;
+    document.getElementById('rs-delete-btn').disabled = false;
+  };
+
+  function renderSuiteDetail(suite) {
+    document.getElementById('rs-suite-name').textContent = suite.name || suite.suite_id;
+    document.getElementById('rs-suite-desc').textContent = suite.description || '';
+
+    const tabs = document.getElementById('rs-scenario-tabs');
+    const scenarios = suite.scenarios || [];
+    tabs.innerHTML = scenarios.map((sc, i) =>
+      `<div class="rs-tab ${i === _activeScenarioIdx ? 'active' : ''}"
+            onclick="window._rsSelectScenario(${i})">${sc.name}</div>`
+    ).join('');
+
+    if (scenarios.length) renderScenarioSteps(scenarios[_activeScenarioIdx]);
+    window._rsCurrentSuiteData = suite;
+  }
+
+  window._rsSelectScenario = function(idx) {
+    _activeScenarioIdx = idx;
+    const suite = window._rsCurrentSuiteData;
+    if (!suite) return;
+    document.querySelectorAll('.rs-tab').forEach((t, i) =>
+      t.classList.toggle('active', i === idx)
+    );
+    renderScenarioSteps(suite.scenarios[idx]);
+  };
+
+  function renderScenarioSteps(scenario) {
+    const el = document.getElementById('rs-step-list');
+    const steps = scenario.steps || [];
+    if (!steps.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:20px">No steps defined</div>';
+      return;
+    }
+    el.innerHTML = steps.map(step => {
+      const st = _stepStatuses[step.step_id] || { status: 'pending' };
+      const icon = STATUS_ICONS[st.status] || '○';
+      const dur = st.duration_ms != null ? `${Math.round(st.duration_ms)}ms` : '';
+      const expected = step.expected_text_contains
+        ? `expects: "${step.expected_text_contains}"`
+        : step.expected_event ? `expects: ${step.expected_event}` : '';
+      return `
+        <div class="rs-step ${_selectedStepId === step.step_id ? 'active-step' : ''}"
+             onclick="window._rsSelectStep('${step.step_id}')">
+          <div class="rs-step-status ${st.status}">${icon}</div>
+          <div style="flex:1;min-width:0">
+            <div class="rs-step-id">${step.step_id}</div>
+            <div class="rs-step-action">${step.action}</div>
+            ${expected ? `<div class="rs-step-expected">${expected}</div>` : ''}
+            ${st.error ? `<div style="font-size:10px;color:#f87171;margin-top:2px">${st.error}</div>` : ''}
+          </div>
+          ${dur ? `<div class="rs-step-dur">${dur}</div>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  window._rsSelectStep = function(step_id) {
+    _selectedStepId = step_id;
+    const st = _stepStatuses[step_id] || { status: 'pending' };
+    const suite = window._rsCurrentSuiteData;
+    let step = null;
+    if (suite) {
+      for (const sc of suite.scenarios) {
+        step = sc.steps.find(s => s.step_id === step_id);
+        if (step) break;
+      }
+    }
+    const detail = document.getElementById('rs-step-detail');
+    const statusClass = st.status === 'passed' ? 'pass' : (st.status === 'failed' || st.status === 'timed_out') ? 'fail' : 'neutral';
+    detail.innerHTML = `
+      <div class="rs-detail-row"><span class="rs-detail-label">Step ID</span><span class="rs-detail-value">${step_id}</span></div>
+      <div class="rs-detail-row"><span class="rs-detail-label">Action</span><span class="rs-detail-value">${step ? step.action : ''}</span></div>
+      <div class="rs-detail-row"><span class="rs-detail-label">Status</span><span class="rs-detail-value ${statusClass}">${st.status}</span></div>
+      ${step && step.expected_text_contains ? `<div class="rs-detail-row"><span class="rs-detail-label">Expected</span><span class="rs-detail-value">"${step.expected_text_contains}"</span></div>` : ''}
+      ${step && step.expected_event ? `<div class="rs-detail-row"><span class="rs-detail-label">Expect evt</span><span class="rs-detail-value">${step.expected_event}</span></div>` : ''}
+      ${st.actual != null ? `<div class="rs-detail-row"><span class="rs-detail-label">Actual</span><span class="rs-detail-value neutral">${st.actual}</span></div>` : ''}
+      ${st.duration_ms != null ? `<div class="rs-detail-row"><span class="rs-detail-label">Duration</span><span class="rs-detail-value">${Math.round(st.duration_ms)}ms</span></div>` : ''}
+      ${st.confidence != null ? `<div class="rs-detail-row"><span class="rs-detail-label">Confidence</span><span class="rs-detail-value">${(st.confidence*100).toFixed(0)}%</span></div>` : ''}
+      ${st.error ? `<div class="rs-detail-row"><span class="rs-detail-label">Error</span><span class="rs-detail-value fail">${st.error}</span></div>` : ''}
+      ${st.secure_card_token ? `<div class="rs-detail-row"><span class="rs-detail-label">Token</span><span class="rs-detail-value">${st.secure_card_token}</span></div>` : ''}
+    `;
+    // Re-render steps to highlight selected
+    const suite2 = window._rsCurrentSuiteData;
+    if (suite2 && suite2.scenarios[_activeScenarioIdx]) {
+      renderScenarioSteps(suite2.scenarios[_activeScenarioIdx]);
+    }
+  };
+
+  // ── Run / poll ─────────────────────────────────────────────────────────────
+  async function runSuite() {
+    if (!_activeSuiteId || _isRunning) return;
+    _stepStatuses = {};
+    _isRunning = true;
+    document.getElementById('rs-run-btn').style.display = 'none';
+    document.getElementById('rs-abort-btn').style.display = '';
+    document.getElementById('rs-progress-bar').style.display = '';
+    document.getElementById('rs-summary-chips').innerHTML = '';
+    document.getElementById('rs-live-feed').innerHTML = '';
+
+    try {
+      await fetch(`/api/run-suites/${_activeSuiteId}/run`, { method: 'POST' });
+    } catch(e) {
+      addLiveFeedLine('error', `Failed to start: ${e.message}`);
+      finishRun();
+      return;
+    }
+    startPoll();
+  }
+
+  function startPoll() {
+    _pollInterval = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/run-suites/${_activeSuiteId}/poll`);
+        const d = await r.json();
+        processEvents(d.events || []);
+        if (d.result) updateSummaryChips(d.result);
+      } catch(e) {}
+    }, 400);
+  }
+
+  function stopPoll() {
+    if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+  }
+
+  function processEvents(events) {
+    for (const ev of events) {
+      switch (ev.type) {
+        case 'StepStarted':
+          _stepStatuses[ev.step_id] = { status: 'running' };
+          addLiveFeedLine('info', `▶ ${ev.step_id} — ${ev.action}`);
+          break;
+        case 'StepUpdated':
+          _stepStatuses[ev.step_id] = {
+            status: ev.status, actual: ev.actual, error: ev.error,
+            confidence: ev.confidence, secure_card_token: ev.secure_card_token,
+          };
+          break;
+        case 'StepPassed':
+          _stepStatuses[ev.step_id] = Object.assign(_stepStatuses[ev.step_id] || {}, {
+            status: 'passed', duration_ms: ev.duration_ms, actual: ev.actual,
+            confidence: ev.confidence,
+          });
+          addLiveFeedLine('pass', `✓ ${ev.step_id} (${Math.round(ev.duration_ms||0)}ms)`);
+          break;
+        case 'StepFailed':
+          _stepStatuses[ev.step_id] = Object.assign(_stepStatuses[ev.step_id] || {}, {
+            status: 'failed', duration_ms: ev.duration_ms, error: ev.error,
+            actual: ev.actual,
+          });
+          addLiveFeedLine('fail', `✗ ${ev.step_id}: ${ev.error||ev.reason}`);
+          break;
+        case 'StepTimedOut':
+          _stepStatuses[ev.step_id] = Object.assign(_stepStatuses[ev.step_id] || {}, {
+            status: 'timed_out', error: `Timed out (${ev.timeout_ms}ms)`,
+          });
+          addLiveFeedLine('fail', `⏱ ${ev.step_id} timed out`);
+          break;
+        case 'RunSuiteCompleted':
+          finishRun();
+          addLiveFeedLine(ev.status === 'passed' ? 'pass' : 'fail',
+            `Suite ${ev.status.toUpperCase()} — pass:${ev.pass_count} fail:${ev.fail_count}`);
+          break;
+      }
+      // Re-render step list on every event
+      const suite = window._rsCurrentSuiteData;
+      if (suite && suite.scenarios[_activeScenarioIdx]) {
+        renderScenarioSteps(suite.scenarios[_activeScenarioIdx]);
+      }
+    }
+  }
+
+  function updateSummaryChips(result) {
+    const total = result.pass_count + result.fail_count + result.timeout_count;
+    const pct = total > 0 ? Math.round((result.pass_count / total) * 100) : 0;
+    document.getElementById('rs-progress-fill').style.width = pct + '%';
+    document.getElementById('rs-summary-chips').innerHTML = [
+      result.pass_count ? `<span class="rs-chip pass">✓ ${result.pass_count} passed</span>` : '',
+      result.fail_count ? `<span class="rs-chip fail">✗ ${result.fail_count} failed</span>` : '',
+      result.timeout_count ? `<span class="rs-chip time">⏱ ${result.timeout_count} timeout</span>` : '',
+    ].join('');
+  }
+
+  function finishRun() {
+    _isRunning = false;
+    stopPoll();
+    document.getElementById('rs-run-btn').style.display = '';
+    document.getElementById('rs-run-btn').disabled = false;
+    document.getElementById('rs-abort-btn').style.display = 'none';
+  }
+
+  function addLiveFeedLine(cls, text) {
+    const el = document.getElementById('rs-live-feed');
+    const div = document.createElement('div');
+    div.className = `rs-event-line ${cls}`;
+    div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ── Import ─────────────────────────────────────────────────────────────────
+  document.getElementById('rs-import-toggle').onclick = () => {
+    const area = document.getElementById('rs-import-area');
+    area.classList.toggle('visible');
+  };
+
+  document.getElementById('rs-import-btn').onclick = async () => {
+    const raw = document.getElementById('rs-import-ta').value.trim();
+    if (!raw) return;
+    try {
+      const r = await fetch('/api/run-suites/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json: raw }),
+      });
+      const d = await r.json();
+      if (d.status === 'ok') {
+        document.getElementById('rs-import-ta').value = '';
+        document.getElementById('rs-import-area').classList.remove('visible');
+        await loadRunSuites();
+        window._rsSelectSuite(d.suite_id);
+      } else {
+        alert('Import error: ' + (d.error || JSON.stringify(d)));
+      }
+    } catch(e) {
+      alert('Import error: ' + e.message);
+    }
+  };
+
+  // ── Export / Delete ────────────────────────────────────────────────────────
+  document.getElementById('rs-export-btn').onclick = () => {
+    if (!_activeSuiteId) return;
+    window.open(`/api/run-suites/${_activeSuiteId}/export`, '_blank');
+  };
+
+  document.getElementById('rs-delete-btn').onclick = async () => {
+    if (!_activeSuiteId) return;
+    if (!confirm(`Delete run suite "${_activeSuiteId}"?`)) return;
+    await fetch(`/api/run-suites/${_activeSuiteId}`, { method: 'DELETE' });
+    _activeSuiteId = null;
+    document.getElementById('rs-run-btn').disabled = true;
+    document.getElementById('rs-export-btn').disabled = true;
+    document.getElementById('rs-delete-btn').disabled = true;
+    document.getElementById('rs-suite-name').textContent = 'Select a suite →';
+    document.getElementById('rs-suite-desc').textContent = '';
+    document.getElementById('rs-scenario-tabs').innerHTML = '';
+    document.getElementById('rs-step-list').innerHTML =
+      '<div style="font-size:12px;color:var(--text-3);text-align:center;padding:32px">Select a run suite</div>';
+    await loadRunSuites();
+  };
+
+  // ── Run / Abort ────────────────────────────────────────────────────────────
+  document.getElementById('rs-run-btn').onclick = runSuite;
+  document.getElementById('rs-abort-btn').onclick = async () => {
+    await fetch('/api/run-suites/abort', { method: 'POST' });
+    finishRun();
+  };
+
+  // ── Header button ─────────────────────────────────────────────────────────
+  document.getElementById('rs-close').onclick = rsClose;
+  document.getElementById('rs-modal').onclick = (e) => {
+    if (e.target === document.getElementById('rs-modal')) rsClose();
+  };
+
+  // Add Run Suites button to header (after the existing 🧪 test suite button)
+  const runSuitesBtn = document.createElement('button');
+  runSuitesBtn.className = 'hdr-btn';
+  runSuitesBtn.title = 'Run Suites';
+  runSuitesBtn.textContent = '▶';
+  runSuitesBtn.style.cssText = 'font-size:16px;font-weight:700;color:#22c55e';
+  runSuitesBtn.onclick = rsOpen;
+  document.getElementById('btn-test-suite').insertAdjacentElement('afterend', runSuitesBtn);
+})();
+</script>
+
 </body>
 </html>
 """
@@ -1499,6 +2030,35 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             target = unquote(self.path[len("/api/maps/"):])
             data = map_store.load_map(target)
             self._json(data or {"graph": None})
+            return
+        if self.path == "/api/run-suites":
+            from .run_suites.loader import list_suites
+            self._json({"suites": list_suites(suites_dir=_RUN_SUITES_DIR)})
+            return
+        if self.path.startswith("/api/run-suites/") and self.path.endswith("/poll"):
+            events = _RS_STATE.poll()
+            runner = _RS_STATE.get_runner()
+            result_dict = None
+            if runner and runner.run_result:
+                result_dict = runner.run_result.as_dict()
+            self._json({"events": events, "result": result_dict})
+            return
+        if self.path.startswith("/api/run-suites/") and "/export" in self.path:
+            from urllib.parse import unquote
+            suite_id = unquote(self.path.split("/")[3])
+            from .run_suites.loader import load_suite, export_suite_json
+            try:
+                suite = load_suite(suite_id, suites_dir=_RUN_SUITES_DIR)
+                body = export_suite_json(suite).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Disposition",
+                                 f'attachment; filename="{suite_id}.json"')
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except FileNotFoundError:
+                self.send_response(404); self.end_headers()
             return
         if self.path.startswith("/api/export/"):
             from urllib.parse import unquote, parse_qs, urlparse
@@ -1684,6 +2244,63 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             threading.Thread(target=_run_suite, daemon=True).start()
             self._json({"status": "started"})
             return
+        # ── Run Suite endpoints ───────────────────────────────────────────────
+        if self.path == "/api/run-suites/import":
+            from .run_suites.loader import import_suite_json, save_suite
+            raw = data.get("json", "")
+            if not raw:
+                self._json_error(400, "Missing 'json' field")
+                return
+            try:
+                suite = import_suite_json(raw if isinstance(raw, str) else json.dumps(raw))
+                save_suite(suite, suites_dir=_RUN_SUITES_DIR)
+                self._json({"status": "ok", "suite_id": suite.suite_id, "name": suite.name})
+            except ValueError as exc:
+                self._json_error(400, str(exc))
+            return
+        if self.path == "/api/run-suites/save":
+            from .run_suites.loader import import_suite_json, save_suite
+            raw = data.get("json", "")
+            if not raw:
+                self._json_error(400, "Missing 'json' field")
+                return
+            try:
+                suite = import_suite_json(raw if isinstance(raw, str) else json.dumps(raw))
+                path = save_suite(suite, suites_dir=_RUN_SUITES_DIR)
+                self._json({"status": "saved", "suite_id": suite.suite_id, "file": path.name})
+            except ValueError as exc:
+                self._json_error(400, str(exc))
+            return
+        if self.path.startswith("/api/run-suites/") and self.path.endswith("/run"):
+            from urllib.parse import unquote
+            suite_id = unquote(self.path[len("/api/run-suites/"):-len("/run")])
+            from .run_suites.loader import load_suite
+            from .run_suites.runner import SuiteRunner
+            try:
+                suite = load_suite(suite_id, suites_dir=_RUN_SUITES_DIR)
+            except FileNotFoundError:
+                self._json_error(404, f"Run suite not found: {suite_id}")
+                return
+
+            runner = SuiteRunner(suite=suite, telephony=None)
+            # Bridge streaming server transcripts into the runner
+            srv = _persistent_stream
+            if srv:
+                def _transcript_bridge(text: str, is_final: bool, speech_final: bool) -> None:
+                    _RS_STATE.get_runner() and _RS_STATE.get_runner().push_transcript(
+                        text, is_final, speech_final
+                    )
+                srv.register_transcript_callback(_transcript_bridge)
+
+            _RS_STATE.set_runner(runner)
+            run_id = runner.start()
+            _STATE.logs.append(f"[run-suite] Started suite {suite_id!r} run_id={run_id}")
+            self._json({"status": "started", "run_id": run_id, "suite_id": suite_id})
+            return
+        if self.path == "/api/run-suites/abort":
+            _RS_STATE.abort()
+            self._json({"status": "aborted"})
+            return
         self.send_response(404); self.end_headers()
 
     def do_DELETE(self) -> None:
@@ -1692,6 +2309,13 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             target = unquote(self.path[len("/api/maps/"):])
             ok = map_store.delete_map(target)
             self._json({"deleted": ok}); return
+        if self.path.startswith("/api/run-suites/"):
+            from urllib.parse import unquote
+            from .run_suites.loader import delete_suite
+            suite_id = unquote(self.path[len("/api/run-suites/"):])
+            delete_suite(suite_id, suites_dir=_RUN_SUITES_DIR)
+            self._json({"deleted": True, "suite_id": suite_id})
+            return
         self.send_response(404); self.end_headers()
 
     # ── handlers ──────────────────────────────────────────────────────────────
