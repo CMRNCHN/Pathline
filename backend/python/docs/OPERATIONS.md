@@ -46,6 +46,40 @@ Release gate baseline:
 
 ## 4) Troubleshooting quick guide
 
+### Replay artifact inspection
+
+Inspect a replay trace deterministically:
+
+```bash
+./run_ivr_assessor.sh inspect-replay --trace-path backend/python/tests/fixtures/sample_ivr_trace.json
+```
+
+Emit JSON instead of text:
+
+```bash
+./run_ivr_assessor.sh inspect-replay --trace-path /path/to/replay.json --format json
+```
+
+### Runtime diagnostics
+
+Inspect a live GUI/runtime directly:
+
+```bash
+./run_ivr_assessor.sh inspect-runtime --runtime-url http://127.0.0.1:8080/api/runtime-diagnostics
+```
+
+Inspect a saved metrics payload offline:
+
+```bash
+./run_ivr_assessor.sh inspect-runtime --metrics-path /path/to/runtime_metrics.json
+```
+
+Direct HTTP view for operators:
+
+```bash
+curl http://127.0.0.1:8080/api/runtime-diagnostics
+```
+
 ### Unauthorized stream connection
 
 Symptoms:

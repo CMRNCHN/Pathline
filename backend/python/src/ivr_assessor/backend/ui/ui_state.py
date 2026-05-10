@@ -107,6 +107,7 @@ class AppState:
         self.runtime_checkpoints: list[dict[str, Any]] = []
         self.reset_count: int = 0
         self.last_reset_at: float | None = None
+        self.last_session_snapshot: dict[str, Any] | None = None
 
     def reset(self) -> None:
         self.reset_count += 1
@@ -128,6 +129,7 @@ class AppState:
         self.start_time = None
         self.error = None
         self.live_caption = ""
+        self.last_session_snapshot = None
 
     def drain_logs(self) -> list[str]:
         logs, self.logs = self.logs, []

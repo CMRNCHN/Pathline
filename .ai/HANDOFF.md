@@ -1,13 +1,39 @@
 # IVRSuite — Active Handoff
 
-Last Updated: 2026-05-09 (bounded runtime observability hardening)
+Last Updated: 2026-05-10 (bounded replay inspection tooling)
 
 ---
 
 ## Current Status
 
 Platform is in strong architectural shape with Air governance structure established.
-246/246 backend tests passing.
+251/251 backend tests passing.
+
+### Completed this session (bounded replay/runtime inspection tooling)
+
+- Added `backend/python/src/ivr_assessor/inspection.py` as a pure, additive inspection helper for:
+  - replay artifact summaries
+  - event chronology views
+  - runtime timeline reconstruction
+  - queue/checkpoint visibility summaries
+  - websocket lifecycle rollups
+  - operator-facing correlation payloads
+- Added CLI utilities:
+  - `ivr-assessor inspect-replay --trace-path ...`
+  - `ivr-assessor inspect-runtime --metrics-path ...`
+  - `ivr-assessor inspect-runtime --runtime-url http://127.0.0.1:8080/api/runtime-diagnostics`
+- Expanded live GUI observability additively:
+  - new `GET /api/runtime-diagnostics`
+  - `GET /api/runtime-metrics` now includes bounded `last_session` inspection state
+  - end-of-session snapshot preserves the last session’s bounded chronology for offline/operator inspection
+- Preserved runtime/replay guarantees:
+  - no hot-path audio/transcription/routing changes
+  - no replay generation behavior changes
+  - no websocket protocol changes
+  - no topology/orchestration changes
+- Validated with:
+  - `/Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/test_inspection.py backend/python/tests/test_cli_smoke.py backend/python/tests/test_live_map_gui.py backend/python/tests/test_replay_mode.py backend/python/tests/test_streaming_server_auth.py -q -p no:cacheprovider`
+  - Result: `34 passed`
 
 ### Completed this session (streaming/runtime stabilization)
 
@@ -19,6 +45,33 @@ Platform is in strong architectural shape with Air governance structure establis
   still exposing `last_text` only after transcripts are seen.
 - Validated with `/Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/ -q`
   → 246 passed.
+
+### Completed this session (runtime/replay architecture mapping)
+
+- Added `.ai/RUNTIME_REPLAY_ARCHITECTURE_MAP.md` as an operator-focused map of current startup ordering, runtime lifecycle, websocket chronology, replay visibility, cleanup sequencing, stale-runtime detection, and probe flow.
+- Documented current-state contracts only: no topology changes, no websocket semantic changes, no replay semantic changes.
+- Captured remaining blind spots explicitly, including the current gap between runtime metrics directory visibility and actual replay/snapshot artifact production.
+
+### Completed this session (bounded transcript simulation slice)
+
+- Added `STT_BACKEND=simulated` as a deterministic operational-validation backend for downstream transcript flow before local CT2 model provisioning.
+- The simulated backend emits a fixed four-step transcript script on buffered media chunks:
+  - short transcript drop
+  - accepted transcript
+  - deduplicated repeat
+  - second accepted transcript
+- Extracted the existing live-map transcript/status callback bridge into a small helper so the real prompt-queue path can be exercised without changing topology.
+- Added one focused smoke test that validates:
+  - transcript injection through the existing WebSocket stream loop
+  - transcript filter counters and dedup behavior
+  - websocket/status update cadence under media flow
+  - queue/checkpoint visibility
+  - runtime/replay visibility payload shape
+  - callback teardown and cleanup sequencing
+- Validated with:
+  - `/Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/test_stt_service.py backend/python/tests/test_streaming_server_auth.py -q`
+  - `/Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/ -q`
+  - Result: `251 passed`
 
 ### Completed this session (bounded runtime observability hardening)
 

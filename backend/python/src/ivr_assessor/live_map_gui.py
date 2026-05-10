@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from . import map_store
+from .inspection import build_runtime_diagnostics, build_session_snapshot
 from .live_map import LiveMappingSession
 from .models import CallEvent
 from .response_library import ResponseLibrary
@@ -322,6 +323,7 @@ def _runtime_metrics_payload() -> dict[str, Any]:
             "error": STATE.error,
         },
         "stream_server": stream_metrics,
+        "last_session": STATE.last_session_snapshot,
         "replay_visibility": {
             "reports_dir": str(reports_dir),
             "recordings_dir": str(recordings_dir),
@@ -338,6 +340,29 @@ def _runtime_metrics_payload() -> dict[str, Any]:
         },
         "staleness": _staleness_payload(stream_metrics),
     }
+
+
+def _active_session_snapshot() -> dict[str, Any] | None:
+    if STATE.session is None:
+        return None
+    return build_session_snapshot(
+        target=STATE.target,
+        started_at=STATE.start_time,
+        ended_at=time.time(),
+        manual_mode=bool(STATE.session.manual_mode),
+        events=STATE.session.ledger.all(),
+        graph=STATE.session.mapper.graph(),
+        queue_metrics=STATE.source.metrics() if STATE.source is not None else None,
+        error=STATE.error,
+    )
+
+
+def _runtime_diagnostics_payload() -> dict[str, Any]:
+    runtime_metrics = _runtime_metrics_payload()
+    return build_runtime_diagnostics(
+        runtime_metrics,
+        active_session_snapshot=_active_session_snapshot(),
+    )
 
 
 def _start_ngrok_subprocess() -> dict:
@@ -438,33 +463,7 @@ def _run_session_thread(
 
         if stream_url:
             srv = STATE.streaming_server
-            _utterance: dict[str, list[str]] = {"chunks": []}
-
-            def _flush_utterance() -> None:
-                joined = " ".join(_utterance["chunks"]).strip()
-                _utterance["chunks"] = []
-                if joined:
-                    STATE.logs.append(f"[transcript] {joined}")
-                    source.prompt_queue.put(joined)
-                STATE.live_caption = ""
-
-            def _on_transcript(text: str, is_final: bool, speech_final: bool) -> None:
-                t = text.strip()
-                if not t:
-                    if speech_final:
-                        _flush_utterance()
-                    return
-                if is_final:
-                    _utterance["chunks"].append(t)
-                    STATE.live_caption = " ".join(_utterance["chunks"])
-                    if speech_final:
-                        _flush_utterance()
-                else:
-                    pending = " ".join(_utterance["chunks"])
-                    STATE.live_caption = (pending + " " + t).strip() if pending else t
-
-            def _on_status(msg: str) -> None:
-                STATE.logs.append(msg)
+            _on_transcript, _on_status = _build_stream_callbacks(source=source, state=STATE)
 
             if srv:
                 srv.clear_callbacks()
@@ -558,6 +557,17 @@ def _run_session_thread(
         STATE.logs.append(f"Error: {msg}")
         STATE.record_runtime_checkpoint("session.error", msg, category="session")
     finally:
+        if STATE.session is not None:
+            STATE.last_session_snapshot = build_session_snapshot(
+                target=target,
+                started_at=STATE.start_time,
+                ended_at=time.time(),
+                manual_mode=bool(STATE.session.manual_mode),
+                events=STATE.session.ledger.all(),
+                graph=STATE.session.mapper.graph(),
+                queue_metrics=STATE.source.metrics() if STATE.source is not None else None,
+                error=STATE.error,
+            )
         STATE.record_cleanup_event(
             "session.cleanup_begin",
             f"target={target}",
@@ -582,6 +592,42 @@ def _run_session_thread(
             f"target={target}",
             queue=STATE.source.metrics() if STATE.source is not None else None,
         )
+
+
+def _build_stream_callbacks(
+    *,
+    source: QueuePromptSource,
+    state: AppState,
+) -> tuple[Callable[[str, bool, bool], None], Callable[[str], None]]:
+    utterance: dict[str, list[str]] = {"chunks": []}
+
+    def _flush_utterance() -> None:
+        joined = " ".join(utterance["chunks"]).strip()
+        utterance["chunks"] = []
+        if joined:
+            state.logs.append(f"[transcript] {joined}")
+            source.prompt_queue.put(joined)
+        state.live_caption = ""
+
+    def _on_transcript(text: str, is_final: bool, speech_final: bool) -> None:
+        stripped = text.strip()
+        if not stripped:
+            if speech_final:
+                _flush_utterance()
+            return
+        if is_final:
+            utterance["chunks"].append(stripped)
+            state.live_caption = " ".join(utterance["chunks"])
+            if speech_final:
+                _flush_utterance()
+            return
+        pending = " ".join(utterance["chunks"])
+        state.live_caption = (pending + " " + stripped).strip() if pending else stripped
+
+    def _on_status(msg: str) -> None:
+        state.logs.append(msg)
+
+    return _on_transcript, _on_status
 
 
 # ── HTTP request handler (thin dispatcher) ────────────────────────────────────
@@ -612,6 +658,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             self._json(_diagnose()); return
         if self.path == "/api/runtime-metrics":
             self._json(_runtime_metrics_payload()); return
+        if self.path == "/api/runtime-diagnostics":
+            self._json(_runtime_diagnostics_payload()); return
         if self.path == "/api/suites":
             self._json(run_suite_routes.list_suites()); return
         if self.path.startswith("/api/maps/"):
