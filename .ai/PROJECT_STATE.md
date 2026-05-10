@@ -1,6 +1,6 @@
 # IVRSuite — Project State
 
-Last Updated: 2026-05-09
+Last Updated: 2026-05-10
 
 ---
 
@@ -14,7 +14,7 @@ regression suites against IVR systems, and supports audio QA benchmarking.
 
 ## Test Suite
 
-**248 passing**
+**251 passing**
 
 ```bash
 /Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/ -q
@@ -38,6 +38,10 @@ Cloud fallbacks (env-controlled, not in default hot path):
 
 - `STT_BACKEND=deepgram` → DeepgramTranscriber
 - `TTS_BACKEND=openai` → OpenAITTS
+
+Operational validation path (env-controlled, not in default hot path):
+
+- `STT_BACKEND=simulated` → deterministic transcript script for downstream runtime/media-flow validation
 
 ---
 

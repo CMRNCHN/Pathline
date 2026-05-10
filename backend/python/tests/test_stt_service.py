@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ivr_assessor.stt_service import FasterWhisperTranscriber, create_transcriber
+from ivr_assessor.stt_service import (
+    FasterWhisperTranscriber,
+    SimulatedTranscriber,
+    create_transcriber,
+)
 from ivr_assessor.transcription import DeepgramTranscriber
 
 
@@ -31,6 +35,12 @@ def test_create_transcriber_deepgram(monkeypatch: pytest.MonkeyPatch) -> None:
     assert isinstance(t, DeepgramTranscriber)
 
 
+def test_create_transcriber_simulated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STT_BACKEND", "simulated")
+    t = create_transcriber()
+    assert isinstance(t, SimulatedTranscriber)
+
+
 def test_stats_include_model_resolution_fields() -> None:
     t = FasterWhisperTranscriber()
     stats = t.stats()
@@ -46,6 +56,10 @@ def test_faster_whisper_input_format() -> None:
 
 def test_deepgram_input_format() -> None:
     assert DeepgramTranscriber.INPUT_FORMAT == "mulaw_8k"
+
+
+def test_simulated_input_format() -> None:
+    assert SimulatedTranscriber.INPUT_FORMAT == "mulaw_8k"
 
 
 # ─── FasterWhisperTranscriber — connect ───────────────────────────────────────

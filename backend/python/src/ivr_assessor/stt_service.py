@@ -4,6 +4,7 @@
 Reads STT_BACKEND env var to select the transcriber:
     faster-whisper  (default) — local, free, runs on CPU or GPU
     deepgram        — cloud, paid, real-time streaming
+    simulated       — deterministic transcript script for runtime validation
 
 Both transcribers expose the same interface:
     connect() -> bool
@@ -29,6 +30,12 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "small.en"
 _DEFAULT_CONFIDENCE_MIN = 0.6
+_SIMULATED_TRANSCRIPT_SCRIPT: tuple[tuple[str, bool, bool], ...] = (
+    ("a", True, True),
+    ("press 1 for billing", True, True),
+    ("press 1 for billing", True, True),
+    ("representative", True, True),
+)
 
 
 def create_transcriber(
@@ -39,12 +46,91 @@ def create_transcriber(
 
     STT_BACKEND=faster-whisper  → FasterWhisperTranscriber (default)
     STT_BACKEND=deepgram        → DeepgramTranscriber
+    STT_BACKEND=simulated       → SimulatedTranscriber
     """
     backend = os.getenv("STT_BACKEND", "faster-whisper").lower()
     if backend == "deepgram":
         from .transcription import DeepgramTranscriber
         return DeepgramTranscriber(on_transcript=on_transcript, on_status=on_status)
+    if backend == "simulated":
+        return SimulatedTranscriber(on_transcript=on_transcript, on_status=on_status)
     return FasterWhisperTranscriber(on_transcript=on_transcript, on_status=on_status)
+
+
+class SimulatedTranscriber:
+    """Deterministic transcript emitter for downstream runtime validation."""
+
+    INPUT_FORMAT = "mulaw_8k"
+
+    def __init__(
+        self,
+        on_transcript: Callable[[str, bool, bool], None] | None = None,
+        on_status: Callable[[str], None] | None = None,
+        script: tuple[tuple[str, bool, bool], ...] | None = None,
+    ) -> None:
+        self.on_transcript = on_transcript
+        self.on_status = on_status
+        self._script = script or _SIMULATED_TRANSCRIPT_SCRIPT
+        self._connected = False
+        self._closed = False
+        self._chunks_seen = 0
+        self._bytes_seen = 0
+        self._transcripts_emitted = 0
+        self._next_script_index = 0
+        self._connected_at: float | None = None
+        self._last_chunk_at: float | None = None
+        self._last_transcript_at: float | None = None
+
+    def _notify(self, msg: str) -> None:
+        if self.on_status:
+            try:
+                self.on_status(msg)
+            except Exception as exc:
+                logger.error("on_status callback raised: %s", exc)
+
+    async def connect(self) -> bool:
+        self._connected = True
+        self._closed = False
+        self._connected_at = time.monotonic()
+        self._notify(
+            f"[simulated-stt] ready — deterministic script with {len(self._script)} transcript events"
+        )
+        return True
+
+    async def process_audio(self, pcm_bytes: bytes) -> None:
+        self._chunks_seen += 1
+        self._bytes_seen += len(pcm_bytes)
+        self._last_chunk_at = time.monotonic()
+        if not self._connected or self._next_script_index >= len(self._script):
+            return
+        text, is_final, speech_final = self._script[self._next_script_index]
+        self._next_script_index += 1
+        self._transcripts_emitted += 1
+        self._last_transcript_at = time.monotonic()
+        if self.on_transcript:
+            try:
+                self.on_transcript(text, is_final, speech_final)
+            except Exception as exc:
+                logger.error("on_transcript callback raised: %s", exc, exc_info=True)
+
+    async def close(self) -> None:
+        self._connected = False
+        self._closed = True
+
+    def stats(self) -> dict[str, Any]:
+        return {
+            "backend": "simulated",
+            "connected": self._connected,
+            "closed": self._closed,
+            "chunks_seen": self._chunks_seen,
+            "bytes_seen": self._bytes_seen,
+            "transcripts_emitted": self._transcripts_emitted,
+            "script_length": len(self._script),
+            "script_index": self._next_script_index,
+            "last_chunk_at": self._last_chunk_at,
+            "last_transcript_at": self._last_transcript_at,
+            "connected_at": self._connected_at,
+        }
 
 
 class FasterWhisperTranscriber:

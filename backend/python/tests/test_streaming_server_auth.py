@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+import ivr_assessor.live_map_gui as live_map_gui
 from ivr_assessor.backend.ui.ui_state import AppState, QueuePromptSource
 from ivr_assessor.streaming_server import StreamingServer, append_stream_auth_token
 
@@ -198,3 +199,73 @@ def test_app_state_checkpoints_and_queue_metrics_are_deterministic() -> None:
     reset_snapshot = state.runtime_checkpoint_snapshot()
     assert reset_snapshot["reset_count"] == 1
     assert reset_snapshot["last_checkpoint"]["stage"] == "state.reset"
+
+
+def test_simulated_transcript_flow_smoke_covers_filter_queue_and_runtime_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STT_BACKEND", "simulated")
+
+    state = AppState()
+    state.begin_startup_trace()
+    state.record_runtime_checkpoint(
+        "session.stream_callbacks_registered",
+        "simulated transcript probe",
+        category="session",
+    )
+    state.is_running = True
+    state.start_time = 1.0
+    source = QueuePromptSource()
+    state.source = source
+
+    server = StreamingServer(stream_auth_token="secret")
+    monkeypatch.setattr(live_map_gui, "STATE", state)
+    monkeypatch.setattr(live_map_gui, "_persistent_stream", server)
+
+    on_transcript, on_status = live_map_gui._build_stream_callbacks(source=source, state=state)
+    server.register_transcript_callback(on_transcript)
+    server.register_status_callback(on_status)
+
+    media_payload = base64.b64encode(bytes([0xFF] * 160)).decode("ascii")
+    with TestClient(server.app) as client:
+        with client.websocket_connect("/stream?token=secret") as websocket:
+            websocket.send_text(json.dumps({"event": "connected"}))
+            websocket.send_text(
+                json.dumps({"event": "start", "start": {"streamSid": "MZSIM", "callSid": "CASIM"}})
+            )
+            for _ in range(250):
+                websocket.send_text(json.dumps({"event": "media", "media": {"payload": media_payload}}))
+            websocket.send_text(json.dumps({"event": "stop"}))
+
+        stream_payload = client.get("/runtime-metrics").json()
+
+    state.record_cleanup_event("session.cleanup_begin", "simulated flow", queue=source.metrics())
+    server.clear_callbacks()
+    state.record_cleanup_event("session.callbacks_cleared", "stream callbacks cleared")
+    state.is_running = False
+    state.record_cleanup_event("session.cleanup_complete", "simulated flow", queue=source.metrics())
+    runtime_payload = live_map_gui._runtime_metrics_payload()
+
+    first = source.next_event("sim-session")
+    second = source.next_event("sim-session")
+
+    assert [first.text, second.text] == ["press 1 for billing", "representative"]
+    assert any("250 audio frames received" in line for line in state.logs)
+    assert stream_payload["last_stream_metrics"]["transcriber_stats"]["backend"] == "simulated"
+    assert stream_payload["last_stream_metrics"]["transcriber_stats"]["chunks_seen"] == 50
+    assert stream_payload["last_stream_metrics"]["transcriber_stats"]["transcripts_emitted"] == 4
+    assert stream_payload["last_stream_metrics"]["last_event"] == "stop"
+    assert stream_payload["last_stream_metrics"]["media_bytes_received"] == 250 * 160
+    assert stream_payload["last_stream_metrics"]["transcript_filter_stats"] == {
+        "received": 4,
+        "passed": 2,
+        "dropped_short": 1,
+        "dropped_dedup": 1,
+        "window_size": 2,
+        "last_text": "representative",
+    }
+    assert runtime_payload["session"]["queue"]["puts_total"] == 2
+    assert runtime_payload["session"]["queue"]["max_depth_seen"] == 2
+    assert runtime_payload["runtime"]["cleanup_count"] == 3
+    assert runtime_payload["runtime"]["last_checkpoint"]["stage"] == "session.cleanup_complete"
+    assert "replay_visibility" in runtime_payload
