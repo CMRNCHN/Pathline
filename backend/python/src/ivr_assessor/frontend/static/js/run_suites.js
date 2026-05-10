@@ -38,7 +38,7 @@
   function renderSuiteList() {
     const el = $('rs-suite-list');
     if (!_suites.length) {
-      el.innerHTML = '<div style="font-size:11px;color:var(--text-3);padding:8px 2px">No run suites saved</div>';
+      el.innerHTML = '<div class="text-muted-xs-padded">No run suites saved</div>';
       return;
     }
     el.innerHTML = _suites.map(s =>
@@ -89,7 +89,7 @@
     const el = $('rs-step-list');
     const steps = scenario.steps || [];
     if (!steps.length) {
-      el.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:20px">No steps defined</div>';
+      el.innerHTML = '<div class="text-muted-xs-padded">No steps defined</div>';
       return;
     }
     el.innerHTML = steps.map(step => {
@@ -107,7 +107,7 @@
             '<div class="rs-step-id">' + step.step_id + '</div>' +
             '<div class="rs-step-action">' + step.action + '</div>' +
             (expected ? '<div class="rs-step-expected">' + expected + '</div>' : '') +
-            (st.error ? '<div style="font-size:10px;color:#f87171;margin-top:2px">' + st.error + '</div>' : '') +
+            (st.error ? '<div class="rs-step-error">' + st.error + '</div>' : '') +
           '</div>' +
           (dur ? '<div class="rs-step-dur">' + dur + '</div>' : '') +
         '</div>'
@@ -295,7 +295,7 @@
     $('rs-suite-name').textContent = 'Select a suite →';
     $('rs-suite-desc').textContent = '';
     $('rs-scenario-tabs').innerHTML = '';
-    $('rs-step-list').innerHTML = '<div style="font-size:12px;color:var(--text-3);text-align:center;padding:32px">Select a run suite</div>';
+    $('rs-step-list').innerHTML = '<div class="text-muted-sm-centered">Select a run suite</div>';
     await loadRunSuites();
   };
 
@@ -312,12 +312,5 @@
   $('rs-close').onclick = rsClose;
   $('rs-modal').onclick = (e) => { if (e.target === $('rs-modal')) rsClose(); };
 
-  // Add Run Suites button to header (after the 🧪 test suite button)
-  const runSuitesBtn = document.createElement('button');
-  runSuitesBtn.className = 'hdr-btn';
-  runSuitesBtn.title = 'Run Suites';
-  runSuitesBtn.textContent = '▶';
-  runSuitesBtn.style.cssText = 'font-size:16px;font-weight:700;color:#22c55e';
-  runSuitesBtn.onclick = rsOpen;
-  $('btn-test-suite').insertAdjacentElement('afterend', runSuitesBtn);
+  $('btn-run-suites').onclick = rsOpen;
 })();

@@ -20,10 +20,15 @@ const api = {
   // Status & config
   getStatus: () => _fetch('/api/status'),
   getConfig: () => _fetch('/api/config'),
+  getMaps: () => _fetch('/api/maps'),
+  getDiagnose: () => _fetch('/api/diagnose'),
+  getRuntimeMetrics: () => _fetch('/api/runtime-metrics'),
+  getRuntimeDiagnostics: () => _fetch('/api/runtime-diagnostics'),
   setMode:   (manual_mode) => _post('/api/set-mode', { manual_mode }),
 
   // Call control
   startCall:   (payload) => _post('/api/start', payload),
+  endCall:     () => _post('/api/end', {}),
   injectDtmf:  (digits)  => _post('/api/inject-dtmf', { digits }),
   injectVoice: (text)    => _post('/api/inject-voice', { text }),
 

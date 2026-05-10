@@ -3,139 +3,220 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IVR Suite — Live Mapper</title>
+<title>IVR Suite — Operator Console</title>
 <link rel="stylesheet" href="/static/css/main.css">
 <link rel="stylesheet" href="/static/css/run_suites.css">
 </head>
 <body>
 
-<header>
-  <div class="logo">
-    <div class="logo-icon">📞</div>
-    <div>IVR Suite</div>
+<header class="shell-header">
+  <div class="shell-brand">
+    <div class="logo-icon">☎</div>
+    <div>
+      <div class="shell-kicker">Operator Console</div>
+      <div class="logo-text">IVR Suite</div>
+    </div>
   </div>
-  <div class="hdr-field">
-    <label>Target</label>
+
+  <div class="shell-target">
+    <label for="f-target">Target Session</label>
     <input id="f-target" type="tel" placeholder="(800) 555-0114" value="">
   </div>
-  <div class="hdr-spacer"></div>
-  <span class="hdr-status" id="hdr-status">⚠ Idle</span>
-  <button class="btn-primary" id="btn-start">📞 Start Call</button>
-  <button class="hdr-btn" title="Test Suites" id="btn-test-suite">🧪</button>
-  <button class="hdr-btn" title="Settings">⚙️</button>
+
+  <div class="shell-actions">
+    <span class="status-pill tone-warn" id="hdr-status">Idle</span>
+    <button class="btn-secondary" id="btn-run-suites" type="button">Run Suites</button>
+    <button class="btn-secondary" id="btn-test-suite" type="button">Suite Editor</button>
+    <button class="btn-secondary" id="btn-settings" type="button">Inspect</button>
+    <button class="btn-secondary" id="btn-end" type="button">End Session</button>
+    <button class="btn-primary" id="btn-start" type="button">Start Call</button>
+  </div>
 </header>
 
-<div class="root">
-  <!-- CENTER: TRANSCRIPTION & ACTIVITY -->
-  <div class="center">
-    <div class="transcript-header">
-      <div class="transcript-status">
-        <span class="status-dot"></span>
-        <span>Live Transcription</span>
+<main class="console-root">
+  <section class="heartbeat-strip" id="heartbeat-strip">
+    <article class="heartbeat-card tone-neutral">
+      <div class="heartbeat-label">Runtime</div>
+      <div class="heartbeat-value">Waiting</div>
+      <div class="heartbeat-meta">Loading runtime surfaces</div>
+    </article>
+  </section>
+
+  <div class="workspace-grid">
+    <section class="panel timeline-panel">
+      <div class="panel-header panel-header-spread">
+        <div>
+          <div class="panel-kicker">Active Session</div>
+          <h1 class="panel-title">Session Timeline</h1>
+        </div>
+        <div class="timer-badge" id="timer">00:00</div>
       </div>
-      <div class="transcript-duration" id="timer">00:00</div>
+
+      <div class="timeline-toolbar">
+        <button class="filter-chip is-active" type="button" data-filter="all">All</button>
+        <button class="filter-chip" type="button" data-filter="transcript">Transcript</button>
+        <button class="filter-chip" type="button" data-filter="routing">Routing</button>
+        <button class="filter-chip" type="button" data-filter="websocket">WebSocket</button>
+        <button class="filter-chip" type="button" data-filter="replay">Replay</button>
+        <button class="filter-chip" type="button" data-filter="cleanup">Cleanup</button>
+      </div>
+
+      <div class="caption-strip" id="caption-box">
+        <div class="caption-label">Live Caption</div>
+        <div class="caption-text" id="caption-text">Awaiting live caption…</div>
+      </div>
+
+      <div class="timeline-list" id="transcript">
+        <div class="empty-state">
+          <div class="empty-icon">◦</div>
+          <p>No timeline events yet</p>
+          <span>Runtime diagnostics will populate this view.</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="side-stack">
+      <section class="panel graph-panel">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Contextual Map</div>
+            <h2 class="panel-title">IVR Graph</h2>
+          </div>
+          <button class="btn-tertiary btn-compact" id="btn-refresh-maps" type="button">Refresh Maps</button>
+        </div>
+
+        <div class="graph-meta" id="graph-meta">
+          <span class="meta-chip">
+            <span class="meta-chip-label">Nodes</span>
+            <span class="meta-chip-value">0</span>
+          </span>
+        </div>
+
+        <div class="graph-box" id="graph-box">
+          <div class="empty-state">
+            <div class="empty-icon">⋯</div>
+            <p>No nodes discovered yet</p>
+            <span>Live graph context appears here during a session.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel controls-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-kicker">Operator Tools</div>
+            <h2 class="panel-title">Control Bench</h2>
+          </div>
+        </div>
+
+        <div class="controls-grid">
+          <div class="control-section">
+            <div class="section-title">Mode</div>
+            <button class="mode-toggle" id="mode-toggle" type="button" title="Auto-pilot lets the mapper choose responses; manual hands control to you.">
+              <span class="mode-toggle-label">Routing</span>
+              <span class="mode-toggle-main" id="mode-toggle-text">Auto-pilot</span>
+              <span class="mode-toggle-state" id="mode-toggle-state">ON</span>
+            </button>
+          </div>
+
+          <div class="control-section">
+            <div class="section-title">Manual Input</div>
+            <div class="smart-input-wrapper">
+              <input id="smart-input" class="smart-input" type="text" placeholder="Enter DTMF or text…">
+              <div class="smart-input-chip" id="input-chip">Auto-detect</div>
+            </div>
+            <div class="input-hint">Digits, * and # send DTMF. Any other text is voiced into the live session.</div>
+            <button class="btn-primary send-btn" type="button">Send Input</button>
+          </div>
+
+          <div class="control-section">
+            <div class="section-title">Keypad</div>
+            <div class="keypad">
+              <button class="kbtn" type="button">1<span></span></button>
+              <button class="kbtn" type="button">2<span>ABC</span></button>
+              <button class="kbtn" type="button">3<span>DEF</span></button>
+              <button class="kbtn" type="button">4<span>GHI</span></button>
+              <button class="kbtn" type="button">5<span>JKL</span></button>
+              <button class="kbtn" type="button">6<span>MNO</span></button>
+              <button class="kbtn" type="button">7<span>PQRS</span></button>
+              <button class="kbtn" type="button">8<span>TUV</span></button>
+              <button class="kbtn" type="button">9<span>WXYZ</span></button>
+              <button class="kbtn" type="button">*</button>
+              <button class="kbtn" type="button">0</button>
+              <button class="kbtn" type="button">#</button>
+            </div>
+            <div class="pad-row">
+              <div class="pad-display" id="pad-display">—</div>
+              <button class="btn-secondary pad-del" type="button">⌫</button>
+              <button class="btn-secondary pad-send" type="button">Send</button>
+            </div>
+          </div>
+
+          <div class="control-section">
+            <div class="section-title">Session Signals</div>
+            <div class="status-box" id="control-status">
+              <div class="text-muted-xs">Runtime signals will appear here.</div>
+            </div>
+          </div>
+
+          <div class="control-section">
+            <div class="section-title">Quick Tools</div>
+            <div class="quick-tools">
+              <button class="btn-tertiary" id="btn-open-runtime" type="button">Runtime Drawer</button>
+              <button class="btn-tertiary" id="btn-open-artifacts" type="button">Artifacts</button>
+              <button class="btn-tertiary" id="btn-open-smoke" type="button">Smoke Check</button>
+            </div>
+            <div class="info-box">
+              Bounded operator actions only. Diagnostics remain read-only and runtime polling stays unchanged.
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
-    <div class="transcript-box" id="transcript">
+  </div>
+
+  <section class="panel drawer-panel is-open" id="drawer-panel">
+    <div class="panel-header panel-header-spread">
+      <div>
+        <div class="panel-kicker">Diagnostics</div>
+        <h2 class="panel-title">Inspection Drawer</h2>
+      </div>
+      <div class="drawer-actions">
+        <button class="btn-tertiary btn-compact" id="btn-refresh-diagnostics" type="button">Refresh</button>
+        <button class="btn-secondary btn-compact" id="drawer-toggle" type="button">Collapse</button>
+      </div>
+    </div>
+
+    <div class="drawer-tabs" id="drawer-tabs">
+      <button class="drawer-tab is-active" type="button" data-drawer-tab="runtime">Runtime</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="session">Session</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="websocket">WebSocket</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="queue">Queue / Checkpoints</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="artifacts">Artifacts</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="smoke">Smoke</button>
+    </div>
+
+    <div class="drawer-body" id="drawer-body">
       <div class="empty-state">
-        <div class="empty-icon">🎙️</div>
-        <p>Call activity will appear here</p>
+        <div class="empty-icon">⋯</div>
+        <p>Runtime diagnostics loading</p>
+        <span>Structured inspection data appears here when the backend responds.</span>
       </div>
     </div>
-    <div class="live-caption-box is-hidden" id="caption-box">
-      <div class="caption-pulse"></div>
-      <div class="caption-text" id="caption-text"></div>
-    </div>
-    <div class="graph-box" id="graph-box">
-      <div class="text-muted-graph-empty">No nodes discovered yet</div>
-    </div>
-  </div>
-
-  <!-- RIGHT: CONTROLS -->
-  <div class="sidebar">
-    <!-- AUTO-PILOT TOGGLE -->
-    <div class="control-section">
-      <div class="section-title">Mode</div>
-      <div class="mode-toggle" id="mode-toggle" title="Auto-pilot lets the mapper choose responses; manual hands control to you.">
-        <span class="mode-toggle-label">🤖 <span id="mode-toggle-text">Auto-pilot</span></span>
-        <span class="mode-toggle-state" id="mode-toggle-state">ON</span>
-      </div>
-    </div>
-
-    <!-- SMART INPUT -->
-    <div class="control-section">
-      <div class="section-title">Input</div>
-      <div class="smart-input-wrapper">
-        <input id="smart-input" class="smart-input" type="text" placeholder="Enter DTMF or text…">
-        <div class="smart-input-chip" id="input-chip">Auto-detect</div>
-      </div>
-      <div class="input-hint">digits, *, # → DTMF · everything else → speech</div>
-      <button class="send-btn">Send ↵</button>
-    </div>
-
-    <!-- KEYPAD -->
-    <div class="control-section">
-      <div class="section-title">Keypad</div>
-      <div class="keypad">
-        <button class="kbtn">1<span></span></button>
-        <button class="kbtn">2<span>ABC</span></button>
-        <button class="kbtn">3<span>DEF</span></button>
-        <button class="kbtn">4<span>GHI</span></button>
-        <button class="kbtn">5<span>JKL</span></button>
-        <button class="kbtn">6<span>MNO</span></button>
-        <button class="kbtn">7<span>PQRS</span></button>
-        <button class="kbtn">8<span>TUV</span></button>
-        <button class="kbtn">9<span>WXYZ</span></button>
-        <button class="kbtn">*</button>
-        <button class="kbtn">0</button>
-        <button class="kbtn">#</button>
-      </div>
-      <div class="pad-row">
-        <div class="pad-display" id="pad-display">—</div>
-        <button class="pad-del">⌫</button>
-        <button class="pad-send">Send</button>
-      </div>
-    </div>
-
-    <!-- STATUS -->
-    <div class="control-section">
-      <div class="section-title">Status</div>
-      <div class="status-box">
-        <div class="status-item">
-          <div class="status-indicator"></div>
-          <span class="status-text">Connected</span>
-          <span class="status-value">—</span>
-        </div>
-        <div class="status-item">
-          <div class="status-indicator"></div>
-          <span class="status-text">Audio</span>
-          <span class="status-value">—</span>
-        </div>
-        <div class="status-item">
-          <div class="status-indicator"></div>
-          <span class="status-text">Transcription</span>
-          <span class="status-value">—</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- INFO -->
-    <div class="info-box">
-      <strong>💡 Tip:</strong> Use keypad for DTMF or type for speech. Auto-detection shows above.
-    </div>
-  </div>
-</div>
+  </section>
+</main>
 
 <!-- TEST SUITE MODAL -->
 <div class="modal is-hidden" id="ts-modal">
   <div class="modal-content">
     <div class="modal-header">
-      <h2>🧪 Test Suites</h2>
-      <button class="modal-close" id="ts-close">✕</button>
+      <h2>Test Suites</h2>
+      <button class="modal-close" id="ts-close" type="button">✕</button>
     </div>
     <div class="modal-body modal-body-layout">
       <div class="modal-sidebar">
         <div class="modal-sidebar-top">
-          <button class="btn-primary btn-full-sm" id="ts-new-btn">+ New Suite</button>
+          <button class="btn-primary btn-full-sm" id="ts-new-btn" type="button">New Suite</button>
         </div>
         <div id="ts-list" class="modal-scroll-list"></div>
       </div>
@@ -143,8 +224,8 @@
         <div class="modal-editor-header">
           <input type="text" id="ts-filename" placeholder="suite_name" class="input-suite-name">
           <div class="modal-btn-row">
-            <button class="btn-primary btn-compact btn-primary-alt" id="ts-run-btn">▶ Run Suite</button>
-            <button class="btn-primary btn-compact" id="ts-save-btn">💾 Save</button>
+            <button class="btn-primary btn-compact btn-primary-alt" id="ts-run-btn" type="button">Run Suite</button>
+            <button class="btn-primary btn-compact" id="ts-save-btn" type="button">Save</button>
           </div>
         </div>
         <div class="control-section mb-20">
@@ -154,7 +235,7 @@
         <div class="control-section var-section mb-20">
           <div class="title-row-between">
             <div class="section-title">Variables</div>
-            <button id="ts-add-var" class="btn-ghost-xs">+ Add</button>
+            <button id="ts-add-var" class="btn-ghost-xs" type="button">Add</button>
           </div>
           <div class="var-hint">Reference any variable in a trigger response as <code>$json_key</code></div>
           <div class="var-col-heads">
@@ -165,18 +246,18 @@
           </div>
           <div id="ts-vars-container"></div>
           <div class="data-loader">
-            <div class="data-loader-title">⚡ Load from Data Row</div>
+            <div class="data-loader-title">Load from Data Row</div>
             <textarea id="ts-schema" class="data-loader-input" rows="2" placeholder="Paste header row: _id|bin|cc|exp|cvv|zip|name|..."></textarea>
             <div class="data-loader-row">
               <textarea id="ts-datarow" class="data-loader-input grow-1" rows="2" placeholder="Paste data row: 001|411111|4111111111111111|12/26|123|90210|John Doe|..."></textarea>
-              <button class="parse-btn" id="ts-parse-btn">Fill ↵</button>
+              <button class="parse-btn" id="ts-parse-btn" type="button">Fill</button>
             </div>
             <div id="ts-parse-status" class="parse-status"></div>
           </div>
         </div>
         <div class="title-row-between mb-12">
           <div class="section-title">Test Cases</div>
-          <button id="ts-add-case" class="btn-ghost-xs">+ Add Case</button>
+          <button id="ts-add-case" class="btn-ghost-xs" type="button">Add Case</button>
         </div>
         <div id="ts-cases-container" class="col-gap-16"></div>
       </div>
@@ -193,36 +274,30 @@
 <script src="/static/js/main.js"></script>
 <script src="/static/js/modules/test_suites.js"></script>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     RUN SUITES MODAL
-     ═══════════════════════════════════════════════════════════════════════════ -->
-
 <!-- Run Suites Modal -->
 <div class="rs-modal is-hidden" id="rs-modal">
   <div class="rs-content">
     <div class="rs-header">
-      <h2>🧪 Run Suites</h2>
-      <button class="rs-run-btn" id="rs-run-btn" disabled>▶ Run Suite</button>
-      <button class="rs-abort-btn is-hidden" id="rs-abort-btn">⏹ Abort</button>
-      <button class="modal-close ml-8" id="rs-close">✕</button>
+      <h2>Run Suites</h2>
+      <button class="rs-run-btn" id="rs-run-btn" disabled type="button">Run Suite</button>
+      <button class="rs-abort-btn is-hidden" id="rs-abort-btn" type="button">Abort</button>
+      <button class="modal-close ml-8" id="rs-close" type="button">✕</button>
     </div>
     <div class="rs-body">
-      <!-- LEFT: suite list -->
       <div class="rs-left">
         <div class="rs-left-title">Saved Suites</div>
         <div class="rs-suite-list" id="rs-suite-list">
           <div class="text-muted-xs-padded">No run suites saved</div>
         </div>
         <div class="rs-left-actions">
-          <button class="rs-small-btn" id="rs-import-toggle">+ Import JSON</button>
+          <button class="rs-small-btn" id="rs-import-toggle" type="button">Import JSON</button>
           <div class="rs-import-area" id="rs-import-area">
-            <textarea class="rs-import-ta" id="rs-import-ta" placeholder='Paste run suite JSON here…'></textarea>
-            <button class="rs-small-btn rs-import-btn-accent" id="rs-import-btn">Import</button>
+            <textarea class="rs-import-ta" id="rs-import-ta" placeholder="Paste run suite JSON here…"></textarea>
+            <button class="rs-small-btn rs-import-btn-accent" id="rs-import-btn" type="button">Import</button>
           </div>
         </div>
       </div>
 
-      <!-- CENTER: scenario tabs + step timeline -->
       <div class="rs-center">
         <div class="rs-center-top" id="rs-suite-header">
           <div class="rs-suite-name" id="rs-suite-name">Select a suite →</div>
@@ -234,18 +309,14 @@
         <div class="rs-summary-chips" id="rs-summary-chips"></div>
         <div class="rs-scenario-tabs" id="rs-scenario-tabs"></div>
         <div class="rs-step-list" id="rs-step-list">
-          <div class="text-muted-sm-centered">
-            Select a run suite to see its steps
-          </div>
+          <div class="text-muted-sm-centered">Select a run suite to see its steps</div>
         </div>
-        <!-- Bottom live feed -->
         <div class="rs-bottom">
           <div class="rs-bottom-title">Live Events</div>
           <div class="rs-live-feed" id="rs-live-feed"></div>
         </div>
       </div>
 
-      <!-- RIGHT: step detail -->
       <div class="rs-right">
         <div class="rs-detail-section">
           <div class="rs-detail-title">Step Detail</div>
@@ -260,8 +331,8 @@
         <div class="rs-detail-section">
           <div class="rs-detail-title">Suite Actions</div>
           <div class="col-gap-6">
-            <button class="rs-small-btn" id="rs-export-btn" disabled>↓ Export Suite JSON</button>
-            <button class="rs-small-btn danger" id="rs-delete-btn" disabled>🗑 Delete Suite</button>
+            <button class="rs-small-btn" id="rs-export-btn" disabled type="button">Export Suite JSON</button>
+            <button class="rs-small-btn danger" id="rs-delete-btn" disabled type="button">Delete Suite</button>
           </div>
         </div>
       </div>

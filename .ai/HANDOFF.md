@@ -1,6 +1,6 @@
 # IVRSuite — Active Handoff
 
-Last Updated: 2026-05-10 (bounded replay inspection tooling)
+Last Updated: 2026-05-10 (bounded operator console modernization)
 
 ---
 
@@ -8,6 +8,44 @@ Last Updated: 2026-05-10 (bounded replay inspection tooling)
 
 Platform is in strong architectural shape with Air governance structure established.
 251/251 backend tests passing.
+
+### Completed this session (bounded operator console modernization)
+
+- Modernized the live mapper shell into a calmer operator console without changing frontend architecture,
+  websocket contracts, polling topology, replay semantics, or backend runtime behavior.
+- Reworked `frontend/templates/index.html` into:
+  - operator header with explicit start/end actions
+  - heartbeat strip
+  - structured session timeline
+  - contextual graph pane
+  - calmer control bench
+  - expandable diagnostics drawer
+- Replaced the bright gradient-heavy visual system across `frontend/static/css/main.css`
+  and `frontend/static/css/run_suites.css` with a graphite/slate token set, restrained surfaces,
+  semantic-only status color, calmer motion, and aligned modal styling.
+- Reworked frontend rendering additively in vanilla JS:
+  - shared page state now tracks runtime metrics, runtime diagnostics, diagnose payloads,
+    timeline filters/selection, and drawer tab state
+  - `/api/status` remains the fast poll for live control/caption/graph updates
+  - `/api/runtime-metrics` and `/api/runtime-diagnostics` now drive heartbeat, timer,
+    timeline, graph context, and drawer surfaces
+  - `/api/diagnose` is used for slower smoke/health visibility only
+- Integrated run suites into the header shell directly instead of injecting a separate affordance at runtime.
+- Preserved existing control routes and editor/run-suite behavior:
+  - `/api/start`
+  - `/api/end`
+  - `/api/inject-dtmf`
+  - `/api/inject-voice`
+  - `/api/set-mode`
+- Validated with:
+  - `node --check backend/python/src/ivr_assessor/frontend/static/js/main.js`
+  - `node --check backend/python/src/ivr_assessor/frontend/static/js/run_suites.js`
+  - `node --check backend/python/src/ivr_assessor/frontend/static/js/modules/test_suites.js`
+  - `node --check backend/python/src/ivr_assessor/frontend/static/js/common/dom.js`
+  - `/Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/test_live_map_gui.py -q`
+  - `/Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/test_inspection.py -q`
+  - `/Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/test_streaming_server_auth.py -q`
+  - Result: `28 passed`
 
 ### Completed this session (bounded replay/runtime inspection tooling)
 
