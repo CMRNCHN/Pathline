@@ -37,10 +37,16 @@ from .multi_session import MultiSessionOrchestrator
 from .models import CallEvent
 from .replay_mode import replay_trace
 from .response_library import ResponseClip, ResponseLibrary
+from .startup_runtime import bootstrap_runtime
 from .telephony import TelephonyClient
 
 
 app = typer.Typer(help="IVR assessor CLI")
+
+
+@app.callback()
+def _bootstrap_runtime() -> None:
+    bootstrap_runtime()
 
 
 class StreamQueuePromptSource:

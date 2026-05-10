@@ -59,7 +59,7 @@ if [[ "$TUNNEL_BACKEND" == "cloudflare" ]]; then
   CLOUDFLARED_PID=$!
   # Give it a moment to print the URL before the CLI starts logging too.
   sleep 2
-  trap 'kill $CLOUDFLARED_PID 2>/dev/null || true' EXIT
+  trap 'echo "Stopping Cloudflare quick tunnel (pid=$CLOUDFLARED_PID)…"; kill $CLOUDFLARED_PID 2>/dev/null || true' EXIT
 fi
 
 # ── Run CLI command ────────────────────────────────────────────────────────────

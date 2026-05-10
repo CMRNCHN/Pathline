@@ -95,7 +95,7 @@ class IvrMapper:
                 "observations": node.observations,
                 "confidence": round(node.confidence, 4),
                 "sessions": sorted(node.sessions),
-                "announced_options": sorted(node.announced_options, key=_branch_key_value),
+                "announced_options": sorted(node.announced_options, key=branch_sort_key),
                 "branches": {
                     branch: {
                         "count": observation.count,
@@ -199,7 +199,7 @@ def _accumulate_confidence(target: PromptNode | BranchObservation, value: float)
     target.confidence = target._confidence_total / max(1, target._confidence_n)  # type: ignore[attr-defined]
 
 
-def _branch_key_value(branch: str) -> tuple[int, str]:
+def branch_sort_key(branch: str) -> tuple[int, str]:
     """Sort key that orders numeric branches naturally (1, 2, 10) instead of (1, 10, 2)."""
     try:
         return (0, f"{int(branch):020d}")
@@ -208,4 +208,4 @@ def _branch_key_value(branch: str) -> tuple[int, str]:
 
 
 def _branch_sort_key(item: tuple[str, BranchObservation]) -> tuple[int, str]:
-    return _branch_key_value(item[0])
+    return branch_sort_key(item[0])

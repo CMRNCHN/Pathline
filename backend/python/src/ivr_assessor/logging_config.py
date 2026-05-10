@@ -19,6 +19,24 @@ import os
 import sys
 
 
+def _configure_stdlib_logging(log_level: int) -> None:
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s",
+            "%Y-%m-%dT%H:%M:%S",
+        )
+    )
+
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(log_level)
+
+    for noisy in ("uvicorn.access", "httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
 def configure_logging(
     level: str | None = None,
     json_output: bool | None = None,
@@ -28,14 +46,18 @@ def configure_logging(
     level:       log level string (default: LOG_LEVEL env var or "INFO")
     json_output: emit JSON lines (default: LOG_FORMAT=json env var)
     """
-    import structlog
-
     log_level_str = level or os.getenv("LOG_LEVEL", "INFO")
     log_level = getattr(logging, log_level_str.upper(), logging.INFO)
 
     use_json = json_output if json_output is not None else (
         os.getenv("LOG_FORMAT", "").lower() == "json"
     )
+
+    try:
+        import structlog
+    except ModuleNotFoundError:
+        _configure_stdlib_logging(log_level)
+        return
 
     # Shared processors for both structlog-native and stdlib-captured records.
     shared_processors: list[structlog.types.Processor] = [

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .event_ledger import EventLedger
-from .ivr_mapper import IvrMapper, _branch_key_value as _branch_key
+from .ivr_mapper import IvrMapper, branch_sort_key as _branch_key
 from .models import CallEvent
 
 

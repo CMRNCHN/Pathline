@@ -48,6 +48,7 @@ class TranscriptFilter:
         self._passed = 0
         self._dropped_short = 0
         self._dropped_dedup = 0
+        self._last_text: str = ""
 
     def __call__(self, text: str, is_final: bool, speech_final: bool) -> None:
         self._received += 1
@@ -65,6 +66,7 @@ class TranscriptFilter:
 
         self._window.append(normalized)
         self._passed += 1
+        self._last_text = text
         try:
             self._on_transcript(text, is_final, speech_final)
         except Exception as exc:
@@ -74,14 +76,24 @@ class TranscriptFilter:
         """Lowercase, strip punctuation, collapse whitespace."""
         return " ".join(_PUNCT_RE.sub("", text.lower()).split())
 
-    def reset(self) -> None:
+    def reset(self, *, reset_counters: bool = False) -> None:
         """Clear the dedup window — call at the start of each new call."""
         self._window.clear()
+        if reset_counters:
+            self._received = 0
+            self._passed = 0
+            self._dropped_short = 0
+            self._dropped_dedup = 0
+            self._last_text = ""
 
-    def stats(self) -> dict[str, int]:
-        return {
+    def stats(self) -> dict[str, int | str]:
+        stats: dict[str, int | str] = {
             "received": self._received,
             "passed": self._passed,
             "dropped_short": self._dropped_short,
             "dropped_dedup": self._dropped_dedup,
+            "window_size": len(self._window),
         }
+        if self._last_text:
+            stats["last_text"] = self._last_text[:120]
+        return stats

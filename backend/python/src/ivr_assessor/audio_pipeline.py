@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import math
 import struct
+import time
 from typing import Callable
 
 logger = logging.getLogger(__name__)
@@ -150,11 +151,23 @@ class VoiceActivityDetector:
         self._speech_buffer: list[bytes] = []
         self._silent_frames = 0
         self._in_speech = False
+        self._frames_seen = 0
+        self._speech_frames_seen = 0
+        self._silence_frames_seen = 0
+        self._dropped_malformed_frames = 0
+        self._utterances_emitted = 0
+        self._max_buffered_frames = 0
+        self._last_emit_reason = ""
+        self._last_utterance_frames = 0
+        self._last_utterance_ms = 0
+        self._last_emit_at: float | None = None
 
     def feed(self, pcm16_bytes: bytes) -> None:
         """Accept one 20ms PCM16 16kHz frame (must be exactly FRAME_BYTES bytes)."""
+        self._frames_seen += 1
         if len(pcm16_bytes) != self.FRAME_BYTES:
             # Silently drop malformed frames — log at debug only to avoid spam
+            self._dropped_malformed_frames += 1
             logger.debug(
                 "VAD: dropping frame with unexpected size %d (expected %d)",
                 len(pcm16_bytes),
@@ -169,25 +182,29 @@ class VoiceActivityDetector:
             return
 
         if is_speech:
+            self._speech_frames_seen += 1
             self._speech_buffer.append(pcm16_bytes)
             self._silent_frames = 0
             self._in_speech = True
+            self._max_buffered_frames = max(self._max_buffered_frames, len(self._speech_buffer))
 
             if len(self._speech_buffer) >= self.MAX_SPEECH_FRAMES:
                 logger.debug("VAD: hard cap reached, forcing utterance emit")
-                self._emit()
+                self._emit("hard_cap")
         else:
+            self._silence_frames_seen += 1
             if self._in_speech:
                 self._speech_buffer.append(pcm16_bytes)  # include trailing silence
                 self._silent_frames += 1
+                self._max_buffered_frames = max(self._max_buffered_frames, len(self._speech_buffer))
                 if self._silent_frames >= self.SILENCE_FRAMES_THRESHOLD:
-                    self._emit()
+                    self._emit("silence")
 
     def flush(self) -> None:
         """Force-emit any buffered speech. Call on stream end."""
         if self._speech_buffer:
             logger.debug("VAD: flush emitting %d buffered frames", len(self._speech_buffer))
-            self._emit()
+            self._emit("flush")
 
     def reset(self) -> None:
         """Clear all state — call between calls."""
@@ -195,12 +212,33 @@ class VoiceActivityDetector:
         self._silent_frames = 0
         self._in_speech = False
 
-    def _emit(self) -> None:
+    def _emit(self, reason: str) -> None:
         utterance = b"".join(self._speech_buffer)
+        frame_count = len(self._speech_buffer)
         self._speech_buffer.clear()
         self._silent_frames = 0
         self._in_speech = False
+        self._utterances_emitted += 1
+        self._last_emit_reason = reason
+        self._last_utterance_frames = frame_count
+        self._last_utterance_ms = frame_count * self.FRAME_MS
+        self._last_emit_at = time.monotonic()
         try:
             self._on_utterance(utterance)
         except Exception as exc:
             logger.error("VAD: on_utterance callback raised: %s", exc, exc_info=True)
+
+    def stats(self) -> dict[str, int | str | None]:
+        return {
+            "frames_seen": self._frames_seen,
+            "speech_frames_seen": self._speech_frames_seen,
+            "silence_frames_seen": self._silence_frames_seen,
+            "dropped_malformed_frames": self._dropped_malformed_frames,
+            "utterances_emitted": self._utterances_emitted,
+            "max_buffered_frames": self._max_buffered_frames,
+            "buffered_frames": len(self._speech_buffer),
+            "last_emit_reason": self._last_emit_reason,
+            "last_utterance_frames": self._last_utterance_frames,
+            "last_utterance_ms": self._last_utterance_ms,
+            "last_emit_at": self._last_emit_at,
+        }

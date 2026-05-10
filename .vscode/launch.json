@@ -2,15 +2,36 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "lldb",
+            "name": "Python: IVR CLI (version)",
+            "type": "python",
             "request": "launch",
-            "name": "Launch with codelldb",
-            "preLaunchTask": "build-cleanmacgui",
-            "program": "${workspaceFolder}/CleanMacGUI",
-            "args": [],
-            "cwd": "${workspaceFolder}",
-            "terminal": "integrated",
-            "internalConsoleOptions": "neverOpen"
+            "module": "ivr_assessor",
+            "args": [
+                "version"
+            ],
+            "cwd": "${workspaceFolder}/backend/python",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/backend/python/.env",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend/python/src"
+            },
+            "justMyCode": true
+        },
+        {
+            "name": "Python: SMS bridge server",
+            "type": "python",
+            "request": "launch",
+            "module": "ivr_assessor",
+            "args": [
+                "sms-serve"
+            ],
+            "cwd": "${workspaceFolder}/backend/python",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/backend/python/.env",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend/python/src"
+            },
+            "justMyCode": true
         }
     ]
 }

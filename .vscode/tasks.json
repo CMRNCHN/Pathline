@@ -2,17 +2,21 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build-cleanmacgui",
+      "label": "Python: Run tests",
       "type": "shell",
-      "command": "swiftc",
-      "args": [
-        "-parse-as-library",
-        "-o",
-        "CleanMacGUI",
-        "CleanMacGUI.swift"
-      ],
+      "command": "python -m pytest backend/python/tests",
       "options": {
         "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: Run CLI version",
+      "type": "shell",
+      "command": "python -m ivr_assessor version",
+      "options": {
+        "cwd": "${workspaceFolder}/backend/python"
       },
       "problemMatcher": []
     }

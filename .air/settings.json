@@ -1,0 +1,13 @@
+{
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".venv": true,
+    "storage/recordings": true,
+    "storage/replays": true,
+    "storage/benchmarks": true,
+    "storage/snapshots": true,
+    "storage/reports": true,
+    ".pytest_cache": true,
+    ".mypy_cache": true,
+    ".ruff_cache": true
+}

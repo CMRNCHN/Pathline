@@ -207,3 +207,13 @@ def test_vad_import_error_raises_clearly() -> None:
     with patch("ivr_assessor.audio_pipeline._webrtcvad", None):
         with pytest.raises(ImportError, match="webrtcvad not installed"):
             VoiceActivityDetector(on_utterance=lambda _: None)
+
+
+def test_vad_stats_capture_emit_reason() -> None:
+    flags = [True] * 3 + [False] * VoiceActivityDetector.SILENCE_FRAMES_THRESHOLD
+    vad, _ = _make_vad_with_mock(flags)
+    _feed_sequence(vad, flags)
+    stats = vad.stats()
+    assert stats["utterances_emitted"] == 1
+    assert stats["last_emit_reason"] == "silence"
+    assert stats["last_utterance_ms"] == (3 + VoiceActivityDetector.SILENCE_FRAMES_THRESHOLD) * 20

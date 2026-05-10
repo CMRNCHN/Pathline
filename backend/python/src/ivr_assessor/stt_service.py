@@ -22,6 +22,7 @@ import logging
 import math
 import os
 import time
+from pathlib import Path
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,11 @@ class FasterWhisperTranscriber:
         self._confidence_min = confidence_min or float(
             os.getenv("WHISPER_CONFIDENCE_MIN", str(_DEFAULT_CONFIDENCE_MIN))
         )
+        self._download_root = os.getenv("WHISPER_DOWNLOAD_ROOT")
+        self._model_path_override = os.getenv("WHISPER_MODEL_PATH", "").strip()
+        self._local_files_only = os.getenv("WHISPER_LOCAL_FILES_ONLY", "").lower() in {
+            "1", "true", "yes", "on",
+        }
 
         self._model: Any = None
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -105,6 +111,16 @@ class FasterWhisperTranscriber:
         self._transcripts_dropped_confidence = 0
         self._connect_time: float | None = None
         self._total_inference_ms = 0.0
+        self._last_connect_ms = 0.0
+        self._last_inference_ms = 0.0
+        self._max_queue_size_seen = 0
+        self._utterances_dropped_queue_full = 0
+        self._last_enqueue_at: float | None = None
+        self._last_dequeue_at: float | None = None
+        self._last_transcript_at: float | None = None
+        self._model_source = ""
+        self._resolved_model_target = ""
+        self._expected_hf_cache_dir = self._compute_expected_hf_cache_dir()
 
     def _notify(self, msg: str) -> None:
         logger.debug("notify: %s", msg)
@@ -117,7 +133,7 @@ class FasterWhisperTranscriber:
     async def connect(self) -> bool:
         """Load the Whisper model in a thread pool (non-blocking)."""
         self._notify(
-            f"[faster-whisper] loading model {self._model_size!r} "
+            f"[faster-whisper] loading model {self._resolved_model_label()!r} "
             f"on {self._device} ({self._compute_type})…"
         )
         t0 = time.monotonic()
@@ -133,6 +149,7 @@ class FasterWhisperTranscriber:
 
         elapsed_ms = (time.monotonic() - t0) * 1000
         self._connect_time = time.monotonic()
+        self._last_connect_ms = elapsed_ms
         self._notify(
             f"[faster-whisper] ✓ model loaded in {elapsed_ms:.0f} ms — ready"
         )
@@ -147,11 +164,52 @@ class FasterWhisperTranscriber:
 
     def _load_model_sync(self) -> Any:
         from faster_whisper import WhisperModel  # type: ignore[import]
+        model_target, kwargs = self._resolve_model_target()
         return WhisperModel(
-            self._model_size,
+            model_target,
             device=self._device,
             compute_type=self._compute_type,
+            **kwargs,
         )
+
+    def _resolve_model_target(self) -> tuple[str, dict[str, Any]]:
+        kwargs: dict[str, Any] = {}
+
+        if self._download_root:
+            kwargs["download_root"] = self._download_root
+
+        override = self._model_path_override
+        if override:
+            override_path = Path(override).expanduser()
+            model_target = str(override_path)
+            self._model_source = "path_override"
+            self._resolved_model_target = model_target
+            kwargs["local_files_only"] = True
+            return model_target, kwargs
+
+        self._model_source = "model_name"
+        self._resolved_model_target = self._model_size
+        kwargs["local_files_only"] = self._local_files_only
+        return self._model_size, kwargs
+
+    def _compute_expected_hf_cache_dir(self) -> str | None:
+        if self._model_path_override:
+            return None
+        try:
+            from faster_whisper.utils import _MODELS  # type: ignore[attr-defined]
+            from huggingface_hub.constants import HF_HUB_CACHE
+        except Exception:
+            return None
+
+        repo_id = _MODELS.get(self._model_size)
+        if not repo_id:
+            return None
+        normalized = "models--" + repo_id.replace("/", "--")
+        return str(Path(HF_HUB_CACHE) / normalized)
+
+    def _resolved_model_label(self) -> str:
+        model_target, _ = self._resolve_model_target()
+        return model_target
 
     async def process_audio(self, pcm_bytes: bytes) -> None:
         """Queue one utterance for transcription (non-blocking)."""
@@ -162,6 +220,7 @@ class FasterWhisperTranscriber:
             # Drop oldest to prevent unbounded back-pressure.
             try:
                 dropped = self._queue.get_nowait()
+                self._utterances_dropped_queue_full += 1
                 logger.warning(
                     "utterance queue full — dropped oldest (%d bytes)", len(dropped or b"")
                 )
@@ -169,12 +228,15 @@ class FasterWhisperTranscriber:
                 pass
         await self._queue.put(pcm_bytes)
         self._utterances_queued += 1
+        self._last_enqueue_at = time.monotonic()
+        self._max_queue_size_seen = max(self._max_queue_size_seen, self._queue.qsize())
 
     async def _worker_loop(self) -> None:
         logger.debug("FasterWhisper worker: starting")
         loop = asyncio.get_running_loop()
         while True:
             pcm_bytes = await self._queue.get()
+            self._last_dequeue_at = time.monotonic()
             if pcm_bytes is None:
                 break
             try:
@@ -184,6 +246,7 @@ class FasterWhisperTranscriber:
                 )
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 self._total_inference_ms += elapsed_ms
+                self._last_inference_ms = elapsed_ms
                 logger.debug(
                     "FasterWhisper inference: %.0f ms, %d segment(s)", elapsed_ms, len(results)
                 )
@@ -196,6 +259,7 @@ class FasterWhisperTranscriber:
                         )
                         continue
                     self._transcripts_emitted += 1
+                    self._last_transcript_at = time.monotonic()
                     logger.debug(
                         "transcript #%d (conf=%.2f): %s",
                         self._transcripts_emitted, confidence, text[:80],
@@ -259,6 +323,11 @@ class FasterWhisperTranscriber:
         return {
             "backend": "faster-whisper",
             "model": self._model_size,
+            "model_source": self._model_source or ("path_override" if self._model_path_override else "model_name"),
+            "resolved_model_target": self._resolved_model_target or self._resolved_model_label(),
+            "download_root": self._download_root,
+            "local_files_only": self._local_files_only or bool(self._model_path_override),
+            "expected_hf_cache_dir": self._expected_hf_cache_dir,
             "device": self._device,
             "utterances_queued": self._utterances_queued,
             "transcripts_emitted": self._transcripts_emitted,
@@ -266,4 +335,11 @@ class FasterWhisperTranscriber:
             "avg_inference_ms": round(avg_latency, 1),
             "connected": self._model is not None,
             "queue_size": self._queue.qsize(),
+            "max_queue_size_seen": self._max_queue_size_seen,
+            "utterances_dropped_queue_full": self._utterances_dropped_queue_full,
+            "last_connect_ms": round(self._last_connect_ms, 1),
+            "last_inference_ms": round(self._last_inference_ms, 1),
+            "last_enqueue_at": self._last_enqueue_at,
+            "last_dequeue_at": self._last_dequeue_at,
+            "last_transcript_at": self._last_transcript_at,
         }

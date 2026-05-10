@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Mapping, Sequence
 
-from .ivr_mapper import IvrMapper, _normalize_prompt
+from .ivr_mapper import IvrMapper, branch_sort_key
 
 
 # A `SessionRunner` runs ONE call against `target_number`, follows
@@ -132,7 +132,7 @@ def plan_dfs_path(graph: Mapping[str, Mapping[str, object]]) -> list[str]:
         all_known = set(branches.keys()) | announced
         unexplored = sorted(
             all_known - explored,
-            key=_branch_sort_value,
+            key=branch_sort_key,
         )
 
         # Candidate: each unexplored option ends a path. Prefer the deepest
@@ -145,7 +145,7 @@ def plan_dfs_path(graph: Mapping[str, Mapping[str, object]]) -> list[str]:
                 best_path = candidate
 
         # Recurse through explored branches (DFS).
-        for opt in sorted(explored, key=_branch_sort_value):
+        for opt in sorted(explored, key=branch_sort_key):
             branch = branches.get(opt) or {}
             next_prompts = list(branch.get("next_prompts") or [])
             # Pick a stable next prompt to descend into (sorted) to keep
@@ -236,13 +236,6 @@ def _every_option_walked(graph: Mapping[str, Mapping[str, object]]) -> bool:
             if int((branch or {}).get("count", 0) or 0) <= 0:
                 return False
     return True
-
-
-def _branch_sort_value(branch: str) -> tuple[int, str]:
-    try:
-        return (0, f"{int(branch):020d}")
-    except ValueError:
-        return (1, branch)
 
 
 __all__ = [

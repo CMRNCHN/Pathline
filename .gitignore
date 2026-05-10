@@ -6,6 +6,7 @@ DerivedData/
 *.xcodeproj/
 *.xcworkspace/
 __pycache__/
+*.pyc
 .pytest_cache/
 *.egg-info/
 .codex/
@@ -17,6 +18,21 @@ generated-answer-sheet.txt
 .ai/repomix-output.txt
 .ai/private-notes.md
 .ai/secrets.md
+
+# AI session artifacts
+.ai_sessions/
+
+# Runtime storage — binary artifacts and large outputs
+/storage/*.wav
+/storage/*.mp3
+/storage/**/*.wav
+/storage/**/*.mp3
+/storage/recordings/
+/storage/replays/
+/storage/snapshots/
+/storage/benchmarks/
+# Allow structural .gitkeep placeholders inside storage/
+!/storage/**/.gitkeep
 
 # Audio artifacts — never commit recordings or model files
 *.wav
@@ -33,3 +49,6 @@ voices/
 
 # Secret scanning baseline
 .secrets.baseline
+
+# Generated archives
+*.zip

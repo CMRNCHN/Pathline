@@ -31,6 +31,13 @@ def test_create_transcriber_deepgram(monkeypatch: pytest.MonkeyPatch) -> None:
     assert isinstance(t, DeepgramTranscriber)
 
 
+def test_stats_include_model_resolution_fields() -> None:
+    t = FasterWhisperTranscriber()
+    stats = t.stats()
+    for key in ("model_source", "resolved_model_target", "download_root", "local_files_only"):
+        assert key in stats
+
+
 # ─── INPUT_FORMAT ─────────────────────────────────────────────────────────────
 
 def test_faster_whisper_input_format() -> None:
@@ -89,6 +96,25 @@ def test_connect_returns_false_on_model_load_error() -> None:
         result = asyncio.run(t.connect())
 
     assert result is False
+
+
+def test_model_path_override_forces_local_files_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WHISPER_MODEL_PATH", "/tmp/fw-small-en")
+    t = FasterWhisperTranscriber()
+    target, kwargs = t._resolve_model_target()
+    assert target == "/tmp/fw-small-en"
+    assert kwargs["local_files_only"] is True
+
+
+def test_download_root_and_local_files_only_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("WHISPER_MODEL_PATH", raising=False)
+    monkeypatch.setenv("WHISPER_DOWNLOAD_ROOT", "/tmp/hf-cache")
+    monkeypatch.setenv("WHISPER_LOCAL_FILES_ONLY", "true")
+    t = FasterWhisperTranscriber()
+    target, kwargs = t._resolve_model_target()
+    assert target == t._model_size
+    assert kwargs["download_root"] == "/tmp/hf-cache"
+    assert kwargs["local_files_only"] is True
 
 
 # ─── FasterWhisperTranscriber — process_audio ─────────────────────────────────
@@ -183,7 +209,18 @@ def test_high_confidence_transcript_passes() -> None:
 def test_stats_contains_expected_keys() -> None:
     t = FasterWhisperTranscriber()
     s = t.stats()
-    for key in ("backend", "model", "utterances_queued", "transcripts_emitted", "connected"):
+    for key in (
+        "backend",
+        "model",
+        "utterances_queued",
+        "transcripts_emitted",
+        "connected",
+        "queue_size",
+        "max_queue_size_seen",
+        "utterances_dropped_queue_full",
+        "last_connect_ms",
+        "last_inference_ms",
+    ):
         assert key in s, f"Missing key: {key}"
 
 

@@ -8,8 +8,7 @@ from typing import Any
 
 from .models import RunResult, StepResult, ScenarioResult
 from .status import StepStatus
-
-_REPORTS_DIR = Path.home() / ".ivr_assessor" / "run_suite_reports"
+from ..backend.ui.ui_state import RUN_SUITE_REPORTS_DIR as _REPORTS_DIR
 
 
 def _status_emoji(status: str) -> str:
