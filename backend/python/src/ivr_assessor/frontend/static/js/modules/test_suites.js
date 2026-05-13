@@ -1,19 +1,20 @@
-// Test Suite Editor — manages the suite list, editor panel, variables, and cases.
+// Suite Planning — manages planned suites, reusable inputs, and route checks.
 // Requires: common/time.js, common/dom.js, common/api.js
 
 (function() {
   let _suites = [];
   let _currentFilename = null;
 
-  const DEFAULT_SCHEMA = '_id|bin|base|level|cc|exp|expmonth|expyear|cvv|name|firstname|lastname|address|city|zip|state|country|bank|type|brand|phone|dob|ua|ssn|mmn|dl|other|email|ip';
+  const DEFAULT_SCHEMA = 'account_number|phone_number|zip_code|case_id|date_of_birth|member_id|last_name|language';
   const DEFAULT_VARIABLE_LABELS = {
-    _id:'ID', bin:'BIN', base:'Base', level:'Level',
-    cc:'Card Number', exp:'Expiration', expmonth:'Exp Month', expyear:'Exp Year', cvv:'CVV',
-    name:'Full Name', firstname:'First Name', lastname:'Last Name',
-    address:'Address', city:'City', zip:'ZIP Code', state:'State', country:'Country',
-    bank:'Bank', type:'Card Type', brand:'Brand', phone:'Phone', dob:'Date of Birth',
-    ua:'User Agent', ssn:'SSN', mmn:"Mother's Maiden Name", dl:"Driver's License",
-    other:'Other', email:'Email', ip:'IP Address',
+    account_number:'Account Number',
+    phone_number:'Phone Number',
+    zip_code:'ZIP Code',
+    case_id:'Case ID',
+    date_of_birth:'Date of Birth',
+    member_id:'Member ID',
+    last_name:'Last Name',
+    language:'Language',
   };
   const DEFAULT_VARIABLES = Object.fromEntries(
     Object.keys(DEFAULT_VARIABLE_LABELS).map(k => [k, ''])
@@ -25,6 +26,11 @@
     const data = await api.listSuites();
     _suites = data.suites || [];
     renderSuitesList();
+    renderPlanningEvidence();
+  }
+
+  function countPromptMatches(cases) {
+    return (cases || []).reduce((total, item) => total + ((item.triggers || []).length), 0);
   }
 
   function renderSuitesList() {
@@ -33,7 +39,12 @@
     _suites.forEach(s => {
       const el = document.createElement('div');
       el.className = 'ts-item' + (_currentFilename === s.filename ? ' active' : '');
-      el.textContent = s.filename;
+      const suiteData = s.data || {};
+      const caseCount = (suiteData.cases || []).length;
+      const promptCount = countPromptMatches(suiteData.cases || []);
+      el.innerHTML =
+        '<div class="ts-item-name">' + s.filename + '</div>' +
+        '<div class="ts-item-meta">' + caseCount + ' route check' + (caseCount !== 1 ? 's' : '') + ' · ' + promptCount + ' prompt match' + (promptCount !== 1 ? 'es' : '') + '</div>';
       el.onclick = () => openSuite(s.filename);
       container.appendChild(el);
     });
@@ -61,7 +72,59 @@
     $('ts-parse-status').textContent = '';
     renderVariables(suite.data.variables || {}, suite.data.variable_labels || {});
     renderCases(suite.data.cases || []);
+    updateIntentField(suite.data.cases || []);
+    renderPlanningEvidence(suite.data.target_number || '');
     renderSuitesList();
+  }
+
+  function updateIntentField(cases) {
+    const promptMatches = countPromptMatches(cases);
+    $('ts-intent').value = promptMatches > 0 ? 'Suite execution' : 'Route discovery';
+  }
+
+  async function ensureMapsLoaded() {
+    if (typeof AppState !== 'undefined' && Array.isArray(AppState.savedMaps) && AppState.savedMaps.length) {
+      return AppState.savedMaps;
+    }
+    try {
+      const data = await api.getMaps();
+      if (typeof AppState !== 'undefined') {
+        AppState.savedMaps = data.maps || [];
+      }
+      return data.maps || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function renderPlanningEvidence(targetOverride) {
+    const mapSummary = $('ts-map-summary');
+    const reuseSummary = $('ts-reuse-summary');
+    if (!mapSummary || !reuseSummary) return;
+
+    const target = (targetOverride != null ? targetOverride : $('ts-target').value).trim();
+    const suites = _suites || [];
+    const activeSuite = suites.find((item) => item.filename === _currentFilename) || null;
+    const editorData = $('ts-editor').style.display === 'block' ? getEditorData().data : null;
+    const cases = (editorData && editorData.cases) || (activeSuite && activeSuite.data && activeSuite.data.cases) || [];
+    const routeCheckCount = cases.length;
+    const promptMatchCount = countPromptMatches(cases);
+    const maps = await ensureMapsLoaded();
+    const normalizedTarget = typeof normalizeTarget === 'function' ? normalizeTarget(target) : target;
+    const savedMap = maps.find((item) => item.target === normalizedTarget) || null;
+
+    if (!target) {
+      mapSummary.textContent = 'Enter a target IVR to see whether saved IVR state mapping already exists.';
+    } else if (savedMap) {
+      mapSummary.textContent = 'Saved IVR state mapping found for ' + normalizedTarget + ' · ' + ((savedMap.session_count || 0) + ' prior run' + ((savedMap.session_count || 0) === 1 ? '' : 's')) + '.';
+    } else {
+      mapSummary.textContent = 'No saved IVR state mapping found yet for ' + normalizedTarget + '.';
+    }
+
+    reuseSummary.textContent =
+      routeCheckCount + ' route check' + (routeCheckCount === 1 ? '' : 's') +
+      ' · ' + promptMatchCount + ' prompt match' + (promptMatchCount === 1 ? '' : 'es') +
+      (suites.length ? ' · ' + suites.length + ' saved suite' + (suites.length === 1 ? '' : 's') + ' available for reuse.' : ' · No saved suites yet.');
   }
 
   // ── Variables ──────────────────────────────────────────────────────────────
@@ -84,8 +147,8 @@
     const row = document.createElement('div');
     row.className = 'var-row';
     row.innerHTML =
-      '<input class="var-label" placeholder="Card Number" value="' + esc(label) + '">' +
-      '<input class="var-key" placeholder="cc_num" value="' + esc(key) + '">' +
+      '<input class="var-label" placeholder="Account Number" value="' + esc(label) + '">' +
+      '<input class="var-key" placeholder="account_number" value="' + esc(key) + '">' +
       '<input class="var-val' + (val ? ' filled' : '') + '" placeholder="value or auto-filled" value="' + esc(val) + '">' +
       '<button class="trigger-del" onclick="this.closest(\'.var-row\').remove()">✕</button>';
     return row;
@@ -106,7 +169,7 @@
     const schemaRaw = $('ts-schema').value.trim();
     const dataRaw   = $('ts-datarow').value.trim();
     const status    = $('ts-parse-status');
-    if (!schemaRaw || !dataRaw) { status.textContent = 'Paste both header and data row first.'; return; }
+    if (!schemaRaw || !dataRaw) { status.textContent = 'Paste both the input header row and input data row first.'; return; }
     const headers = schemaRaw.split('|').map(h => h.trim());
     const values  = dataRaw.split('|');
     const parsed  = {};
@@ -122,8 +185,8 @@
       }
     });
     status.textContent = filled
-      ? '✓ Filled ' + filled + ' variable' + (filled > 1 ? 's' : '') + ' from data row.'
-      : 'No matching JSON keys found. Check key names match your header columns.';
+      ? '✓ Filled ' + filled + ' reusable input' + (filled > 1 ? 's' : '') + ' from the imported row.'
+      : 'No matching JSON keys found. Check that reusable input keys match your header columns.';
   }
 
   // ── Cases ──────────────────────────────────────────────────────────────────
@@ -138,7 +201,7 @@
       const hdr = document.createElement('div');
       hdr.style.cssText = 'display:flex;justify-content:space-between';
       hdr.innerHTML =
-        '<input type="text" class="trigger-input" value="' + (c.name || '') + '" placeholder="Case Name"' +
+        '<input type="text" class="trigger-input case-name-input" value="' + (c.name || '') + '" placeholder="Route Check Name"' +
         ' style="font-weight:600;font-size:13px;border:none;background:transparent;padding:0;flex:none;width:200px;">' +
         '<button class="trigger-del" onclick="window._tsDeleteCase(' + cIdx + ')">🗑 Remove</button>';
       card.appendChild(hdr);
@@ -146,7 +209,7 @@
       const pathRow = document.createElement('div');
       pathRow.style.cssText = 'display:flex;gap:8px;align-items:center';
       pathRow.innerHTML =
-        '<span style="font-size:11px;color:var(--text-3);width:80px;">Initial Path</span>' +
+        '<span style="font-size:11px;color:var(--text-3);width:112px;">Starting DTMF Path</span>' +
         '<input type="text" class="trigger-input path-input" value="' + (c.initial_path || []).join(', ') + '" placeholder="e.g. 1, 3, 2">';
       card.appendChild(pathRow);
 
@@ -158,13 +221,13 @@
         const esc = s => (s || '').replace(/"/g, '&quot;');
         tr.innerHTML =
           '<div class="trigger-title-row">' +
-            '<span class="trigger-title-label">Title</span>' +
-            '<input type="text" class="trigger-title-input t-title" value="' + esc(t.title) + '" placeholder="e.g. Account Number">' +
+            '<span class="trigger-title-label">Checkpoint Name</span>' +
+            '<input type="text" class="trigger-title-input t-title" value="' + esc(t.title) + '" placeholder="e.g. Account Number Check">' +
             '<button class="trigger-del" onclick="window._tsDeleteTrigger(' + cIdx + ',' + tIdx + ')" style="margin-left:4px;">✕</button>' +
           '</div>' +
           '<div class="trigger-row">' +
-            '<input type="text" class="trigger-input t-phrase" value="' + esc(t.phrase) + '" placeholder="IVR says…">' +
-            '<input type="text" class="trigger-input t-resp" value="' + esc(t.response) + '" placeholder="Reply (or $variable)">' +
+            '<input type="text" class="trigger-input t-phrase" value="' + esc(t.phrase) + '" placeholder="Prompt Match">' +
+            '<input type="text" class="trigger-input t-resp" value="' + esc(t.response) + '" placeholder="Response Anchor">' +
             '<select class="trigger-select t-kind">' +
               '<option value="dtmf"' + (t.kind === 'dtmf' ? ' selected' : '') + '>DTMF</option>' +
               '<option value="speech"' + (t.kind === 'speech' ? ' selected' : '') + '>Speech</option>' +
@@ -175,7 +238,7 @@
       card.appendChild(triggersDiv);
 
       const addTrigBtn = document.createElement('button');
-      addTrigBtn.textContent = '+ Add Trigger';
+      addTrigBtn.textContent = '+ Add Prompt Match';
       addTrigBtn.style.cssText = 'background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;text-align:left;margin-top:4px;';
       addTrigBtn.onclick = () => window._tsAddTrigger(cIdx);
       card.appendChild(addTrigBtn);
@@ -197,7 +260,7 @@
       cases: [],
     };
     document.querySelectorAll('.case-card').forEach(card => {
-      const name = card.querySelector('input[placeholder="Case Name"]').value.trim();
+      const name = card.querySelector('.case-name-input').value.trim();
       const pathStr = card.querySelector('.path-input').value.trim();
       const initial_path = pathStr ? pathStr.split(',').map(s => s.trim()).filter(s => s) : [];
       const triggers = [];
@@ -212,6 +275,7 @@
       });
       data.cases.push({ name, initial_path, triggers });
     });
+    updateIntentField(data.cases);
     return { filename, data };
   }
 
@@ -219,13 +283,13 @@
 
   async function saveSuite() {
     const { filename, data } = getEditorData();
-    if (!data.target_number) { alert('Please enter a default target number for the suite.'); return false; }
-    if (!data.cases.length)  { alert('Please add at least one test case.'); return false; }
+    if (!data.target_number) { alert('Please enter a target IVR for the planned suite.'); return false; }
+    if (!data.cases.length)  { alert('Please add at least one route check.'); return false; }
     for (const c of data.cases) {
-      if (!c.name) { alert('Each test case must have a name.'); return false; }
+      if (!c.name) { alert('Each route check must have a name.'); return false; }
       for (const t of (c.triggers || [])) {
         if (!t.phrase || !t.response) {
-          alert('Case "' + c.name + '" has a trigger missing phrase or response.');
+          alert('Route check "' + c.name + '" has a prompt match missing its response anchor.');
           return false;
         }
       }
@@ -233,7 +297,7 @@
     try {
       await api.saveSuite(filename, data);
     } catch(e) {
-      alert(e.message || 'Failed to save suite.');
+      alert(e.message || 'Failed to save the reusable suite.');
       return false;
     }
     await loadSuites();
@@ -249,10 +313,10 @@
     $('ts-modal').style.display = 'none';
     try {
       await api.runSuite(fname);
-      addLog('[system] Test suite ' + fname + ' started in background.');
+      addLog('[system] Reusable suite ' + fname + ' started in background.');
     } catch(e) {
-      addLog('[error] ' + (e.message || 'Failed to start test suite.'));
-      alert(e.message || 'Failed to start test suite.');
+      addLog('[error] ' + (e.message || 'Failed to start reusable suite.'));
+      alert(e.message || 'Failed to start reusable suite.');
     }
   }
 
@@ -262,16 +326,19 @@
     const { data } = getEditorData();
     data.cases.splice(idx, 1);
     renderCases(data.cases);
+    renderPlanningEvidence();
   };
   window._tsDeleteTrigger = function(cIdx, tIdx) {
     const { data } = getEditorData();
     data.cases[cIdx].triggers.splice(tIdx, 1);
     renderCases(data.cases);
+    renderPlanningEvidence();
   };
   window._tsAddTrigger = function(cIdx) {
     const { data } = getEditorData();
     data.cases[cIdx].triggers.push({ title: '', phrase: '', response: '', kind: 'dtmf' });
     renderCases(data.cases);
+    renderPlanningEvidence();
   };
 
   // ── Event wiring ───────────────────────────────────────────────────────────
@@ -282,11 +349,13 @@
   $('ts-save-btn').onclick   = saveSuite;
   $('ts-run-btn').onclick    = runSuite;
   $('ts-parse-btn').onclick  = parseDataRow;
+  $('ts-target').addEventListener('input', () => renderPlanningEvidence());
 
   $('ts-add-case').onclick = () => {
     const { data } = getEditorData();
-    data.cases.push({ name: 'New Case', initial_path: [], triggers: [] });
+    data.cases.push({ name: 'New Route Check', initial_path: [], triggers: [] });
     renderCases(data.cases);
+    renderPlanningEvidence();
   };
   $('ts-add-var').onclick = () => {
     $('ts-vars-container').appendChild(makeVarRow('', '', ''));

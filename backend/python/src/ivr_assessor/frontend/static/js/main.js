@@ -61,17 +61,27 @@ function classifyTimelineEntry(entry) {
   const marker = String(entry.marker || '').toLowerCase();
   const detail = String(entry.detail || '').toLowerCase();
   if (entry.source === 'session_event' && marker === 'prompt') return 'transcript';
-  if (entry.source === 'session_event' && marker === 'action') return 'routing';
+  if (entry.source === 'session_event' && marker === 'action') return 'response';
   if (entry.source === 'websocket') return 'websocket';
-  if (entry.category === 'cleanup' || marker.includes('cleanup') || marker.includes('reset')) return 'cleanup';
-  if (marker.includes('replay') || marker.includes('record') || marker.includes('artifact') || marker.includes('snapshot') || detail.includes('replay')) return 'replay';
-  return 'routing';
+  if (entry.category === 'cleanup' || marker.includes('cleanup') || marker.includes('reset')) return 'notice';
+  if (marker.includes('replay') || marker.includes('record') || marker.includes('artifact') || marker.includes('snapshot') || detail.includes('replay')) return 'review';
+  return 'traversal';
+}
+
+function timelineGroupLabel(type) {
+  if (type === 'transcript') return 'Prompt Matches';
+  if (type === 'response') return 'Response Anchors';
+  if (type === 'traversal') return 'Traversal Logic';
+  if (type === 'notice') return 'Run Notices';
+  if (type === 'review') return 'Review / Replay Evidence';
+  if (type === 'websocket') return 'Technical Diagnostics';
+  return 'Live Operations Events';
 }
 
 function formatActionText(rawText) {
-  if (!rawText) return 'Operator action';
-  if (rawText.startsWith('dtmf:')) return 'Sent DTMF ' + rawText.slice(5);
-  if (rawText.startsWith('say:')) return 'Spoke "' + rawText.slice(4) + '"';
+  if (!rawText) return 'Human operator response';
+  if (rawText.startsWith('dtmf:')) return 'Response anchor: DTMF ' + rawText.slice(5);
+  if (rawText.startsWith('say:')) return 'Response anchor: speech "' + rawText.slice(4) + '"';
   return rawText;
 }
 
@@ -94,27 +104,27 @@ function buildTimelineRows() {
     let badge = titleize(type);
 
     if (entry.source === 'session_event' && entry.marker === 'prompt') {
-      title = 'Transcript';
+      title = 'Prompt Match';
       detail = rawText || detail;
-      badge = 'Transcript';
+      badge = 'Prompt Match';
     } else if (entry.source === 'session_event' && entry.marker === 'action') {
-      title = rawText && rawText.startsWith('dtmf:') ? 'DTMF Action' : 'Voice Action';
+      title = rawText && rawText.startsWith('dtmf:') ? 'DTMF Response Anchor' : 'Speech Response Anchor';
       detail = formatActionText(rawText || detail);
-      badge = 'Routing';
+      badge = 'Response Anchor';
     } else if (entry.source === 'websocket') {
-      title = titleize(entry.marker || 'WebSocket');
-      detail = entry.detail || 'Lifecycle event';
-      badge = 'WebSocket';
+      title = titleize(entry.marker || 'Technical Diagnostics');
+      detail = entry.detail || 'Technical diagnostics event';
+      badge = 'Diagnostics';
     } else if (type === 'cleanup') {
       title = titleize(entry.marker || 'cleanup');
-      badge = 'Cleanup';
-    } else if (type === 'replay') {
+      badge = 'Notice';
+    } else if (type === 'review') {
       title = titleize(entry.marker || 'artifact');
-      badge = 'Replay';
+      badge = 'Review';
     } else if (entry.source === 'startup') {
       badge = 'Startup';
     } else {
-      badge = entry.source === 'checkpoint' ? 'Runtime' : badge;
+      badge = entry.source === 'checkpoint' ? 'Traversal Logic' : badge;
     }
 
     return {
@@ -134,9 +144,9 @@ function buildTimelineRows() {
 
   const legacyRows = (AppState.legacyLogs || []).map((item, index) => ({
     id: 'legacy:' + item.at + ':' + index,
-    type: 'routing',
+    type: 'notice',
     tone: item.level === 'error' ? 'error' : (item.level === 'accent' ? 'accent' : 'neutral'),
-    title: 'Operator Notice',
+    title: 'Run Notice',
     detail: item.message,
     badge: 'Notice',
     meta: new Date(item.at).toLocaleTimeString([], {
@@ -168,10 +178,10 @@ function renderHeaderStatus() {
   statusEl.className = 'status-pill';
   if (status.error) {
     statusEl.classList.add('tone-error');
-    statusEl.textContent = 'Error';
+    statusEl.textContent = 'Exception';
   } else if (status.is_running) {
     statusEl.classList.add('tone-ok');
-    statusEl.textContent = 'Active';
+    statusEl.textContent = 'Active Run';
   } else {
     statusEl.classList.add('tone-warn');
     statusEl.textContent = 'Idle';
@@ -188,7 +198,7 @@ function renderCaption() {
     text.textContent = status.live_caption;
   } else {
     box.classList.add('is-idle');
-    text.textContent = AppState.callRunning ? 'Waiting for a live caption update…' : 'No active caption. Start a session to see live transcript flow.';
+    text.textContent = AppState.callRunning ? 'Waiting for the next heard prompt…' : 'No current prompt yet. Start a bounded run to watch prompt flow.';
   }
 }
 
@@ -198,7 +208,7 @@ function renderTimeline() {
   const selectedId = AppState.selectedTimelineEvent ? AppState.selectedTimelineEvent.id : null;
 
   if (!rows.length) {
-    timelineEl.innerHTML = renderEmptyState('◦', 'No timeline events yet', 'Structured runtime activity will appear here.');
+    timelineEl.innerHTML = renderEmptyState('◦', 'No live operations events yet', 'Start a bounded run to monitor prompt matching, response anchoring, traversal logic, and run notices.');
     return;
   }
 
@@ -206,7 +216,36 @@ function renderTimeline() {
     AppState.selectedTimelineEvent = null;
   }
 
-  timelineEl.innerHTML = renderTimelineRows(rows, AppState.selectedTimelineEvent ? AppState.selectedTimelineEvent.id : null);
+  const selectedFilter = AppState.selectedTimelineFilter || 'all';
+  if (selectedFilter !== 'all') {
+    timelineEl.innerHTML =
+      '<div class="timeline-group-label">' + escapeHtml(timelineGroupLabel(selectedFilter)) + '</div>' +
+      renderTimelineRows(rows, selectedId);
+    return;
+  }
+
+  const groups = [
+    {
+      label: 'Live Operations / Active Run',
+      rows: rows.filter((row) => ['transcript', 'response', 'traversal', 'notice'].includes(row.type)),
+    },
+    {
+      label: 'Review / Replay Evidence',
+      rows: rows.filter((row) => row.type === 'review'),
+    },
+    {
+      label: 'Technical Diagnostics',
+      rows: rows.filter((row) => row.type === 'websocket'),
+    },
+  ];
+
+  timelineEl.innerHTML = groups
+    .filter((group) => group.rows.length)
+    .map((group) =>
+      '<div class="timeline-group-label">' + escapeHtml(group.label) + '</div>' +
+      renderTimelineRows(group.rows, selectedId)
+    )
+    .join('');
 }
 
 function summarizeGraphContext() {
@@ -214,18 +253,27 @@ function summarizeGraphContext() {
   const target = normalizeTarget($('f-target').value);
   const savedMap = (AppState.savedMaps || []).find((item) => item.target === target) || null;
   const branchCount = Object.values(graph).reduce((total, node) => total + Object.keys((node && node.branches) || {}).length, 0);
+  const openBranchCount = Object.values(graph).reduce((total, node) => {
+    return total + Object.values((node && node.branches) || {}).filter((observation) => {
+      const nextPrompts = (observation && observation.next_prompts) || [];
+      return !nextPrompts.length;
+    }).length;
+  }, 0);
   const activePrompt = (AppState.selectedTimelineEvent && AppState.selectedTimelineEvent.type === 'transcript' && AppState.selectedTimelineEvent.rawText)
     || ((AppState.latestStatus || {}).active_prompt)
     || '';
-  const cards = [
-    { label: 'Nodes', value: String(Object.keys(graph).length) },
-    { label: 'Branches', value: String(branchCount) },
-    { label: 'Target', value: target || 'Unset' },
-    { label: 'Saved', value: savedMap ? ((savedMap.session_count || 0) + ' sessions') : ((AppState.savedMaps || []).length + ' maps') },
+  const cards = activePrompt ? [
+    { label: 'Current State', value: activePrompt.slice(0, 30) + (activePrompt.length > 30 ? '…' : '') },
+    { label: 'Prompt Nodes', value: String(Object.keys(graph).length) },
+    { label: 'Response Branches', value: String(branchCount) },
+    { label: 'Unresolved Branches', value: String(openBranchCount) },
+  ] : [
+    { label: 'Prompt Nodes', value: String(Object.keys(graph).length) },
+    { label: 'Response Branches', value: String(branchCount) },
+    { label: 'Unresolved Branches', value: String(openBranchCount) },
+    { label: 'Target IVR', value: target || 'Unset' },
   ];
-  if (activePrompt) {
-    cards.push({ label: 'Context', value: activePrompt.slice(0, 30) + (activePrompt.length > 30 ? '…' : '') });
-  }
+  cards.push({ label: 'Saved Context', value: savedMap ? ((savedMap.session_count || 0) + ' prior runs') : ((AppState.savedMaps || []).length + ' saved maps') });
   $('graph-meta').innerHTML = renderGraphMeta(cards);
 }
 
@@ -235,7 +283,7 @@ function renderGraph() {
   summarizeGraphContext();
 
   if (!graph || Object.keys(graph).length === 0) {
-    graphBox.innerHTML = renderEmptyState('⋯', 'No graph nodes discovered yet', 'Live graph context appears after prompts and actions accumulate.');
+    graphBox.innerHTML = renderEmptyState('⋯', 'No IVR state mapping yet', 'Current state, prompt nodes, and response branches appear after prompt matches and response anchors accumulate.');
     return;
   }
 
@@ -261,25 +309,27 @@ function renderGraph() {
     const isActive = !!activePrompt && (prompt === activePrompt || prompt.includes(activePrompt) || activePrompt.includes(prompt));
     return (
       '<article class="graph-node' + (isActive ? ' is-active' : '') + '">' +
-        '<div class="graph-node-title">' + escapeHtml(prompt) + '</div>' +
-        '<div class="graph-node-meta">' + confidence + ' confidence · ' + branches.length + ' branches</div>' +
+        '<div class="graph-node-title">' + (isActive ? '<span class="state-pill tone-accent">Current IVR State</span> ' : '') + escapeHtml(prompt) + '</div>' +
+        '<div class="graph-node-meta">' + confidence + ' prompt matching confidence · ' + branches.length + ' response branches observed</div>' +
         (
           branches.length
             ? branches.slice(0, 6).map(([branch, observation]) => {
-              const nextPrompts = (observation.next_prompts || []).slice(0, 2).join(' → ') || 'END';
+              const nextPrompts = (observation.next_prompts || []).slice(0, 2).join(' → ') || 'End of observed path';
               const branchActive = isActive && activeBranch && branch === activeBranch;
               return (
                 '<div class="graph-branch' + (branchActive ? ' is-active' : '') + '">' +
-                  '<span class="graph-branch-key">' + escapeHtml(branch) + '</span>' +
+                  '<span class="graph-branch-key">Response ' + escapeHtml(branch) + '</span>' +
                   '<span class="graph-branch-value">' + escapeHtml(nextPrompts) + '</span>' +
                 '</div>'
               );
             }).join('')
-            : '<div class="diagnostic-row meta">No branch observations yet.</div>'
+            : '<div class="diagnostic-row meta">No response branches observed from this IVR state yet.</div>'
         ) +
       '</article>'
     );
-  }).join('');
+  }).join('') + (entries.length > 10
+    ? '<div class="diagnostic-row meta">Showing the first 10 IVR state nodes. Refresh maps or inspect replay/review evidence for the full mapping.</div>'
+    : '');
 }
 
 function renderHeartbeat() {
@@ -295,59 +345,100 @@ function renderHeartbeat() {
   const diagnose = AppState.diagnose || {};
   const issues = diagnose.issues || [];
 
-  const speechValue = streamLast.stt_connected === true
-    ? 'Connected'
-    : (streamLast.stt_connected === false ? 'Unavailable' : 'Unknown');
-  const speechTone = streamLast.stt_connected === true
-    ? 'ok'
-    : (streamLast.stt_connected === false && AppState.callRunning ? 'error' : 'neutral');
+  const cards = [];
+  const status = AppState.latestStatus || {};
+  const target = session.target || (((diagnostics.replay_diagnostics || {}).session || {}).target) || normalizeTarget($('f-target').value);
 
-  const cards = [
-    {
-      label: 'Runtime',
-      value: summary.session_active ? 'Running' : 'Idle',
-      meta: 'Launch #' + (runtime.launch_sequence || 0),
-      tone: summary.session_active ? 'ok' : 'neutral',
-    },
-    {
-      label: 'Session',
-      value: session.target || (((diagnostics.replay_diagnostics || {}).session || {}).target) || 'No target',
-      meta: AppState.callRunning ? ('Events ' + (summary.session_event_count || 0)) : 'Awaiting session',
-      tone: AppState.callRunning ? 'accent' : 'neutral',
-    },
-    {
-      label: 'WebSocket',
-      value: String(stream.active_streams || 0) + ' stream · ' + String(stream.listen_clients || 0) + ' listen',
-      meta: stream.last_stream_disconnect_reason || 'No disconnect signal',
-      tone: stream.active_streams ? 'ok' : 'neutral',
-    },
-    {
-      label: 'Speech',
-      value: speechValue,
-      meta: 'STT ' + (streamLast.stt_backend || 'Not surfaced') + ' · TTS Not surfaced',
-      tone: speechTone,
-    },
-    {
-      label: 'Queue',
-      value: queue.current_depth != null ? ('Depth ' + queue.current_depth) : 'Inactive',
-      meta: queue.max_depth_seen != null ? ('Max ' + queue.max_depth_seen + ' · puts ' + queue.puts_total + ' · gets ' + queue.gets_total) : 'No queue metrics',
-      tone: queue.current_depth > 0 ? 'accent' : 'neutral',
-    },
-    {
-      label: 'Checkpoints',
-      value: String(runtime.checkpoint_count || 0),
-      meta: runtime.last_checkpoint ? String(runtime.last_checkpoint.stage || 'checkpoint') : 'No checkpoint yet',
-      tone: runtime.checkpoint_count ? 'accent' : 'neutral',
-    },
-    {
-      label: 'Health',
-      value: issues.length ? (issues.length + ' issue' + (issues.length === 1 ? '' : 's')) : (diagnose.ok === true ? 'Ready' : 'Unknown'),
-      meta: staleness.is_stale ? ('Idle ' + formatMaybeSeconds(staleness.idle_for_s) + 's') : 'Fresh runtime',
-      tone: issues.length ? 'warn' : (diagnose.ok === true ? 'ok' : (staleness.is_stale ? 'warn' : 'neutral')),
-    },
-  ];
+  if (status.error) {
+    cards.push({
+      label: 'P1 Exception',
+      value: 'Run error surfaced',
+      meta: status.error,
+      tone: 'error',
+      priority: 1,
+    });
+  }
 
-  $('heartbeat-strip').innerHTML = renderHeartbeatCards(cards);
+  issues.slice(0, 3).forEach((issue, index) => {
+    cards.push({
+      label: index === 0 ? 'P3 Readiness' : 'P3 Readiness',
+      value: 'Pre-run issue',
+      meta: String(issue),
+      tone: 'warn',
+      priority: 4,
+    });
+  });
+
+  if (AppState.callRunning && streamLast.stt_connected === false) {
+    cards.push({
+      label: 'P1 Prompt Capture',
+      value: 'Unavailable',
+      meta: streamLast.stt_backend || 'Speech backend not connected',
+      tone: 'error',
+      priority: 2,
+    });
+  }
+
+  if (AppState.callRunning && stream.active_streams === 0) {
+    cards.push({
+      label: 'P2 Media Stream',
+      value: 'No active stream',
+      meta: stream.last_stream_disconnect_reason || 'Waiting for Twilio media stream',
+      tone: 'warn',
+      priority: 2,
+    });
+  }
+
+  if (stream.last_error) {
+    cards.push({
+      label: 'P1 Stream Exception',
+      value: 'Stream error',
+      meta: stream.last_error,
+      tone: 'error',
+      priority: 1,
+    });
+  }
+
+  if (staleness.is_stale) {
+    cards.push({
+      label: 'P2 Runtime Health',
+      value: 'Runtime stale',
+      meta: 'Idle ' + formatMaybeSeconds(staleness.idle_for_s) + 's',
+      tone: 'warn',
+      priority: 3,
+    });
+  }
+
+  if (queue.current_depth > 0) {
+    cards.push({
+      label: 'P2 Operator Response',
+      value: 'Checkpoint pending',
+      meta: queue.max_depth_seen != null ? ('Depth ' + queue.current_depth + ' · max ' + queue.max_depth_seen) : 'Queue awaiting deterministic traversal response',
+      tone: 'accent',
+      priority: 2,
+    });
+  }
+
+  if (!cards.length) {
+    cards.push({
+      label: 'Run Health',
+      value: 'Nominal',
+      meta: (AppState.callRunning ? 'Active bounded run' : 'Idle') + ' · target ' + (target || 'unset'),
+      tone: diagnose.ok === true || AppState.callRunning ? 'ok' : 'neutral',
+      priority: 5,
+    });
+    cards.push({
+      label: 'IVR State Context',
+      value: summary.session_active ? 'Running' : 'Ready',
+      meta: 'Launch #' + (runtime.launch_sequence || 0) + ' · checkpoints ' + (runtime.checkpoint_count || 0),
+      tone: summary.session_active ? 'accent' : 'neutral',
+      priority: 5,
+    });
+  }
+
+  $('heartbeat-strip').innerHTML = renderHeartbeatCards(cards
+    .sort((left, right) => (left.priority || 9) - (right.priority || 9))
+    .slice(0, 3));
 }
 
 function renderControlStatus() {
@@ -358,24 +449,24 @@ function renderControlStatus() {
   const queue = ((diagnostics.queue_visibility || {}).session_queue) || {};
   const statusItems = [
     {
-      label: 'Session',
-      value: AppState.callRunning ? 'Live' : 'Idle',
+      label: 'Active Run',
+      value: AppState.callRunning ? 'Live operations' : 'Idle',
       meta: ((diagnostics.summary || {}).session_target) || '—',
     },
     {
-      label: 'Stream',
-      value: stream.active_streams ? 'Connected' : 'Waiting',
+      label: 'Media Stream',
+      value: stream.active_streams ? 'Connected' : (AppState.callRunning ? 'No active stream' : 'Waiting'),
       meta: stream.last_stream_close_code != null ? ('Close ' + stream.last_stream_close_code) : '—',
     },
     {
-      label: 'STT',
+      label: 'Prompt Capture',
       value: streamLast.stt_connected === true ? 'Connected' : (streamLast.stt_connected === false ? 'Unavailable' : 'Unknown'),
       meta: streamLast.stt_backend || 'Not surfaced',
     },
     {
-      label: 'Queue',
-      value: queue.current_depth != null ? String(queue.current_depth) : '—',
-      meta: queue.max_depth_seen != null ? ('max ' + queue.max_depth_seen) : '—',
+      label: 'Alert Priority',
+      value: queue.current_depth > 0 ? 'P2 response needed' : 'No active exception',
+      meta: queue.max_depth_seen != null ? ('queue max ' + queue.max_depth_seen) : '—',
     },
   ];
 
@@ -386,6 +477,48 @@ function renderControlStatus() {
       '<span class="status-item-meta">' + escapeHtml(item.meta) + '</span>' +
     '</div>'
   ).join('');
+}
+
+function buildRouteRefinementItems(session, queueVisibility, artifacts) {
+  const chronology = session.chronology || [];
+  const prompts = chronology.filter((item) => item.kind === 'prompt');
+  const actions = chronology.filter((item) => item.kind === 'action');
+  const items = [];
+
+  if (session.error) {
+    items.push('Review the last run error before reusing this route: ' + session.error);
+  }
+  if (prompts.length > actions.length + 1) {
+    items.push('Some prompt matches do not have response anchors yet; review missing route responses after the active run.');
+  }
+
+  const repeatedPrompt = prompts.find((item, index) => {
+    if (index === 0) return false;
+    return item.text_preview && item.text_preview === prompts[index - 1].text_preview;
+  });
+  if (repeatedPrompt) {
+    items.push('Repeated prompts suggest a loop or retry branch; confirm the expected route check and starting DTMF path.');
+  }
+
+  const queue = queueVisibility.session_queue || {};
+  if ((queue.current_depth || 0) > 0) {
+    items.push('Checkpoint queue items remained pending at the last snapshot; verify traversal logic and human operator response timing.');
+  }
+
+  if ((session.graph_node_count || 0) === 0 && prompts.length > 0) {
+    items.push('Prompt activity was captured without persisted map growth; re-run to confirm IVR state mapping coverage.');
+  }
+
+  const reports = ((artifacts.reports || {}).file_count) || 0;
+  const recordings = ((artifacts.recordings || {}).file_count) || 0;
+  if (!reports && !recordings) {
+    items.push('No replay/review artifacts were captured for this run; collect evidence before extracting a reusable suite.');
+  }
+
+  if (!items.length) {
+    items.push('Prompt matching, response anchoring, and evidence capture look ready for the next bounded run.');
+  }
+  return items;
 }
 
 function sectionHtml(title, content) {
@@ -418,6 +551,7 @@ function renderDrawer() {
   const activeTab = AppState.activeDrawerTab || 'runtime';
 
   panel.classList.toggle('is-open', !!AppState.drawerOpen);
+  panel.classList.toggle('is-secondary-active-run', !!AppState.callRunning);
   $('drawer-toggle').textContent = AppState.drawerOpen ? 'Collapse' : 'Expand';
 
   document.querySelectorAll('[data-drawer-tab]').forEach((tab) => {
@@ -435,36 +569,42 @@ function renderDrawer() {
     const checkpoints = ((metrics.runtime || {}).checkpoints || []).slice(-6).map((item) => {
       return formatClock(item.ts) + ' · ' + titleize(item.stage || 'checkpoint') + (item.detail ? ' · ' + item.detail : '');
     });
+    const routeRefinement = buildRouteRefinementItems(session, queueVisibility, artifacts);
     html =
       '<div class="drawer-grid">' +
-        sectionHtml('Overview', renderKeyValueTable([
-          { key: 'Session active', value: String(!!summary.session_active) },
-          { key: 'Session target', value: summary.session_target || '—' },
+        sectionHtml('Bounded Run Health', renderKeyValueTable([
+          { key: 'Run active', value: String(!!summary.session_active) },
+          { key: 'Target IVR', value: summary.session_target || '—' },
           { key: 'Runtime checkpoints', value: String(summary.runtime_checkpoint_count || 0) },
           { key: 'Cleanup count', value: String(summary.cleanup_count || 0) },
           { key: 'Stale runtime', value: String(!!summary.stale_runtime) },
         ])) +
-        sectionHtml('Operator Notices', renderList((AppState.legacyLogs || []).slice(-8).map((item) => {
+        sectionHtml('Route Refinement Cues', renderList(routeRefinement, 'meta')) +
+        sectionHtml('Exception-First Run Alerts', renderList((AppState.legacyLogs || []).slice(-8).map((item) => {
           return new Date(item.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' · ' + item.message;
         }), 'meta')) +
-        sectionHtml('Startup Events', renderList(startupEvents, 'meta')) +
-        sectionHtml('Runtime Checkpoints', renderList(checkpoints, 'meta')) +
+        sectionHtml('Secondary Startup Diagnostics', renderList(startupEvents, 'meta')) +
+        sectionHtml('Runtime Checkpoint Chronology', renderList(checkpoints, 'meta')) +
       '</div>';
   } else if (activeTab === 'session') {
     const chronology = (session.chronology || []).slice(-10).map((item) => {
       return formatTimer(Math.floor((item.t_ms || 0) / 1000)) + ' · ' + titleize(item.kind || 'event') + ' · ' + item.text_preview;
     });
+    const promptCount = (session.chronology || []).filter((item) => item.kind === 'prompt').length;
+    const actionCount = (session.chronology || []).filter((item) => item.kind === 'action').length;
     html =
       '<div class="drawer-grid">' +
-        sectionHtml('Session Summary', renderKeyValueTable([
+        sectionHtml('Call-Path Replay', renderKeyValueTable([
           { key: 'Target', value: session.target || '—' },
           { key: 'Duration', value: session.duration_ms != null ? formatDuration(session.duration_ms) : '—' },
           { key: 'Graph nodes', value: String(session.graph_node_count || 0) },
-          { key: 'Manual mode', value: String(!!session.manual_mode) },
+          { key: 'Manual response mode', value: String(!!session.manual_mode) },
+          { key: 'Prompt matches', value: String(promptCount) },
+          { key: 'Anchored responses', value: String(actionCount) },
           { key: 'Event count', value: String(session.event_count || 0) },
           { key: 'Error', value: session.error || '—' },
         ])) +
-        sectionHtml('Recent Chronology', renderList(chronology, 'meta')) +
+        sectionHtml('Prompt & Action Chronology', renderList(chronology, 'meta')) +
       '</div>';
   } else if (activeTab === 'websocket') {
     const counts = websocket.counts || {};
@@ -475,29 +615,29 @@ function renderDrawer() {
     const streamLast = ((metrics.stream_server || {}).last_stream_metrics) || {};
     html =
       '<div class="drawer-grid">' +
-        sectionHtml('Lifecycle Counts', countRows.length ? renderKeyValueTable(countRows) : renderEmptyState('◦', 'No lifecycle counts', 'WebSocket counters appear after connections.')) +
-        sectionHtml('Last Stream Metrics', renderKeyValueTable([
+        sectionHtml('Technical Diagnostics Counts', countRows.length ? renderKeyValueTable(countRows) : renderEmptyState('◦', 'No diagnostics counts', 'Technical diagnostics counters appear after connections.')) +
+        sectionHtml('Technical Diagnostics Snapshot', renderKeyValueTable([
           { key: 'Status', value: streamLast.stream_status || '—' },
           { key: 'STT backend', value: streamLast.stt_backend || '—' },
           { key: 'STT connected', value: String(streamLast.stt_connected) },
           { key: 'Connect ms', value: streamLast.stt_connect_ms != null ? String(streamLast.stt_connect_ms) : '—' },
           { key: 'Last error', value: (metrics.stream_server || {}).last_error || '—' },
         ])) +
-        sectionHtml('Recent Lifecycle', renderList(recent, 'meta')) +
+        sectionHtml('Recent Technical Diagnostics', renderList(recent, 'meta')) +
       '</div>';
   } else if (activeTab === 'queue') {
     const queue = queueVisibility.session_queue || {};
     const checkpoint = queueVisibility.last_checkpoint || {};
     html =
       '<div class="drawer-grid">' +
-        sectionHtml('Queue Metrics', renderKeyValueTable([
+        sectionHtml('Checkpoint Verification Summary', renderKeyValueTable([
           { key: 'Current depth', value: queue.current_depth != null ? String(queue.current_depth) : '—' },
           { key: 'Max depth', value: queue.max_depth_seen != null ? String(queue.max_depth_seen) : '—' },
           { key: 'Puts total', value: queue.puts_total != null ? String(queue.puts_total) : '—' },
           { key: 'Gets total', value: queue.gets_total != null ? String(queue.gets_total) : '—' },
           { key: 'Elapsed ms', value: queue.elapsed_ms != null ? String(queue.elapsed_ms) : '—' },
         ])) +
-        sectionHtml('Last Checkpoint', renderKeyValueTable([
+        sectionHtml('Latest Checkpoint Verification', renderKeyValueTable([
           { key: 'Stage', value: checkpoint.stage || '—' },
           { key: 'Category', value: checkpoint.category || '—' },
           { key: 'Detail', value: checkpoint.detail || '—' },
@@ -510,13 +650,13 @@ function renderDrawer() {
     });
     html =
       '<div class="drawer-grid">' +
-        sectionHtml('Artifact Summary', renderKeyValueTable([
+        sectionHtml('Evidence & Artifacts Summary', renderKeyValueTable([
           { key: 'Reports', value: artifacts.reports ? String(artifacts.reports.file_count) : '—' },
           { key: 'Recordings', value: artifacts.recordings ? String(artifacts.recordings.file_count) : '—' },
           { key: 'Replays', value: artifacts.replays ? String(artifacts.replays.file_count) : '—' },
           { key: 'Snapshots', value: artifacts.snapshots ? String(artifacts.snapshots.file_count) : '—' },
         ])) +
-        sectionHtml('Recording Artifacts', renderList(recordingArtifacts, 'meta')) +
+        sectionHtml('Captured Evidence', renderList(recordingArtifacts, 'meta')) +
       '</div>';
   } else if (activeTab === 'smoke') {
     const diagnose = AppState.diagnose || {};
@@ -524,19 +664,19 @@ function renderDrawer() {
     const fixes = (diagnose.fixes || []).map((item) => item.label || item.action || 'Suggested fix');
     html =
       '<div class="drawer-grid">' +
-        sectionHtml('Health Signals', renderKeyValueTable([
+        sectionHtml('Run Readiness', renderKeyValueTable([
           { key: 'Twilio auth', value: diagnose.twilio ? String(!!diagnose.twilio.ok) : 'Unknown' },
           { key: 'Deepgram key', value: diagnose.deepgram ? String(!!diagnose.deepgram.ok) : 'Unknown' },
           { key: 'Stream listening', value: diagnose.stream_server ? String(!!diagnose.stream_server.listening) : 'Unknown' },
           { key: 'Tunnel backend', value: diagnose.tunnel ? String(diagnose.tunnel.backend || 'Unknown') : 'Unknown' },
           { key: 'Suggested stream', value: diagnose.suggested_stream_url || '—' },
         ])) +
-        sectionHtml('Issues', renderList(issues.map((item) => String(item)), 'meta')) +
+        sectionHtml('Readiness Issues', renderList(issues.map((item) => String(item)), 'meta')) +
         sectionHtml('Suggested Fixes', renderList(fixes, 'meta')) +
       '</div>';
   }
 
-  body.innerHTML = html || renderEmptyState('◦', 'No drawer data', 'Select a diagnostics tab once runtime data is available.');
+  body.innerHTML = html || renderEmptyState('◦', 'No review data', 'Select a review tab once run data is available.');
 }
 
 function renderOperatorConsole() {
@@ -561,12 +701,12 @@ function applyModeUI() {
   const text = $('mode-toggle-text');
   if (AppState.manualMode) {
     wrap.classList.add('is-manual');
-    state.textContent = 'OFF';
-    text.textContent = 'Manual';
+    state.textContent = 'MANUAL';
+    text.textContent = 'Manual Response';
   } else {
     wrap.classList.remove('is-manual');
-    state.textContent = 'ON';
-    text.textContent = 'Auto-pilot';
+    state.textContent = 'AUTO';
+    text.textContent = 'Deterministic Traversal';
   }
 }
 
@@ -576,6 +716,10 @@ async function fetchStatus() {
     const previousRunning = AppState.callRunning;
     AppState.latestStatus = data;
     AppState.callRunning = !!data.is_running;
+    if (AppState.callRunning && !previousRunning) {
+      AppState.drawerOpen = false;
+      AppState.activeDrawerTab = 'runtime';
+    }
     AppState.latestGraph = data.graph || {};
     if (typeof data.manual_mode === 'boolean' && data.manual_mode !== AppState.manualMode) {
       AppState.manualMode = data.manual_mode;
@@ -745,7 +889,7 @@ function syncTimer() {
 
 $('btn-start').addEventListener('click', startCall);
 $('btn-end').addEventListener('click', endCall);
-$('btn-settings').addEventListener('click', () => openDrawer('smoke'));
+$('btn-settings').addEventListener('click', () => openDrawer('runtime'));
 $('btn-open-runtime').addEventListener('click', () => openDrawer('runtime'));
 $('btn-open-artifacts').addEventListener('click', () => openDrawer('artifacts'));
 $('btn-open-smoke').addEventListener('click', () => openDrawer('smoke'));

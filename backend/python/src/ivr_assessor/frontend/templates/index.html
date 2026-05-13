@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IVR Suite — Operator Console</title>
+<title>IVR Suite — IVR Operations Console</title>
 <link rel="stylesheet" href="/static/css/main.css">
 <link rel="stylesheet" href="/static/css/run_suites.css">
 </head>
@@ -13,32 +13,32 @@
   <div class="shell-brand">
     <div class="logo-icon">☎</div>
     <div>
-      <div class="shell-kicker">Operator Console</div>
+      <div class="shell-kicker">IVR Operations Console</div>
       <div class="logo-text">IVR Suite</div>
     </div>
   </div>
 
   <div class="shell-target">
-    <label for="f-target">Target Session</label>
+    <label for="f-target">Target IVR</label>
     <input id="f-target" type="tel" placeholder="(800) 555-0114" value="">
   </div>
 
   <div class="shell-actions">
     <span class="status-pill tone-warn" id="hdr-status">Idle</span>
-    <button class="btn-secondary" id="btn-run-suites" type="button">Run Suites</button>
-    <button class="btn-secondary" id="btn-test-suite" type="button">Suite Editor</button>
-    <button class="btn-secondary" id="btn-settings" type="button">Inspect</button>
-    <button class="btn-secondary" id="btn-end" type="button">End Session</button>
-    <button class="btn-primary" id="btn-start" type="button">Start Call</button>
+    <button class="btn-secondary" id="btn-test-suite" type="button">Suite Planning</button>
+    <button class="btn-secondary" id="btn-run-suites" type="button">Suite Execution</button>
+    <button class="btn-secondary" id="btn-settings" type="button">Review / Replay</button>
+    <button class="btn-secondary" id="btn-end" type="button">End Run</button>
+    <button class="btn-primary" id="btn-start" type="button">Start Run</button>
   </div>
 </header>
 
 <main class="console-root">
   <section class="heartbeat-strip" id="heartbeat-strip">
     <article class="heartbeat-card tone-neutral">
-      <div class="heartbeat-label">Runtime</div>
+      <div class="heartbeat-label">Live Operations</div>
       <div class="heartbeat-value">Waiting</div>
-      <div class="heartbeat-meta">Loading runtime surfaces</div>
+      <div class="heartbeat-meta">Loading active-run surfaces</div>
     </article>
   </section>
 
@@ -46,31 +46,31 @@
     <section class="panel timeline-panel">
       <div class="panel-header panel-header-spread">
         <div>
-          <div class="panel-kicker">Active Session</div>
-          <h1 class="panel-title">Session Timeline</h1>
+          <div class="panel-kicker">Live Operations</div>
+          <h1 class="panel-title">Prompt Timeline</h1>
+          <div class="panel-subtitle">Scan prompt matches, response anchors, traversal decisions, and notices in active-run order.</div>
         </div>
         <div class="timer-badge" id="timer">00:00</div>
       </div>
 
       <div class="timeline-toolbar">
+        <button class="filter-chip" type="button" data-filter="transcript">Prompts</button>
+        <button class="filter-chip" type="button" data-filter="response">Responses</button>
+        <button class="filter-chip" type="button" data-filter="traversal">Traversal</button>
+        <button class="filter-chip" type="button" data-filter="notice">Notices</button>
         <button class="filter-chip is-active" type="button" data-filter="all">All</button>
-        <button class="filter-chip" type="button" data-filter="transcript">Transcript</button>
-        <button class="filter-chip" type="button" data-filter="routing">Routing</button>
-        <button class="filter-chip" type="button" data-filter="websocket">WebSocket</button>
-        <button class="filter-chip" type="button" data-filter="replay">Replay</button>
-        <button class="filter-chip" type="button" data-filter="cleanup">Cleanup</button>
       </div>
 
       <div class="caption-strip" id="caption-box">
-        <div class="caption-label">Live Caption</div>
-        <div class="caption-text" id="caption-text">Awaiting live caption…</div>
+        <div class="caption-label">Current Heard Prompt</div>
+        <div class="caption-text" id="caption-text">Awaiting active prompt…</div>
       </div>
 
       <div class="timeline-list" id="transcript">
         <div class="empty-state">
           <div class="empty-icon">◦</div>
-          <p>No timeline events yet</p>
-          <span>Runtime diagnostics will populate this view.</span>
+          <p>No live operations events yet</p>
+          <span>Start a bounded run to monitor prompt matching, response anchoring, traversal logic, and run notices.</span>
         </div>
       </div>
     </section>
@@ -79,15 +79,16 @@
       <section class="panel graph-panel">
         <div class="panel-header panel-header-spread">
           <div>
-            <div class="panel-kicker">Contextual Map</div>
-            <h2 class="panel-title">IVR Graph</h2>
+            <div class="panel-kicker">IVR State Mapping</div>
+            <h2 class="panel-title">IVR State Map</h2>
+            <div class="panel-subtitle">Observed prompts become states; anchored responses become branches.</div>
           </div>
           <button class="btn-tertiary btn-compact" id="btn-refresh-maps" type="button">Refresh Maps</button>
         </div>
 
         <div class="graph-meta" id="graph-meta">
           <span class="meta-chip">
-            <span class="meta-chip-label">Nodes</span>
+            <span class="meta-chip-label">Prompt Nodes</span>
             <span class="meta-chip-value">0</span>
           </span>
         </div>
@@ -95,8 +96,8 @@
         <div class="graph-box" id="graph-box">
           <div class="empty-state">
             <div class="empty-icon">⋯</div>
-            <p>No nodes discovered yet</p>
-            <span>Live graph context appears here during a session.</span>
+            <p>No IVR state mapping yet</p>
+            <span>Prompt nodes and response branches appear after prompt matches and response anchors accumulate.</span>
           </div>
         </div>
       </section>
@@ -104,29 +105,30 @@
       <section class="panel controls-panel">
         <div class="panel-header">
           <div>
-            <div class="panel-kicker">Operator Tools</div>
-            <h2 class="panel-title">Control Bench</h2>
+            <div class="panel-kicker">Run Supervision</div>
+            <h2 class="panel-title">Response Automation &amp; Manual Response</h2>
           </div>
         </div>
 
         <div class="controls-grid">
           <div class="control-section">
-            <div class="section-title">Mode</div>
-            <button class="mode-toggle" id="mode-toggle" type="button" title="Auto-pilot lets the mapper choose responses; manual hands control to you.">
-              <span class="mode-toggle-label">Routing</span>
-              <span class="mode-toggle-main" id="mode-toggle-text">Auto-pilot</span>
+            <div class="section-title">Traversal Logic</div>
+            <button class="mode-toggle" id="mode-toggle" type="button" title="Deterministic traversal follows bounded route rules; manual response lets the human operator send responses.">
+              <span class="mode-toggle-label">Deterministic Traversal</span>
+              <span class="mode-toggle-main" id="mode-toggle-text">On</span>
               <span class="mode-toggle-state" id="mode-toggle-state">ON</span>
             </button>
+            <div class="input-hint">Automatic mode keeps deterministic traversal active. Manual response mode pauses response automation for human operator input.</div>
           </div>
 
           <div class="control-section">
-            <div class="section-title">Manual Input</div>
+            <div class="section-title">Manual Response</div>
             <div class="smart-input-wrapper">
-              <input id="smart-input" class="smart-input" type="text" placeholder="Enter DTMF or text…">
+              <input id="smart-input" class="smart-input" type="text" placeholder="Enter operator DTMF or speech response…">
               <div class="smart-input-chip" id="input-chip">Auto-detect</div>
             </div>
-            <div class="input-hint">Digits, * and # send DTMF. Any other text is voiced into the live session.</div>
-            <button class="btn-primary send-btn" type="button">Send Input</button>
+            <div class="input-hint">Human operator responses are explicit. Digits, * and # send DTMF; other text is voiced into the live session.</div>
+            <button class="btn-primary send-btn" type="button">Send Response</button>
           </div>
 
           <div class="control-section">
@@ -153,21 +155,21 @@
           </div>
 
           <div class="control-section">
-            <div class="section-title">Session Signals</div>
+            <div class="section-title">Exception-First Run Alerts</div>
             <div class="status-box" id="control-status">
-              <div class="text-muted-xs">Runtime signals will appear here.</div>
+              <div class="text-muted-xs">Highest-priority live operations alerts appear here first.</div>
             </div>
           </div>
 
-          <div class="control-section">
-            <div class="section-title">Quick Tools</div>
+          <div class="control-section control-section-secondary">
+            <div class="section-title">Secondary Review Shortcuts</div>
             <div class="quick-tools">
-              <button class="btn-tertiary" id="btn-open-runtime" type="button">Runtime Drawer</button>
-              <button class="btn-tertiary" id="btn-open-artifacts" type="button">Artifacts</button>
-              <button class="btn-tertiary" id="btn-open-smoke" type="button">Smoke Check</button>
+              <button class="btn-tertiary" id="btn-open-runtime" type="button">Run Health</button>
+              <button class="btn-tertiary" id="btn-open-artifacts" type="button">Evidence &amp; Artifacts</button>
+              <button class="btn-tertiary" id="btn-open-smoke" type="button">Run Readiness</button>
             </div>
             <div class="info-box">
-              Bounded operator actions only. Diagnostics remain read-only and runtime polling stays unchanged.
+              Review/replay surfaces are read-only during active runs and stay secondary to prompt flow, IVR state mapping, and response control.
             </div>
           </div>
         </div>
@@ -175,11 +177,11 @@
     </div>
   </div>
 
-  <section class="panel drawer-panel is-open" id="drawer-panel">
+  <section class="panel drawer-panel" id="drawer-panel">
     <div class="panel-header panel-header-spread">
       <div>
-        <div class="panel-kicker">Diagnostics</div>
-        <h2 class="panel-title">Inspection Drawer</h2>
+        <div class="panel-kicker">Bounded Review Visibility</div>
+        <h2 class="panel-title">Review / Replay / Analysis</h2>
       </div>
       <div class="drawer-actions">
         <button class="btn-tertiary btn-compact" id="btn-refresh-diagnostics" type="button">Refresh</button>
@@ -188,35 +190,35 @@
     </div>
 
     <div class="drawer-tabs" id="drawer-tabs">
-      <button class="drawer-tab is-active" type="button" data-drawer-tab="runtime">Runtime</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="session">Session</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="websocket">WebSocket</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="queue">Queue / Checkpoints</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="artifacts">Artifacts</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="smoke">Smoke</button>
+      <button class="drawer-tab is-active" type="button" data-drawer-tab="runtime">Run Health</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="queue">Checkpoint Verification</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="artifacts">Evidence &amp; Artifacts</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="session">Call-Path Replay</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="websocket">Technical Diagnostics</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="smoke">Run Readiness</button>
     </div>
 
     <div class="drawer-body" id="drawer-body">
       <div class="empty-state">
         <div class="empty-icon">⋯</div>
-        <p>Runtime diagnostics loading</p>
-        <span>Structured inspection data appears here when the backend responds.</span>
+        <p>Review data loading</p>
+        <span>Read-only run health, checkpoint verification, evidence, and call-path replay appear here without steering the active run.</span>
       </div>
     </div>
   </section>
 </main>
 
-<!-- TEST SUITE MODAL -->
+<!-- Suite Planning Modal -->
 <div class="modal is-hidden" id="ts-modal">
   <div class="modal-content">
     <div class="modal-header">
-      <h2>Test Suites</h2>
+      <h2>Suite Planning / Configuration</h2>
       <button class="modal-close" id="ts-close" type="button">✕</button>
     </div>
     <div class="modal-body modal-body-layout">
       <div class="modal-sidebar">
         <div class="modal-sidebar-top">
-          <button class="btn-primary btn-full-sm" id="ts-new-btn" type="button">New Suite</button>
+          <button class="btn-primary btn-full-sm" id="ts-new-btn" type="button">New Planned Suite</button>
         </div>
         <div id="ts-list" class="modal-scroll-list"></div>
       </div>
@@ -224,42 +226,58 @@
         <div class="modal-editor-header">
           <input type="text" id="ts-filename" placeholder="suite_name" class="input-suite-name">
           <div class="modal-btn-row">
-            <button class="btn-primary btn-compact btn-primary-alt" id="ts-run-btn" type="button">Run Suite</button>
-            <button class="btn-primary btn-compact" id="ts-save-btn" type="button">Save</button>
+            <button class="btn-primary btn-compact btn-primary-alt" id="ts-run-btn" type="button">Start Suite Execution</button>
+            <button class="btn-primary btn-compact" id="ts-save-btn" type="button">Save Reusable Suite</button>
           </div>
         </div>
-        <div class="control-section mb-20">
-          <div class="section-title">Target Number (Fallback)</div>
+        <div class="control-section mb-20 plan-group">
+          <div class="section-title">Run Scope</div>
+          <div class="plan-group-copy">Choose the target IVR, note the intended run type, and optionally seed a starting DTMF path for the next bounded run.</div>
           <input type="text" id="ts-target" class="smart-input" placeholder="+18005550199">
+          <div class="plan-inline-fields">
+            <div class="plan-inline-field">
+              <span class="var-col-head">Operating Intent</span>
+              <input type="text" id="ts-intent" class="smart-input" value="Route discovery or suite execution" readonly>
+            </div>
+            <div class="plan-inline-field">
+              <span class="var-col-head">Prior Evidence</span>
+              <div id="ts-map-summary" class="planning-evidence">Saved IVR state mapping appears here for the entered target.</div>
+            </div>
+          </div>
         </div>
-        <div class="control-section var-section mb-20">
+        <div class="control-section var-section mb-20 plan-group">
           <div class="title-row-between">
-            <div class="section-title">Variables</div>
+            <div class="section-title">Reusable Inputs</div>
             <button id="ts-add-var" class="btn-ghost-xs" type="button">Add</button>
           </div>
-          <div class="var-hint">Reference any variable in a trigger response as <code>$json_key</code></div>
+          <div class="plan-group-copy">Reference reusable inputs in a response anchor as <code>$json_key</code>; the saved suite schema remains unchanged.</div>
           <div class="var-col-heads">
-            <span class="var-col-head">Variable Name</span>
+            <span class="var-col-head">Input Label</span>
             <span class="var-col-head">JSON Key</span>
             <span class="var-col-head">Value</span>
             <span></span>
           </div>
           <div id="ts-vars-container"></div>
           <div class="data-loader">
-            <div class="data-loader-title">Load from Data Row</div>
-            <textarea id="ts-schema" class="data-loader-input" rows="2" placeholder="Paste header row: _id|bin|cc|exp|cvv|zip|name|..."></textarea>
+            <div class="data-loader-title">Input Row Import</div>
+            <textarea id="ts-schema" class="data-loader-input" rows="2" placeholder="Paste header row: account_number|phone_number|zip_code|case_id|..."></textarea>
             <div class="data-loader-row">
-              <textarea id="ts-datarow" class="data-loader-input grow-1" rows="2" placeholder="Paste data row: 001|411111|4111111111111111|12/26|123|90210|John Doe|..."></textarea>
+              <textarea id="ts-datarow" class="data-loader-input grow-1" rows="2" placeholder="Paste data row: 123456789|8005550114|90210|CASE-001|..."></textarea>
               <button class="parse-btn" id="ts-parse-btn" type="button">Fill</button>
             </div>
             <div id="ts-parse-status" class="parse-status"></div>
           </div>
         </div>
         <div class="title-row-between mb-12">
-          <div class="section-title">Test Cases</div>
-          <button id="ts-add-case" class="btn-ghost-xs" type="button">Add Case</button>
+          <div class="section-title">Route Checks</div>
+          <button id="ts-add-case" class="btn-ghost-xs" type="button">Add Route Check</button>
         </div>
         <div id="ts-cases-container" class="col-gap-16"></div>
+        <div class="control-section plan-group plan-group-secondary">
+          <div class="section-title">Evidence for Reuse</div>
+          <div class="plan-group-copy">Use saved IVR state mapping and prior route checks to refine the next run without changing the suite payload shape.</div>
+          <div id="ts-reuse-summary" class="planning-evidence">Saved suite and map evidence appears here when available.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -274,25 +292,25 @@
 <script src="/static/js/main.js"></script>
 <script src="/static/js/modules/test_suites.js"></script>
 
-<!-- Run Suites Modal -->
+<!-- Suite Execution Modal -->
 <div class="rs-modal is-hidden" id="rs-modal">
   <div class="rs-content">
     <div class="rs-header">
-      <h2>Run Suites</h2>
-      <button class="rs-run-btn" id="rs-run-btn" disabled type="button">Run Suite</button>
+      <h2>Suite Execution</h2>
+      <button class="rs-run-btn" id="rs-run-btn" disabled type="button">Start Execution</button>
       <button class="rs-abort-btn is-hidden" id="rs-abort-btn" type="button">Abort</button>
       <button class="modal-close ml-8" id="rs-close" type="button">✕</button>
     </div>
     <div class="rs-body">
       <div class="rs-left">
-        <div class="rs-left-title">Saved Suites</div>
+        <div class="rs-left-title">Reusable Suites</div>
         <div class="rs-suite-list" id="rs-suite-list">
-          <div class="text-muted-xs-padded">No run suites saved</div>
+          <div class="text-muted-xs-padded">No reusable suites saved</div>
         </div>
         <div class="rs-left-actions">
           <button class="rs-small-btn" id="rs-import-toggle" type="button">Import JSON</button>
           <div class="rs-import-area" id="rs-import-area">
-            <textarea class="rs-import-ta" id="rs-import-ta" placeholder="Paste run suite JSON here…"></textarea>
+            <textarea class="rs-import-ta" id="rs-import-ta" placeholder="Paste reusable suite JSON here…"></textarea>
             <button class="rs-small-btn rs-import-btn-accent" id="rs-import-btn" type="button">Import</button>
           </div>
         </div>
@@ -300,7 +318,7 @@
 
       <div class="rs-center">
         <div class="rs-center-top" id="rs-suite-header">
-          <div class="rs-suite-name" id="rs-suite-name">Select a suite →</div>
+          <div class="rs-suite-name" id="rs-suite-name">Select a reusable suite →</div>
           <div class="rs-suite-desc" id="rs-suite-desc"></div>
         </div>
         <div class="rs-progress-bar is-hidden" id="rs-progress-bar">
@@ -309,19 +327,19 @@
         <div class="rs-summary-chips" id="rs-summary-chips"></div>
         <div class="rs-scenario-tabs" id="rs-scenario-tabs"></div>
         <div class="rs-step-list" id="rs-step-list">
-          <div class="text-muted-sm-centered">Select a run suite to see its steps</div>
+          <div class="text-muted-sm-centered">Select a reusable suite to review checkpoint verification</div>
         </div>
         <div class="rs-bottom">
-          <div class="rs-bottom-title">Live Events</div>
+          <div class="rs-bottom-title">Execution Timeline</div>
           <div class="rs-live-feed" id="rs-live-feed"></div>
         </div>
       </div>
 
       <div class="rs-right">
         <div class="rs-detail-section">
-          <div class="rs-detail-title">Step Detail</div>
+          <div class="rs-detail-title">Checkpoint Verification Detail</div>
           <div id="rs-step-detail">
-            <div class="text-muted-xs">Click a step to inspect</div>
+            <div class="text-muted-xs">Click a checkpoint to inspect</div>
           </div>
         </div>
         <div class="rs-detail-section is-hidden" id="rs-secure-card-section">
@@ -329,7 +347,7 @@
           <div id="rs-secure-card-detail"></div>
         </div>
         <div class="rs-detail-section">
-          <div class="rs-detail-title">Suite Actions</div>
+          <div class="rs-detail-title">Suite Management</div>
           <div class="col-gap-6">
             <button class="rs-small-btn" id="rs-export-btn" disabled type="button">Export Suite JSON</button>
             <button class="rs-small-btn danger" id="rs-delete-btn" disabled type="button">Delete Suite</button>

@@ -38,14 +38,14 @@
   function renderSuiteList() {
     const el = $('rs-suite-list');
     if (!_suites.length) {
-      el.innerHTML = '<div class="text-muted-xs-padded">No run suites saved</div>';
+      el.innerHTML = '<div class="text-muted-xs-padded">No reusable suites saved</div>';
       return;
     }
     el.innerHTML = _suites.map(s =>
       '<div class="rs-suite-item ' + (_activeSuiteId === s.suite_id ? 'active' : '') + '"' +
       ' onclick="window._rsSelectSuite(\'' + s.suite_id + '\')">' +
         '<div class="rs-suite-item-name">' + s.name + '</div>' +
-        '<div class="rs-suite-item-meta">' + s.scenario_count + ' scenario' + (s.scenario_count !== 1 ? 's' : '') + '</div>' +
+        '<div class="rs-suite-item-meta">' + s.scenario_count + ' checkpoint scenario' + (s.scenario_count !== 1 ? 's' : '') + '</div>' +
       '</div>'
     ).join('');
   }
@@ -66,7 +66,7 @@
 
   function renderSuiteDetail(suite) {
     $('rs-suite-name').textContent = suite.name || suite.suite_id;
-    $('rs-suite-desc').textContent = suite.description || '';
+    $('rs-suite-desc').textContent = suite.description || 'Checkpoint verification and execution evidence for this reusable suite.';
     const tabs = $('rs-scenario-tabs');
     const scenarios = suite.scenarios || [];
     tabs.innerHTML = scenarios.map((sc, i) =>
@@ -89,7 +89,7 @@
     const el = $('rs-step-list');
     const steps = scenario.steps || [];
     if (!steps.length) {
-      el.innerHTML = '<div class="text-muted-xs-padded">No steps defined</div>';
+      el.innerHTML = '<div class="text-muted-xs-padded">No checkpoint verification steps defined</div>';
       return;
     }
     el.innerHTML = steps.map(step => {
@@ -97,8 +97,8 @@
       const icon = STATUS_ICONS[st.status] || '○';
       const dur = st.duration_ms != null ? formatDuration(st.duration_ms) : '';
       const expected = step.expected_text_contains
-        ? 'expects: "' + step.expected_text_contains + '"'
-        : step.expected_event ? 'expects: ' + step.expected_event : '';
+        ? 'prompt match: "' + step.expected_text_contains + '"'
+        : step.expected_event ? 'verification event: ' + step.expected_event : '';
       return (
         '<div class="rs-step ' + (_selectedStepId === step.step_id ? 'active-step' : '') + '"' +
         ' onclick="window._rsSelectStep(\'' + step.step_id + '\')">' +
@@ -129,15 +129,15 @@
     const detail = $('rs-step-detail');
     const statusClass = st.status === 'passed' ? 'pass' : (st.status === 'failed' || st.status === 'timed_out') ? 'fail' : 'neutral';
     detail.innerHTML =
-      row('Step ID',  step_id) +
-      row('Action',   step ? step.action : '') +
+      row('Checkpoint ID',  step_id) +
+      row('Response anchor',   step ? step.action : '') +
       row('Status',   st.status, statusClass) +
-      (step && step.expected_text_contains ? row('Expected', '"' + step.expected_text_contains + '"') : '') +
-      (step && step.expected_event         ? row('Expect evt', step.expected_event) : '') +
-      (st.actual != null        ? row('Actual',     st.actual, 'neutral') : '') +
+      (step && step.expected_text_contains ? row('Prompt match', '"' + step.expected_text_contains + '"') : '') +
+      (step && step.expected_event         ? row('Verification event', step.expected_event) : '') +
+      (st.actual != null        ? row('Observed result',     st.actual, 'neutral') : '') +
       (st.duration_ms != null   ? row('Duration',   formatDuration(st.duration_ms)) : '') +
       (st.confidence != null    ? row('Confidence', (st.confidence * 100).toFixed(0) + '%') : '') +
-      (st.error                 ? row('Error',      st.error, 'fail') : '') +
+      (st.error                 ? row('Verification issue',      st.error, 'fail') : '') +
       (st.secure_card_token     ? row('Token',      st.secure_card_token) : '');
 
     const suite2 = window._rsCurrentSuiteData;
@@ -193,7 +193,7 @@
       switch (ev.type) {
         case RUN_EVENTS.STEP_STARTED:
           _stepStatuses[ev.step_id] = { status: 'running' };
-          addLiveFeedLine('info', '▶ ' + ev.step_id + ' — ' + ev.action);
+          addLiveFeedLine('info', '▶ Checkpoint verification ' + ev.step_id + ' — ' + ev.action);
           break;
         case RUN_EVENTS.STEP_UPDATED:
           _stepStatuses[ev.step_id] = {
@@ -205,25 +205,25 @@
           _stepStatuses[ev.step_id] = Object.assign(_stepStatuses[ev.step_id] || {}, {
             status: 'passed', duration_ms: ev.duration_ms, actual: ev.actual, confidence: ev.confidence,
           });
-          addLiveFeedLine('pass', '✓ ' + ev.step_id + ' (' + formatDuration(ev.duration_ms) + ')');
+          addLiveFeedLine('pass', '✓ Checkpoint verified ' + ev.step_id + ' (' + formatDuration(ev.duration_ms) + ')');
           break;
         case RUN_EVENTS.STEP_FAILED:
           _stepStatuses[ev.step_id] = Object.assign(_stepStatuses[ev.step_id] || {}, {
             status: 'failed', duration_ms: ev.duration_ms, error: ev.error, actual: ev.actual,
           });
-          addLiveFeedLine('fail', '✗ ' + ev.step_id + ': ' + (ev.error || ev.reason));
+          addLiveFeedLine('fail', '✗ Checkpoint verification failed ' + ev.step_id + ': ' + (ev.error || ev.reason));
           break;
         case RUN_EVENTS.STEP_TIMED_OUT:
           _stepStatuses[ev.step_id] = Object.assign(_stepStatuses[ev.step_id] || {}, {
             status: 'timed_out', error: 'Timed out (' + ev.timeout_ms + 'ms)',
           });
-          addLiveFeedLine('fail', '⏱ ' + ev.step_id + ' timed out');
+          addLiveFeedLine('fail', '⏱ Checkpoint verification timed out ' + ev.step_id);
           break;
         case RUN_EVENTS.RUN_SUITE_COMPLETED:
           finishRun();
           addLiveFeedLine(
             ev.status === 'passed' ? 'pass' : 'fail',
-            'Suite ' + ev.status.toUpperCase() + ' — pass:' + ev.pass_count + ' fail:' + ev.fail_count
+            'Reusable suite ' + ev.status.toUpperCase() + ' — pass:' + ev.pass_count + ' fail:' + ev.fail_count
           );
           break;
       }
@@ -270,10 +270,10 @@
         await loadRunSuites();
         window._rsSelectSuite(d.suite_id);
       } else {
-        alert('Import error: ' + (d && d.error ? d.error : JSON.stringify(d)));
+        alert('Reusable suite import error: ' + (d && d.error ? d.error : JSON.stringify(d)));
       }
     } catch(e) {
-      alert('Import error: ' + e.message);
+      alert('Reusable suite import error: ' + e.message);
     }
   };
 
@@ -286,16 +286,16 @@
 
   $('rs-delete-btn').onclick = async () => {
     if (!_activeSuiteId) return;
-    if (!confirm('Delete run suite "' + _activeSuiteId + '"?')) return;
+    if (!confirm('Delete reusable suite "' + _activeSuiteId + '"?')) return;
     await api.deleteRunSuite(_activeSuiteId);
     _activeSuiteId = null;
     $('rs-run-btn').disabled = true;
     $('rs-export-btn').disabled = true;
     $('rs-delete-btn').disabled = true;
-    $('rs-suite-name').textContent = 'Select a suite →';
+    $('rs-suite-name').textContent = 'Select a reusable suite →';
     $('rs-suite-desc').textContent = '';
     $('rs-scenario-tabs').innerHTML = '';
-    $('rs-step-list').innerHTML = '<div class="text-muted-sm-centered">Select a run suite</div>';
+    $('rs-step-list').innerHTML = '<div class="text-muted-sm-centered">Select a reusable suite</div>';
     await loadRunSuites();
   };
 
