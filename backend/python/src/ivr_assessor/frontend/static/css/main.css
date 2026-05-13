@@ -276,6 +276,13 @@ button{cursor:pointer}
   font-weight:600;
   color:var(--text-1);
 }
+.panel-subtitle{
+  margin-top:4px;
+  max-width:560px;
+  color:var(--text-3);
+  font-size:11px;
+  line-height:1.45;
+}
 .timer-badge{
   min-width:72px;
   height:34px;
@@ -359,6 +366,15 @@ button{cursor:pointer}
   font-weight:700;
   letter-spacing:.12em;
   text-transform:uppercase;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.timeline-group-label::after{
+  content:"";
+  height:1px;
+  flex:1;
+  background:var(--border);
 }
 .timeline-row{
   width:100%;
@@ -697,7 +713,18 @@ button{cursor:pointer}
   line-height:1.5;
 }
 
-.drawer-panel{transition:min-height var(--transition-base)}
+.drawer-panel{transition:min-height var(--transition-base), opacity var(--transition-base), border-color var(--transition-base), background var(--transition-base)}
+.drawer-panel.is-secondary-active-run{
+  border-color:rgba(255,255,255,.05);
+  background:rgba(20,25,34,.74);
+}
+.drawer-panel.is-secondary-active-run:not(.is-open){
+  opacity:.72;
+}
+.drawer-panel.is-secondary-active-run .panel-kicker::after{
+  content:" · Secondary during active run";
+  color:var(--text-4);
+}
 .drawer-actions{display:flex;gap:8px}
 .drawer-tabs{
   display:flex;
