@@ -679,6 +679,34 @@ function renderDrawer() {
   body.innerHTML = html || renderEmptyState('◦', 'No review data', 'Select a review tab once run data is available.');
 }
 
+function renderConferenceStatus() {
+  const status = AppState.latestStatus || {};
+  const sidDisplay = $('conf-sid-display');
+  const opStatus = $('operator-status');
+
+  if (status.conference_sid) {
+    sidDisplay.textContent = status.conference_sid.slice(0, 10) + '…';
+    sidDisplay.title = status.conference_sid;
+    sidDisplay.className = 'conf-value tone-accent';
+  } else {
+    sidDisplay.textContent = 'Inactive';
+    sidDisplay.className = 'conf-value';
+  }
+
+  if (status.operator_connected) {
+    opStatus.textContent = 'Connected';
+    opStatus.className = 'conf-value tone-ok';
+  } else {
+    opStatus.textContent = 'Disconnected';
+    opStatus.className = 'conf-value';
+  }
+
+  const currentMode = status.monitor_mode || 'silent';
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.mode === currentMode);
+  });
+}
+
 function renderOperatorConsole() {
   renderHeaderStatus();
   renderCaption();
@@ -686,6 +714,7 @@ function renderOperatorConsole() {
   renderTimeline();
   renderGraph();
   renderControlStatus();
+  renderConferenceStatus();
   renderDrawer();
 
   document.querySelectorAll('[data-filter]').forEach((button) => {
@@ -886,6 +915,46 @@ function syncTimer() {
   }
   $('timer').textContent = formatTimer(Math.max(0, Math.floor((elapsedMs || 0) / 1000)));
 }
+
+async function setConferenceMode(mode) {
+  try {
+    const data = await api.setConferenceMode(mode);
+    if (data.status === 'ok') {
+      fetchStatus();
+    }
+  } catch (error) {
+    addLog('[error] Failed to set monitor mode: ' + error.message);
+  }
+}
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    setConferenceMode(mode);
+  });
+});
+
+function switchWorkspace(workspaceId) {
+  AppState.currentWorkspace = workspaceId;
+
+  // Update navigation buttons
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.workspace === workspaceId);
+  });
+
+  // Update workspace containers
+  document.querySelectorAll('.workspace').forEach(ws => {
+    ws.classList.toggle('is-hidden', ws.id !== 'ws-' + workspaceId);
+  });
+
+  console.log('[system] Switched to workspace:', workspaceId);
+}
+
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    switchWorkspace(btn.dataset.workspace);
+  });
+});
 
 $('btn-start').addEventListener('click', startCall);
 $('btn-end').addEventListener('click', endCall);

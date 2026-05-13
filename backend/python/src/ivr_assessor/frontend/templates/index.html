@@ -24,6 +24,13 @@
   </div>
 
   <div class="shell-actions">
+    <nav class="shell-nav">
+      <button class="nav-btn" data-workspace="prep">Prep</button>
+      <button class="nav-btn" data-workspace="discover">Discover</button>
+      <button class="nav-btn is-active" data-workspace="live">Live</button>
+      <button class="nav-btn" data-workspace="review">Review</button>
+      <button class="nav-btn" data-workspace="run">Run</button>
+    </nav>
     <span class="status-pill tone-warn" id="hdr-status">Idle</span>
     <button class="btn-secondary" id="btn-test-suite" type="button">Suite Planning</button>
     <button class="btn-secondary" id="btn-run-suites" type="button">Suite Execution</button>
@@ -34,13 +41,42 @@
 </header>
 
 <main class="console-root">
-  <section class="heartbeat-strip" id="heartbeat-strip">
-    <article class="heartbeat-card tone-neutral">
-      <div class="heartbeat-label">Live Operations</div>
-      <div class="heartbeat-value">Waiting</div>
-      <div class="heartbeat-meta">Loading active-run surfaces</div>
-    </article>
-  </section>
+  <div id="ws-prep" class="workspace is-hidden">
+    <div class="placeholder-content">
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Prep Workspace</h2>
+        </div>
+        <div class="placeholder-card">
+          <h3>Readiness & Configuration</h3>
+          <p>Configure target numbers, caller ID, IVR profiles, and trigger phrases. Validate setup before starting a session.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ws-discover" class="workspace is-hidden">
+    <div class="placeholder-content">
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Discover Workspace</h2>
+        </div>
+        <div class="placeholder-card">
+          <h3>Map Expansion & Bounded Probing</h3>
+          <p>Explore unknown IVR branches with deterministic traversal. Monitor discovery coverage and state confidence.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ws-live" class="workspace">
+    <section class="heartbeat-strip" id="heartbeat-strip">
+      <article class="heartbeat-card tone-neutral">
+        <div class="heartbeat-label">Live Operations</div>
+        <div class="heartbeat-value">Waiting</div>
+        <div class="heartbeat-meta">Loading active-run surfaces</div>
+      </article>
+    </section>
 
   <div class="workspace-grid">
     <section class="panel timeline-panel">
@@ -121,8 +157,28 @@
             <div class="input-hint">Automatic mode keeps deterministic traversal active. Manual response mode pauses response automation for human operator input.</div>
           </div>
 
-          <div class="control-section">
-            <div class="section-title">Manual Response</div>
+      <div class="control-section">
+        <div class="section-title">Conference Supervision</div>
+        <div class="conf-status" id="conf-status">
+          <div class="conf-row">
+            <span class="conf-label">Bridge:</span>
+            <span class="conf-value" id="conf-sid-display">Inactive</span>
+          </div>
+          <div class="conf-row">
+            <span class="conf-label">Operator:</span>
+            <span class="conf-value" id="operator-status">Disconnected</span>
+          </div>
+        </div>
+        <div class="monitor-modes">
+          <button class="mode-btn is-active" id="btn-mode-silent" type="button" data-mode="silent">Silent</button>
+          <button class="mode-btn" id="btn-mode-whisper" type="button" data-mode="whisper">Whisper</button>
+          <button class="mode-btn" id="btn-mode-barge" type="button" data-mode="barge">Barge</button>
+        </div>
+        <div class="input-hint">Conference bridge enables multi-leg supervision. Silent: Operator muted. Whisper: Operator heard by IVR only. Barge: Operator heard by everyone.</div>
+      </div>
+
+      <div class="control-section">
+        <div class="section-title">Manual Response</div>
             <div class="smart-input-wrapper">
               <input id="smart-input" class="smart-input" type="text" placeholder="Enter operator DTMF or speech response…">
               <div class="smart-input-chip" id="input-chip">Auto-detect</div>
@@ -206,6 +262,35 @@
       </div>
     </div>
   </section>
+  </div>
+
+  <div id="ws-review" class="workspace is-hidden">
+    <div class="placeholder-content">
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Review Workspace</h2>
+        </div>
+        <div class="placeholder-card">
+          <h3>Post-Call Analysis</h3>
+          <p>Analyze completed calls, review transcripts, and extract reusable templates from evidence.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ws-run" class="workspace is-hidden">
+    <div class="placeholder-content">
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Run Workspace</h2>
+        </div>
+        <div class="placeholder-card">
+          <h3>Approved Suite Execution</h3>
+          <p>Execute prepared background suites. Monitor success/failure state and automated decision explanations.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 </main>
 
 <!-- Suite Planning Modal -->

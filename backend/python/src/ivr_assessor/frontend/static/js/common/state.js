@@ -1,6 +1,7 @@
 // Shared cross-panel state. Panel-local state (step statuses, pad buffer, etc.)
 // stays in each panel's own script.
 const AppState = {
+  currentWorkspace: 'live',
   callRunning: false,
   manualMode: false,
   suiteRunning: false,
