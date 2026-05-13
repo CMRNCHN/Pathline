@@ -7,7 +7,7 @@ coverage/
 .next/
 .nuxt/
 .venv/
-venv/
+venv/e
 __pycache__/
 *.pyc
 *.log

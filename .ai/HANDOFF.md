@@ -1,6 +1,6 @@
 # IVRSuite — Active Handoff
 
-Last Updated: 2026-05-10 (bounded operator console modernization)
+Last Updated: 2026-05-10 (phase-first operator workflow alignment)
 
 ---
 
@@ -8,6 +8,56 @@ Last Updated: 2026-05-10 (bounded operator console modernization)
 
 Platform is in strong architectural shape with Air governance structure established.
 251/251 backend tests passing.
+
+### Completed this session (phase-first operator workflow alignment)
+
+- Tightened the frontend/docs pass around the three operator phases:
+  - Suite Planning / Configuration
+  - Live Operations / Active Run
+  - Review / Replay / Analysis
+- Reframed live copy and layout around:
+  - prompt timeline
+  - IVR state map
+  - traversal logic
+  - manual response
+  - run alerts
+- Reworked planning copy around:
+  - run scope
+  - reusable inputs
+  - route checks
+  - saved map evidence for reuse
+- Reworked suite execution and review wording around:
+  - reusable suites
+  - checkpoint verification
+  - execution timeline
+  - route refinement
+  - evidence & artifacts
+- Drawer behavior remains secondary during active runs; active-run state now recloses the review drawer by default until explicitly reopened.
+- No backend routes, websocket semantics, replay behavior, frontend framework, build step, poll cadence, or hot-path runtime behavior changed.
+- Validation:
+  - `node --check backend/python/src/ivr_assessor/frontend/static/js/main.js`
+  - `node --check backend/python/src/ivr_assessor/frontend/static/js/run_suites.js`
+  - `node --check backend/python/src/ivr_assessor/frontend/static/js/modules/test_suites.js`
+  - terminology sweep for retired legacy labels returned no matches
+  - `/Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/test_live_map_gui.py backend/python/tests/test_inspection.py -q`
+  - Result: `18 passed`, one existing `audioop` deprecation warning
+
+### Completed this session (bounded operator workflow docs alignment)
+
+- Updated operator-facing documentation only; no runtime code or protocol behavior changed.
+- Reworked `backend/python/docs/OPERATIONS.md` into a concise workflow runbook covering:
+  - IVRSuite purpose
+  - three operational phases
+  - phase boundaries
+  - terminology glossary
+  - what stays secondary during live operation
+  - how replay and inspection support post-run refinement
+- Updated `README.md` to align top-level product wording with current operator workflow:
+  - route discovery
+  - call-path mapping
+  - suite execution
+  - post-run review
+- Validation: no tests run because the session changed documentation only.
 
 ### Completed this session (bounded operator console modernization)
 

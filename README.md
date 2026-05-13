@@ -1,18 +1,33 @@
-# IVR Suite (IVR Assessor)
+# IVRSuite (IVR Assessor)
 
-A local, authorized tool for exploring, mapping, and testing IVR (Interactive Voice Response) phone trees. 
+IVRSuite is a local-first, permissioned IVR route discovery, call-path mapping,
+and suite execution system.
 
-Built for permissioned testing, the IVR Suite uses **Twilio** for inbound/outbound telephony, **Deepgram** for real-time transcription, and **ngrok** for local webhook tunneling to provide a rich feature set for assessing and mapping complex IVR systems.
+It is built for authorized testing of business-owned IVRs: operators can explore
+unknown branches, run repeatable suites against known flows, and review bounded
+run diagnostics afterward without changing the deterministic live call path.
+Operator-facing guidance stays IVR-native: use route discovery, call-path
+mapping, suite execution, and replay/review language.
 
 ---
 
 ## Core Features
 
-- **Live Mapping GUI:** A self-contained local web interface (`http://localhost:8080`) that provides live transcripts, call timers, one-click DTMF/speech injection, and a real-time visual graph of the discovered IVR nodes.
-- **Automated Discovery Loop:** An iterative depth-first search (DFS) that automatically dials, listens, and explores unknown branches until an IVR tree is fully saturated (or hits user-defined safety bounds).
-- **Test Suites:** A flexible batch testing system. Define test cases visually in the GUI or via the CLI wizard to trigger specific DTMF/speech responses when certain keywords are spoken by the IVR. Generates comprehensive Markdown reports.
-- **AI Voice Generation:** Built-in OpenAI TTS integration for generating dynamic audio clips for testing.
-- **Graph Building:** Groups structurally similar prompts, tracks announced vs. pressed options, and exports maps to JSON, Markdown, or Mermaid.js formats.
+- **Route Discovery:** A bounded depth-first search (DFS) loop for exploring unknown branches safely.
+- **Call-Path Mapping:** Live operator views and persisted maps for prompts, options, and transitions.
+- **Suite Execution:** Repeatable suites that use approved DTMF or speech response anchors against known flows.
+- **Post-Run Review:** Runtime inspection and replay tools for analyzing chronology, checkpoint verification, and route refinement after a run.
+- **TTS Response Audio:** Optional utility support for creating speech clips used as response audio during route checks.
+
+## Operational Phases
+
+1. **Suite Planning / Configuration** — define the target IVR, reusable inputs, route checks, and readiness bounds.
+2. **Live Operations / Active Run** — supervise one bounded discovery or suite execution run.
+3. **Review / Replay / Analysis** — inspect the resulting map, checkpoint verification, recordings, and bounded diagnostics.
+
+See `backend/python/docs/OPERATIONS.md` for the operator workflow and terminology.
+The canonical planning/governance anchor for product language is
+`.ai/plans/ivr-phase-operations-anchor.md`.
 
 ---
 
@@ -23,7 +38,7 @@ Built for permissioned testing, the IVR Suite uses **Twilio** for inbound/outbou
 3. Provider Accounts:
    - **Twilio** (Account SID, Auth Token, and an active Phone Number)
    - **Deepgram** (API Key for transcription)
-   - **OpenAI** (Optional, for TTS voice generation)
+   - **OpenAI** (Optional, for TTS response audio)
 
 Create a `.env` file at the root of the repository with the following:
 
@@ -63,8 +78,8 @@ Run an iterative mapping loop that uses DFS to find the deepest unexplored menu 
 ./run_ivr_assessor.sh iterate-map --target-number +18005550199 --max-calls 12 --wall-clock-cap-s 30
 ```
 
-### 2. Test Suites
-Run automated test cases where specific IVR phrases trigger specific DTMF/speech responses.
+### 2. Suite Execution
+Run route checks where specific prompt matches trigger approved DTMF or speech response anchors.
 
 **Create a suite interactively:**
 ```bash
@@ -75,12 +90,12 @@ Run automated test cases where specific IVR phrases trigger specific DTMF/speech
 ```bash
 ./run_ivr_assessor.sh test-suite --suite suites/my_test.json --output reports/
 ```
-*(Note: You can also visually create and run test suites directly inside the Live Map GUI!)*
+*(Note: You can also visually plan and execute reusable suites directly inside the Live Map GUI.)*
 
-### 3. Voice Generation
+### 3. TTS Response Audio
 Generate high-quality TTS audio clips to use as injected speech responses.
 ```bash
-./run_ivr_assessor.sh voice-generate --text "Representative please" --out clips/agent.wav --voice cedar
+./run_ivr_assessor.sh voice-generate --text "Representative please" --out clips/response.wav --voice cedar
 ```
 
 ### 4. Utilities
