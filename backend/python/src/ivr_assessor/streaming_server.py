@@ -10,11 +10,14 @@ import json
 import logging
 import os
 import hashlib
+from .events.event_bus import bus as EventBus
+from .events.event_types import EventType
+from .events.event_models import OperationalEvent, EventMetadata
 from pathlib import Path
 from secrets import compare_digest
 import threading
 import time
-from typing import Callable
+from typing import Callable, Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
@@ -123,12 +126,17 @@ class StreamingServer:
         self._lifecycle_events: list[dict[str, object]] = []
         self._last_stream_metrics: dict[str, object] = {}
         self._last_recording_artifacts: list[dict[str, object]] = []
+        self._event_listeners: set[WebSocket] = set()
         self.app = FastAPI()
         self.app.add_api_websocket_route("/stream", self._handle_stream)
         self.app.add_api_websocket_route("/listen", self._handle_listen)
+        self.app.add_api_websocket_route("/ws/events", self._handle_events)
         self.app.add_api_route("/recording-status", self._handle_recording_status, methods=["POST"])
         self.app.add_api_route("/healthz", self._health_check, methods=["GET"])
         self.app.add_api_route("/runtime-metrics", self._runtime_metrics, methods=["GET"])
+
+        # Subscribe to the global EventBus to bridge events to WebSockets
+        EventBus.subscribe_all(self._broadcast_event)
 
     @property
     def stream_auth_token(self) -> str:
@@ -159,6 +167,12 @@ class StreamingServer:
 
     def _raw_dispatch_transcript(self, text: str, is_final: bool, speech_final: bool) -> None:
         """Deliver a transcript to registered callbacks (post-filter)."""
+        if is_final:
+            EventBus.publish(OperationalEvent(
+                type=EventType.TRANSCRIPT_FINAL,
+                payload={"text": text, "speech_final": speech_final},
+                meta=EventMetadata(source_component="streaming_server")
+            ))
         for cb in self._callbacks:
             try:
                 cb(text, is_final, speech_final)
@@ -266,6 +280,42 @@ class StreamingServer:
                 dead.add(ws)
         self._listeners -= dead
 
+    def _broadcast_event(self, event: OperationalEvent) -> None:
+        """Broadcast an operational event to all event listeners."""
+        if not self._event_listeners:
+            return
+        msg = json.dumps(event.as_dict())
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                for ws in list(self._event_listeners):
+                    try:
+                        asyncio.run_coroutine_threadsafe(ws.send_text(msg), loop)
+                    except Exception:
+                        try:
+                            self._event_listeners.remove(ws)
+                        except KeyError:
+                            pass
+        except RuntimeError:
+            # No event loop in this thread
+            pass
+
+    async def _handle_events(self, websocket: WebSocket) -> None:
+        """Handle WebSocket telemetry bridge connections."""
+        await websocket.accept()
+        self._event_listeners.add(websocket)
+        logger.info(f"Telemetry client connected. Total: {len(self._event_listeners)}")
+        try:
+            while True:
+                # Keep connection alive, though we mostly just push
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            if websocket in self._event_listeners:
+                self._event_listeners.remove(websocket)
+            logger.info(f"Telemetry client disconnected. Total: {len(self._event_listeners)}")
+
     async def _handle_listen(self, websocket: WebSocket) -> None:
         """Browser clients connect here to receive raw mulaw 8kHz audio for playback."""
         if not self._is_authorized(websocket):
@@ -326,6 +376,12 @@ class StreamingServer:
         self._active_streams += 1
         self._stream_sequence += 1
         self._last_stream_connected_at = time.time()
+
+        EventBus.publish(OperationalEvent(
+            type=EventType.CALL_STARTED,
+            payload={"stream_sequence": self._stream_sequence},
+            meta=EventMetadata(source_component="streaming_server")
+        ))
         self._last_stream_disconnect_reason = ""
         self._last_stream_close_code = None
         self._record_lifecycle_event(

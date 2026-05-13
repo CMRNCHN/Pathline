@@ -10,19 +10,35 @@ class WsManager {
 
   connect() {
     if (this._dead) return;
-    this._ws = new WebSocket(this._url);
+    try {
+      this._ws = new WebSocket(this._url);
+    } catch (err) {
+      console.error('Failed to create WebSocket:', err);
+      setTimeout(() => this.connect(), 5000);
+      return;
+    }
     this._ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
         // Dispatch by message type so subscribers can listen via EventBus.on(type, fn).
-        if (msg && msg.type) EventBus.emit(msg.type, msg);
+        if (msg && msg.type) {
+          EventBus.emit(msg.type, msg);
+        }
         if (this._onMessage) this._onMessage(msg);
-      } catch(_) {}
+      } catch(err) {
+        console.warn('Error processing WebSocket message:', err);
+      }
     };
     this._ws.onclose = () => {
-      if (!this._dead) setTimeout(() => this.connect(), 2000);
+      if (!this._dead) {
+        console.log('WebSocket closed, reconnecting in 5s...');
+        setTimeout(() => this.connect(), 5000);
+      }
     };
-    this._ws.onerror = () => this._ws.close();
+    this._ws.onerror = (err) => {
+      console.error('WebSocket error:', err);
+      this._ws.close();
+    };
   }
 
   send(obj) {

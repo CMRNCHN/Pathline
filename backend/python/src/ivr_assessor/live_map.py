@@ -5,6 +5,10 @@ from pathlib import Path
 import time
 from typing import Protocol, Sequence
 
+from .events.event_bus import bus as EventBus
+from .events.event_types import EventType
+from .events.event_models import OperationalEvent, EventMetadata
+
 from .event_ledger import EventLedger
 from .exploration import choose_candidate
 from .ivr_mapper import IvrMapper
@@ -238,6 +242,11 @@ class LiveMappingSession:
                     break
 
         self.telephony.hangup(session_id)
+        EventBus.publish(OperationalEvent(
+            type=EventType.CALL_ENDED,
+            payload={"session_id": session_id},
+            meta=EventMetadata(session_id=session_id, source_component="live_map")
+        ))
         return LiveMappingSummary(
             target_number=self.target_number,
             session_id=session_id,
@@ -248,6 +257,23 @@ class LiveMappingSession:
         )
 
     def _record_event(self, event: CallEvent, branch_confidence: float) -> None:
+        # Publish to EventBus
+        EventBus.publish(OperationalEvent(
+            type=EventType.STATE_DISCOVERED if event.intent != "unknown" else EventType.STATE_UNRESOLVED,
+            payload={
+                "intent": event.intent,
+                "node_id": event.node_id,
+                "confidence": branch_confidence,
+                "dtmf": event.dtmf
+            },
+            meta=EventMetadata(
+                session_id=self.session_id,
+                state_id=event.node_id,
+                confidence=branch_confidence,
+                source_component="live_map"
+            )
+        ))
+
         self.ledger.record(event)
         self.mapper.observe(
             event,

@@ -17,6 +17,8 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 from .status import StepStatus
+from ..events.event_models import OperationalEvent, EventMetadata
+from ..events.event_types import EventType
 
 
 # ─── IVR Runtime Event Types (string constants) ───────────────────────────────
@@ -80,6 +82,19 @@ class RunSuiteEvent:
     type: str
     suite_id: str
     timestamp: float = field(default_factory=time.time)
+    meta: EventMetadata = field(default_factory=EventMetadata)
+
+    def as_operational_event(self) -> OperationalEvent:
+        """Convert to the unified OperationalEvent model."""
+        # Update metadata with suite_id if not present
+        if not self.meta.session_id:
+            object.__setattr__(self.meta, 'session_id', self.suite_id)
+        
+        return OperationalEvent(
+            type=self.type,
+            payload={k: v for k, v in self.as_dict().items() if k not in ('type', 'meta', 'timestamp')},
+            meta=self.meta
+        )
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)

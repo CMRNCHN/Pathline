@@ -42,195 +42,270 @@
 
 <main class="console-root">
   <div id="ws-prep" class="workspace is-hidden">
-    <div class="placeholder-content">
-      <div class="panel">
+    <section class="prep-readiness-strip" id="prep-readiness-strip">
+      <!-- Readiness Status Strip (Pre-flight) -->
+    </section>
+
+    <div class="prep-main-area">
+      <aside class="prep-config-panel">
         <div class="panel-header">
-          <h2 class="panel-title">Prep Workspace</h2>
+          <div>
+            <div class="panel-kicker">Mission Configuration</div>
+            <h2 class="panel-title">Setup Parameters</h2>
+          </div>
         </div>
-        <div class="placeholder-card">
-          <h3>Readiness & Configuration</h3>
-          <p>Configure target numbers, caller ID, IVR profiles, and trigger phrases. Validate setup before starting a session.</p>
+        <div class="prep-config-body">
+          <div class="config-group">
+            <div class="section-title">Call Configuration</div>
+            <div class="config-field">
+              <label>Target Number</label>
+              <input type="tel" id="prep-target" placeholder="+18005550199">
+            </div>
+            <div class="config-field">
+              <label>Caller ID</label>
+              <input type="tel" id="prep-caller-id" placeholder="+18005550000">
+            </div>
+            <div class="config-field">
+              <label>IVR Profile</label>
+              <select id="prep-profile">
+                <option value="default">Default Profile</option>
+                <option value="fast">Fast Traversal</option>
+                <option value="thorough">Thorough Discovery</option>
+              </select>
+            </div>
+            <div class="config-field-row">
+              <label class="config-toggle">
+                <input type="checkbox" id="prep-record" checked>
+                <span>Record Audio</span>
+              </label>
+              <label class="config-toggle">
+                <input type="checkbox" id="prep-transcript" checked>
+                <span>Capture Transcript</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <div class="section-title">Runtime Configuration</div>
+            <div class="config-field">
+              <label>Injection Mode</label>
+              <select id="prep-injection-mode">
+                <option value="auto">Auto-detect</option>
+                <option value="dtmf">DTMF Priority</option>
+                <option value="speech">Speech Priority</option>
+              </select>
+            </div>
+            <div class="config-field">
+              <label>Silence Timeout (ms)</label>
+              <input type="number" id="prep-silence-timeout" value="3000">
+            </div>
+            <div class="config-field">
+              <label>Retry Limit</label>
+              <input type="number" id="prep-retry-limit" value="3">
+            </div>
+          </div>
         </div>
+      </aside>
+
+      <div class="prep-workspace-center">
+        <section class="panel prep-checklist-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-kicker">Pre-flight Verification</div>
+              <h2 class="panel-title">System Checklist</h2>
+            </div>
+          </div>
+          <div class="prep-checklist-body" id="prep-checklist">
+            <!-- System Checklist Items -->
+          </div>
+        </section>
+
+        <section class="panel prep-triggers-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Response Preparation</div>
+              <h2 class="panel-title">Trigger Phrase Setup</h2>
+            </div>
+            <button class="btn-tertiary btn-compact" id="btn-add-trigger">Add Trigger</button>
+          </div>
+          <div class="prep-triggers-body" id="prep-triggers-list">
+            <!-- Trigger Phrase Rows -->
+          </div>
+        </section>
+
+        <section class="panel prep-responses-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-kicker">Tactical Macros</div>
+              <h2 class="panel-title">Ready Responses</h2>
+            </div>
+          </div>
+          <div class="prep-responses-body" id="prep-ready-responses-list">
+            <!-- Ready Response Chips -->
+          </div>
+        </section>
       </div>
     </div>
+
+    <section class="prep-action-bar">
+      <div class="prep-action-left">
+        <button class="btn-secondary" id="prep-btn-validate">Validate Setup</button>
+        <button class="btn-secondary" id="prep-btn-dry-run">Dry Run</button>
+      </div>
+      <div class="prep-action-right">
+        <button class="btn-secondary" id="prep-btn-discovery">Start Discovery</button>
+        <button class="btn-primary" id="prep-btn-start">Start Live Call</button>
+      </div>
+    </section>
   </div>
 
   <div id="ws-discover" class="workspace is-hidden">
-    <div class="placeholder-content">
-      <div class="panel">
+    <section class="discovery-status-strip" id="discovery-status-strip">
+      <!-- Discovery Status Strip -->
+    </section>
+
+    <div class="discover-main-area">
+      <section class="discover-map-container">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Reconnaissance Intelligence</div>
+            <h2 class="panel-title">Discovery Map</h2>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-tertiary btn-compact" id="btn-discover-refresh-map">Refresh Map</button>
+          </div>
+        </div>
+        <div class="discover-map-surface" id="discover-map-surface">
+          <!-- Discovery Map Visualization -->
+          <div class="empty-state">Loading discovery map...</div>
+        </div>
+      </section>
+
+      <aside class="discover-sidebar">
+        <section class="panel probe-control-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-kicker">Controlled Exploration</div>
+              <h2 class="panel-title">Probe Control</h2>
+            </div>
+          </div>
+          <div class="panel-body" id="probe-control-panel">
+            <!-- Probe Control UI -->
+          </div>
+        </section>
+
+        <section class="panel exploration-queue-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Exploration Queue</h2>
+          </div>
+          <div class="panel-body scrollable-panel" id="exploration-queue">
+            <!-- Exploration Queue UI -->
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="discover-bottom-area">
+      <section class="panel discover-events-panel">
         <div class="panel-header">
-          <h2 class="panel-title">Discover Workspace</h2>
+          <h2 class="panel-title">Discovery Events</h2>
         </div>
-        <div class="placeholder-card">
-          <h3>Map Expansion & Bounded Probing</h3>
-          <p>Explore unknown IVR branches with deterministic traversal. Monitor discovery coverage and state confidence.</p>
+        <div class="panel-body scrollable-panel" id="discovery-events">
+          <!-- Discovery Events -->
         </div>
-      </div>
+      </section>
+
+      <section class="panel unknown-prompts-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Unknown Prompts</h2>
+        </div>
+        <div class="panel-body scrollable-panel" id="unknown-prompts">
+          <!-- Unknown Prompts -->
+        </div>
+      </section>
+
+      <section class="panel state-details-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">State Details</h2>
+        </div>
+        <div class="panel-body scrollable-panel" id="state-details">
+          <!-- State Details -->
+        </div>
+      </section>
     </div>
   </div>
 
   <div id="ws-live" class="workspace">
-    <section class="heartbeat-strip" id="heartbeat-strip">
-      <article class="heartbeat-card tone-neutral">
-        <div class="heartbeat-label">Live Operations</div>
-        <div class="heartbeat-value">Waiting</div>
-        <div class="heartbeat-meta">Loading active-run surfaces</div>
-      </article>
+    <section class="live-status-bar" id="live-status-bar">
+      <!-- Active Call Status Card -->
+      <div class="empty-state">Loading status…</div>
     </section>
 
-  <div class="workspace-grid">
-    <section class="panel timeline-panel">
-      <div class="panel-header panel-header-spread">
-        <div>
-          <div class="panel-kicker">Live Operations</div>
-          <h1 class="panel-title">Prompt Timeline</h1>
-          <div class="panel-subtitle">Scan prompt matches, response anchors, traversal decisions, and notices in active-run order.</div>
-        </div>
-        <div class="timer-badge" id="timer">00:00</div>
-      </div>
-
-      <div class="timeline-toolbar">
-        <button class="filter-chip" type="button" data-filter="transcript">Prompts</button>
-        <button class="filter-chip" type="button" data-filter="response">Responses</button>
-        <button class="filter-chip" type="button" data-filter="traversal">Traversal</button>
-        <button class="filter-chip" type="button" data-filter="notice">Notices</button>
-        <button class="filter-chip is-active" type="button" data-filter="all">All</button>
-      </div>
-
-      <div class="caption-strip" id="caption-box">
-        <div class="caption-label">Current Heard Prompt</div>
-        <div class="caption-text" id="caption-text">Awaiting active prompt…</div>
-      </div>
-
-      <div class="timeline-list" id="transcript">
-        <div class="empty-state">
-          <div class="empty-icon">◦</div>
-          <p>No live operations events yet</p>
-          <span>Start a bounded run to monitor prompt matching, response anchoring, traversal logic, and run notices.</span>
-        </div>
-      </div>
-    </section>
-
-    <div class="side-stack">
-      <section class="panel graph-panel">
+    <div class="live-main-area">
+      <section class="live-map-container">
         <div class="panel-header panel-header-spread">
           <div>
-            <div class="panel-kicker">IVR State Mapping</div>
-            <h2 class="panel-title">IVR State Map</h2>
-            <div class="panel-subtitle">Observed prompts become states; anchored responses become branches.</div>
+            <div class="panel-kicker">IVR Operational Surface</div>
+            <h2 class="panel-title">Graph Intelligence</h2>
           </div>
-          <button class="btn-tertiary btn-compact" id="btn-refresh-maps" type="button">Refresh Maps</button>
+          <div class="panel-actions">
+            <button class="btn-tertiary btn-compact" id="btn-refresh-maps" type="button">Refresh Map</button>
+          </div>
         </div>
-
-        <div class="graph-meta" id="graph-meta">
-          <span class="meta-chip">
-            <span class="meta-chip-label">Prompt Nodes</span>
-            <span class="meta-chip-value">0</span>
-          </span>
-        </div>
-
-        <div class="graph-box" id="graph-box">
+        <div class="live-map-surface" id="graph-box">
           <div class="empty-state">
             <div class="empty-icon">⋯</div>
             <p>No IVR state mapping yet</p>
-            <span>Prompt nodes and response branches appear after prompt matches and response anchors accumulate.</span>
           </div>
         </div>
       </section>
 
-      <section class="panel controls-panel">
-        <div class="panel-header">
-          <div>
-            <div class="panel-kicker">Run Supervision</div>
-            <h2 class="panel-title">Response Automation &amp; Manual Response</h2>
+      <section class="live-ops-container">
+        <div class="live-transcript-area">
+          <div class="panel-header panel-header-spread">
+            <h2 class="panel-title">Live Transcript</h2>
+            <div class="timer-badge" id="timer">00:00</div>
+          </div>
+          <div class="live-transcript-stream" id="transcript">
+            <div class="empty-state">Awaiting events…</div>
           </div>
         </div>
 
-        <div class="controls-grid">
-          <div class="control-section">
-            <div class="section-title">Traversal Logic</div>
-            <button class="mode-toggle" id="mode-toggle" type="button" title="Deterministic traversal follows bounded route rules; manual response lets the human operator send responses.">
-              <span class="mode-toggle-label">Deterministic Traversal</span>
-              <span class="mode-toggle-main" id="mode-toggle-text">On</span>
-              <span class="mode-toggle-state" id="mode-toggle-state">ON</span>
-            </button>
-            <div class="input-hint">Automatic mode keeps deterministic traversal active. Manual response mode pauses response automation for human operator input.</div>
+        <div class="live-controls-area">
+          <div class="injection-bar-container" id="injection-bar-root">
+            <!-- Unified Injection Bar -->
           </div>
-
-      <div class="control-section">
-        <div class="section-title">Conference Supervision</div>
-        <div class="conf-status" id="conf-status">
-          <div class="conf-row">
-            <span class="conf-label">Bridge:</span>
-            <span class="conf-value" id="conf-sid-display">Inactive</span>
+          <div class="ready-responses-container" id="ready-responses-root">
+            <!-- Ready Responses -->
           </div>
-          <div class="conf-row">
-            <span class="conf-label">Operator:</span>
-            <span class="conf-value" id="operator-status">Disconnected</span>
-          </div>
-        </div>
-        <div class="monitor-modes">
-          <button class="mode-btn is-active" id="btn-mode-silent" type="button" data-mode="silent">Silent</button>
-          <button class="mode-btn" id="btn-mode-whisper" type="button" data-mode="whisper">Whisper</button>
-          <button class="mode-btn" id="btn-mode-barge" type="button" data-mode="barge">Barge</button>
-        </div>
-        <div class="input-hint">Conference bridge enables multi-leg supervision. Silent: Operator muted. Whisper: Operator heard by IVR only. Barge: Operator heard by everyone.</div>
-      </div>
-
-      <div class="control-section">
-        <div class="section-title">Manual Response</div>
-            <div class="smart-input-wrapper">
-              <input id="smart-input" class="smart-input" type="text" placeholder="Enter operator DTMF or speech response…">
-              <div class="smart-input-chip" id="input-chip">Auto-detect</div>
-            </div>
-            <div class="input-hint">Human operator responses are explicit. Digits, * and # send DTMF; other text is voiced into the live session.</div>
-            <button class="btn-primary send-btn" type="button">Send Response</button>
-          </div>
-
-          <div class="control-section">
-            <div class="section-title">Keypad</div>
-            <div class="keypad">
-              <button class="kbtn" type="button">1<span></span></button>
-              <button class="kbtn" type="button">2<span>ABC</span></button>
-              <button class="kbtn" type="button">3<span>DEF</span></button>
-              <button class="kbtn" type="button">4<span>GHI</span></button>
-              <button class="kbtn" type="button">5<span>JKL</span></button>
-              <button class="kbtn" type="button">6<span>MNO</span></button>
-              <button class="kbtn" type="button">7<span>PQRS</span></button>
-              <button class="kbtn" type="button">8<span>TUV</span></button>
-              <button class="kbtn" type="button">9<span>WXYZ</span></button>
-              <button class="kbtn" type="button">*</button>
-              <button class="kbtn" type="button">0</button>
-              <button class="kbtn" type="button">#</button>
-            </div>
-            <div class="pad-row">
-              <div class="pad-display" id="pad-display">—</div>
-              <button class="btn-secondary pad-del" type="button">⌫</button>
-              <button class="btn-secondary pad-send" type="button">Send</button>
-            </div>
-          </div>
-
-          <div class="control-section">
-            <div class="section-title">Exception-First Run Alerts</div>
-            <div class="status-box" id="control-status">
-              <div class="text-muted-xs">Highest-priority live operations alerts appear here first.</div>
-            </div>
-          </div>
-
-          <div class="control-section control-section-secondary">
-            <div class="section-title">Secondary Review Shortcuts</div>
-            <div class="quick-tools">
-              <button class="btn-tertiary" id="btn-open-runtime" type="button">Run Health</button>
-              <button class="btn-tertiary" id="btn-open-artifacts" type="button">Evidence &amp; Artifacts</button>
-              <button class="btn-tertiary" id="btn-open-smoke" type="button">Run Readiness</button>
-            </div>
-            <div class="info-box">
-              Review/replay surfaces are read-only during active runs and stay secondary to prompt flow, IVR state mapping, and response control.
-            </div>
+          <div class="prompt-markers-container" id="prompt-markers-root">
+            <!-- Prompt Marker Tools -->
           </div>
         </div>
       </section>
     </div>
+
+    <div class="live-bottom-area">
+      <section class="panel bottom-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Recent Events</h2>
+        </div>
+        <div class="bottom-list" id="recent-events">
+          <div class="empty-state">No recent events</div>
+        </div>
+      </section>
+      <section class="panel bottom-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Unresolved States</h2>
+        </div>
+        <div class="bottom-list" id="unresolved-states">
+          <div class="empty-state">No unresolved states</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- State Inspector - Contextual -->
+    <div id="state-inspector" class="state-inspector is-hidden"></div>
   </div>
 
   <section class="panel drawer-panel" id="drawer-panel">
@@ -251,6 +326,7 @@
       <button class="drawer-tab" type="button" data-drawer-tab="artifacts">Evidence &amp; Artifacts</button>
       <button class="drawer-tab" type="button" data-drawer-tab="session">Call-Path Replay</button>
       <button class="drawer-tab" type="button" data-drawer-tab="websocket">Technical Diagnostics</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="telemetry">Operational Telemetry</button>
       <button class="drawer-tab" type="button" data-drawer-tab="smoke">Run Readiness</button>
     </div>
 
@@ -262,33 +338,108 @@
       </div>
     </div>
   </section>
-  </div>
+  <!-- </div> REMOVED UNMATCHED TAG -->
 
   <div id="ws-review" class="workspace is-hidden">
-    <div class="placeholder-content">
-      <div class="panel">
-        <div class="panel-header">
-          <h2 class="panel-title">Review Workspace</h2>
+    <section class="review-header" id="review-header">
+      <!-- Replay Header / Call Selector -->
+    </section>
+
+    <div class="review-main-area">
+      <section class="panel review-timeline-hero">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Operational Chronology</div>
+            <h2 class="panel-title">Waveform & Timeline Intelligence</h2>
+          </div>
+          <div class="panel-actions">
+            <span class="status-pill tone-accent">Forensic View</span>
+          </div>
         </div>
-        <div class="placeholder-card">
-          <h3>Post-Call Analysis</h3>
-          <p>Analyze completed calls, review transcripts, and extract reusable templates from evidence.</p>
+        <div class="review-hero-content">
+          <div class="waveform-container" id="review-waveform">
+            <!-- Waveform Visualization -->
+            <div class="empty-state">Audio Waveform Loading...</div>
+          </div>
+          <div class="timeline-hero-surface" id="review-timeline-hero">
+            <!-- Timeline Hero Visualization -->
+          </div>
         </div>
+      </section>
+
+      <div class="review-bottom-grid">
+        <section class="panel review-transcript-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Human-Supervised Review</div>
+              <h2 class="panel-title">Transcript & Evidence</h2>
+            </div>
+            <button class="btn-tertiary btn-compact" id="btn-review-verify-all">Verify All</button>
+          </div>
+          <div class="review-transcript-body" id="review-transcript-list">
+            <!-- Transcript Review Rows -->
+          </div>
+        </section>
+
+        <section class="panel review-template-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Operational Extraction</div>
+              <h2 class="panel-title">Template Builder</h2>
+            </div>
+            <button class="btn-primary btn-compact" id="btn-save-template">Save Template</button>
+          </div>
+          <div class="review-template-body" id="review-template-builder">
+            <!-- Template Builder Shell -->
+          </div>
+        </section>
       </div>
     </div>
   </div>
 
   <div id="ws-run" class="workspace is-hidden">
-    <div class="placeholder-content">
-      <div class="panel">
+    <section class="automation-health-strip" id="automation-health-strip">
+      <!-- Automation Health Strip -->
+    </section>
+
+    <div class="run-main-area">
+      <aside class="suite-library-panel">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Operational Inventory</div>
+            <h2 class="panel-title">Suite Library</h2>
+          </div>
+          <button class="btn-tertiary btn-compact" id="btn-run-refresh-suites">Refresh</button>
+        </div>
+        <div class="panel-body scrollable-panel" id="suite-library-list">
+          <!-- Suite Cards -->
+        </div>
+      </aside>
+
+      <section class="active-runs-panel">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Operational Supervision</div>
+            <h2 class="panel-title">Active Runs</h2>
+          </div>
+          <div class="timer-badge" id="run-total-timer">00:00:00</div>
+        </div>
+        <div class="panel-body scrollable-panel" id="active-runs-list">
+          <!-- Active Run Cards -->
+        </div>
+      </section>
+
+      <aside class="run-intelligence-panel">
         <div class="panel-header">
-          <h2 class="panel-title">Run Workspace</h2>
+          <div>
+            <div class="panel-kicker">Automation Transparency</div>
+            <h2 class="panel-title">Run Intelligence</h2>
+          </div>
         </div>
-        <div class="placeholder-card">
-          <h3>Approved Suite Execution</h3>
-          <p>Execute prepared background suites. Monitor success/failure state and automated decision explanations.</p>
+        <div class="panel-body scrollable-panel" id="run-intelligence-content">
+          <!-- Run Intelligence Details -->
         </div>
-      </div>
+      </aside>
     </div>
   </div>
 </main>

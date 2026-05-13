@@ -332,394 +332,769 @@ function renderGraph() {
     : '');
 }
 
-function renderHeartbeat() {
-  const metrics = AppState.runtimeMetrics || {};
+function renderStatusCard() {
   const diagnostics = AppState.runtimeDiagnostics || {};
-  const summary = diagnostics.summary || {};
+  const metrics = AppState.runtimeMetrics || {};
   const stream = metrics.stream_server || {};
   const streamLast = stream.last_stream_metrics || {};
   const session = metrics.session || {};
-  const queue = session.queue || {};
-  const runtime = metrics.runtime || {};
-  const staleness = metrics.staleness || {};
-  const diagnose = AppState.diagnose || {};
-  const issues = diagnose.issues || [];
-
-  const cards = [];
   const status = AppState.latestStatus || {};
-  const target = session.target || (((diagnostics.replay_diagnostics || {}).session || {}).target) || normalizeTarget($('f-target').value);
+  const runtime = metrics.runtime || {};
 
-  if (status.error) {
-    cards.push({
-      label: 'P1 Exception',
-      value: 'Run error surfaced',
-      meta: status.error,
-      tone: 'error',
-      priority: 1,
-    });
-  }
+  const target = session.target || normalizeTarget($('f-target').value) || 'Unset';
+  const duration = AppState.sessionElapsedMs ? formatDuration(AppState.sessionElapsedMs) : '00:00';
 
-  issues.slice(0, 3).forEach((issue, index) => {
-    cards.push({
-      label: index === 0 ? 'P3 Readiness' : 'P3 Readiness',
-      value: 'Pre-run issue',
-      meta: String(issue),
-      tone: 'warn',
-      priority: 4,
-    });
-  });
-
-  if (AppState.callRunning && streamLast.stt_connected === false) {
-    cards.push({
-      label: 'P1 Prompt Capture',
-      value: 'Unavailable',
-      meta: streamLast.stt_backend || 'Speech backend not connected',
-      tone: 'error',
-      priority: 2,
-    });
-  }
-
-  if (AppState.callRunning && stream.active_streams === 0) {
-    cards.push({
-      label: 'P2 Media Stream',
-      value: 'No active stream',
-      meta: stream.last_stream_disconnect_reason || 'Waiting for Twilio media stream',
-      tone: 'warn',
-      priority: 2,
-    });
-  }
-
-  if (stream.last_error) {
-    cards.push({
-      label: 'P1 Stream Exception',
-      value: 'Stream error',
-      meta: stream.last_error,
-      tone: 'error',
-      priority: 1,
-    });
-  }
-
-  if (staleness.is_stale) {
-    cards.push({
-      label: 'P2 Runtime Health',
-      value: 'Runtime stale',
-      meta: 'Idle ' + formatMaybeSeconds(staleness.idle_for_s) + 's',
-      tone: 'warn',
-      priority: 3,
-    });
-  }
-
-  if (queue.current_depth > 0) {
-    cards.push({
-      label: 'P2 Operator Response',
-      value: 'Checkpoint pending',
-      meta: queue.max_depth_seen != null ? ('Depth ' + queue.current_depth + ' · max ' + queue.max_depth_seen) : 'Queue awaiting deterministic traversal response',
-      tone: 'accent',
-      priority: 2,
-    });
-  }
-
-  if (!cards.length) {
-    cards.push({
-      label: 'Run Health',
-      value: 'Nominal',
-      meta: (AppState.callRunning ? 'Active bounded run' : 'Idle') + ' · target ' + (target || 'unset'),
-      tone: diagnose.ok === true || AppState.callRunning ? 'ok' : 'neutral',
-      priority: 5,
-    });
-    cards.push({
-      label: 'IVR State Context',
-      value: summary.session_active ? 'Running' : 'Ready',
-      meta: 'Launch #' + (runtime.launch_sequence || 0) + ' · checkpoints ' + (runtime.checkpoint_count || 0),
-      tone: summary.session_active ? 'accent' : 'neutral',
-      priority: 5,
-    });
-  }
-
-  $('heartbeat-strip').innerHTML = renderHeartbeatCards(cards
-    .sort((left, right) => (left.priority || 9) - (right.priority || 9))
-    .slice(0, 3));
-}
-
-function renderControlStatus() {
-  const diagnostics = AppState.runtimeDiagnostics || {};
-  const metrics = AppState.runtimeMetrics || {};
-  const stream = metrics.stream_server || {};
-  const streamLast = stream.last_stream_metrics || {};
-  const queue = ((diagnostics.queue_visibility || {}).session_queue) || {};
-  const statusItems = [
-    {
-      label: 'Active Run',
-      value: AppState.callRunning ? 'Live operations' : 'Idle',
-      meta: ((diagnostics.summary || {}).session_target) || '—',
-    },
-    {
-      label: 'Media Stream',
-      value: stream.active_streams ? 'Connected' : (AppState.callRunning ? 'No active stream' : 'Waiting'),
-      meta: stream.last_stream_close_code != null ? ('Close ' + stream.last_stream_close_code) : '—',
-    },
-    {
-      label: 'Prompt Capture',
-      value: streamLast.stt_connected === true ? 'Connected' : (streamLast.stt_connected === false ? 'Unavailable' : 'Unknown'),
-      meta: streamLast.stt_backend || 'Not surfaced',
-    },
-    {
-      label: 'Alert Priority',
-      value: queue.current_depth > 0 ? 'P2 response needed' : 'No active exception',
-      meta: queue.max_depth_seen != null ? ('queue max ' + queue.max_depth_seen) : '—',
-    },
+  const items = [
+    { label: 'Target', value: target },
+    { label: 'Timer', value: duration },
+    { label: 'Status', value: AppState.callRunning ? 'Active Run' : 'Idle', tone: AppState.callRunning ? 'ok' : 'warn' },
+    { label: 'Current State', value: status.active_prompt ? (status.active_prompt.slice(0, 20) + '…') : '—' },
+    { label: 'Coverage', value: (runtime.checkpoint_count || 0) + ' nodes' },
+    { label: 'Confidence', value: status.active_confidence != null ? Math.round(status.active_confidence * 100) + '%' : '—' },
+    { label: 'Stream', value: stream.active_streams ? 'Connected' : 'Offline', tone: stream.active_streams ? 'ok' : 'error' },
+    { label: 'Latency', value: streamLast.stt_connect_ms ? streamLast.stt_connect_ms + 'ms' : '—' },
+    { label: 'AI Status', value: streamLast.stt_connected ? 'Ready' : 'Wait', tone: streamLast.stt_connected ? 'ok' : 'warn' },
+    { label: 'Mode', value: AppState.manualMode ? 'Manual' : 'Auto' },
   ];
 
-  $('control-status').innerHTML = statusItems.map((item) =>
-    '<div class="status-item">' +
-      '<span class="status-item-label">' + escapeHtml(item.label) + '</span>' +
-      '<span class="status-item-value">' + escapeHtml(item.value) + '</span>' +
-      '<span class="status-item-meta">' + escapeHtml(item.meta) + '</span>' +
-    '</div>'
-  ).join('');
+  const bar = $('live-status-bar');
+  if (!bar) return;
+
+  const html = '<div class="status-card-compact">' + items.map(item => `
+    <div class="status-card-item">
+      <div class="status-card-label">${escapeHtml(item.label)}</div>
+      <div class="status-card-value ${item.tone ? 'tone-' + item.tone : ''}">${escapeHtml(String(item.value))}</div>
+    </div>
+  `).join('') + '</div>';
+
+  bar.innerHTML = html;
 }
 
-function buildRouteRefinementItems(session, queueVisibility, artifacts) {
-  const chronology = session.chronology || [];
-  const prompts = chronology.filter((item) => item.kind === 'prompt');
-  const actions = chronology.filter((item) => item.kind === 'action');
-  const items = [];
+function renderInjectionBar() {
+  const root = $('injection-bar-root');
+  root.innerHTML = `
+    <div class="injection-field-group">
+      <input type="text" id="smart-input" class="injection-input" placeholder="Type digits or words…">
+      <button class="btn-ptt" id="btn-ptt" type="button">PTT</button>
+      <button class="btn-primary" id="btn-send-injection" style="min-height: 38px;">Send</button>
+    </div>
+  `;
 
-  if (session.error) {
-    items.push('Review the last run error before reusing this route: ' + session.error);
-  }
-  if (prompts.length > actions.length + 1) {
-    items.push('Some prompt matches do not have response anchors yet; review missing route responses after the active run.');
-  }
-
-  const repeatedPrompt = prompts.find((item, index) => {
-    if (index === 0) return false;
-    return item.text_preview && item.text_preview === prompts[index - 1].text_preview;
+  const input = $('smart-input');
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendInput();
   });
-  if (repeatedPrompt) {
-    items.push('Repeated prompts suggest a loop or retry branch; confirm the expected route check and starting DTMF path.');
-  }
+  $('btn-send-injection').addEventListener('click', sendInput);
 
-  const queue = queueVisibility.session_queue || {};
-  if ((queue.current_depth || 0) > 0) {
-    items.push('Checkpoint queue items remained pending at the last snapshot; verify traversal logic and human operator response timing.');
-  }
-
-  if ((session.graph_node_count || 0) === 0 && prompts.length > 0) {
-    items.push('Prompt activity was captured without persisted map growth; re-run to confirm IVR state mapping coverage.');
-  }
-
-  const reports = ((artifacts.reports || {}).file_count) || 0;
-  const recordings = ((artifacts.recordings || {}).file_count) || 0;
-  if (!reports && !recordings) {
-    items.push('No replay/review artifacts were captured for this run; collect evidence before extracting a reusable suite.');
-  }
-
-  if (!items.length) {
-    items.push('Prompt matching, response anchoring, and evidence capture look ready for the next bounded run.');
-  }
-  return items;
+  // PTT Placeholder logic
+  const ptt = $('btn-ptt');
+  ptt.addEventListener('mousedown', () => ptt.classList.add('active'));
+  ptt.addEventListener('mouseup', () => ptt.classList.remove('active'));
+  ptt.addEventListener('mouseleave', () => ptt.classList.remove('active'));
 }
 
-function sectionHtml(title, content) {
-  return (
-    '<section class="drawer-section">' +
-      '<div class="drawer-section-title">' + escapeHtml(title) + '</div>' +
-      content +
-    '</section>'
-  );
+function renderReadyResponses() {
+  const root = $('ready-responses-root');
+  const responses = [
+    'Representative', 'Billing', 'Support', 'Repeat That',
+    'Main Menu', 'Yes', 'No', 'Press 0'
+  ];
+
+  root.innerHTML = responses.map(r => `
+    <button class="ready-chip" onclick="populateInjection('${escapeHtml(r)}')">${escapeHtml(r)}</button>
+  `).join('');
 }
 
-function renderList(items, cssClass) {
-  if (!items.length) return renderEmptyState('◦', 'Nothing surfaced', 'No items available for this view.');
-  return '<div class="diagnostic-list">' + items.map((item) =>
-    '<div class="diagnostic-row' + (cssClass ? ' ' + cssClass : '') + '">' + escapeHtml(item) + '</div>'
-  ).join('') + '</div>';
+window.populateInjection = (text) => {
+  const input = $('smart-input');
+  if (input) {
+    input.value = text;
+    input.focus();
+  }
+};
+
+function renderPromptMarkers() {
+  const root = $('prompt-markers-root');
+  const markers = [
+    'Mark Prompt', 'Mark Response Needed', 'Mark Unknown State',
+    'Mark Verification', 'Mark Transfer'
+  ];
+
+  root.innerHTML = markers.map(m => `
+    <button class="marker-chip" onclick="addLog('[marker] ${escapeHtml(m)}')">${escapeHtml(m)}</button>
+  `).join('');
+}
+
+function renderRecentEvents() {
+  const root = $('recent-events');
+  if (!root) return;
+  const rows = AppState.timelineRows || [];
+  const recent = rows.slice(-20).reverse();
+
+  if (!recent.length) {
+    root.innerHTML = '<div class="empty-state">No recent events</div>';
+    return;
+  }
+
+  root.innerHTML = recent.map(row => `
+    <div class="event-row">
+      <span class="event-ts">${escapeHtml(row.meta)}</span>
+      <span class="event-msg">${escapeHtml(row.title)}: ${escapeHtml(row.detail.slice(0, 60))}</span>
+    </div>
+  `).join('');
+}
+
+function renderUnresolvedStates() {
+  const root = $('unresolved-states');
+  if (!root) return;
+  const graph = AppState.latestGraph || {};
+  const unresolved = Object.entries(graph).filter(([p, node]) => {
+    const branches = Object.values(node.branches || {});
+    return branches.some(b => !(b.next_prompts || []).length);
+  });
+
+  if (!unresolved.length) {
+    root.innerHTML = '<div class="empty-state">No unresolved states detected</div>';
+    return;
+  }
+
+  root.innerHTML = unresolved.map(([prompt, node]) => `
+    <div class="event-row" style="cursor: pointer;" onclick="inspectState('${escapeHtml(prompt)}')">
+      <span class="event-msg">Unresolved: ${escapeHtml(prompt.slice(0, 50))}</span>
+      <span class="state-pill tone-warn">Fix</span>
+    </div>
+  `).join('');
+}
+
+window.inspectState = (prompt) => {
+  const inspector = $('state-inspector');
+  const graph = AppState.latestGraph || {};
+  const node = graph[prompt];
+  if (!node) return;
+
+  inspector.classList.remove('is-hidden');
+  inspector.innerHTML = `
+    <div class="panel-header panel-header-spread">
+      <h3 class="panel-title">State Inspector</h3>
+      <button class="btn-compact btn-tertiary" onclick="$('state-inspector').classList.add('is-hidden')">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="section-title">Prompt Text</div>
+      <div class="diagnostic-row" style="margin-bottom: 12px;">${escapeHtml(prompt)}</div>
+      <div class="section-title">Observed Branches</div>
+      ${Object.entries(node.branches || {}).map(([b, obs]) => `
+        <div class="graph-branch">
+          <span class="graph-branch-key">${escapeHtml(b)}</span>
+          <span class="graph-branch-value">${(obs.next_prompts || []).length ? obs.next_prompts.join(', ') : 'Unresolved'}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+};
+
+function renderPrepWorkspace() {
+  renderPrepReadinessStrip();
+  renderPrepConfig();
+  renderPrepChecklist();
+  renderPrepTriggers();
+  renderPrepReadyResponses();
 }
 
 function renderDrawer() {
   const panel = $('drawer-panel');
-  const body = $('drawer-body');
-  const diagnostics = AppState.runtimeDiagnostics || {};
-  const metrics = AppState.runtimeMetrics || {};
-  const summary = diagnostics.summary || {};
-  const queueVisibility = diagnostics.queue_visibility || {};
-  const websocket = diagnostics.websocket_lifecycle || {};
-  const replayDiagnostics = diagnostics.replay_diagnostics || {};
-  const session = replayDiagnostics.session || {};
-  const artifacts = replayDiagnostics.artifact_summary || {};
-  const activeTab = AppState.activeDrawerTab || 'runtime';
+  if (!panel) return;
+  panel.classList.toggle('is-open', AppState.drawerOpen);
 
-  panel.classList.toggle('is-open', !!AppState.drawerOpen);
-  panel.classList.toggle('is-secondary-active-run', !!AppState.callRunning);
-  $('drawer-toggle').textContent = AppState.drawerOpen ? 'Collapse' : 'Expand';
-
-  document.querySelectorAll('[data-drawer-tab]').forEach((tab) => {
-    tab.classList.toggle('is-active', tab.dataset.drawerTab === activeTab);
+  const tabs = document.querySelectorAll('[data-drawer-tab]');
+  tabs.forEach(tab => {
+    tab.classList.toggle('is-active', tab.dataset.drawerTab === AppState.activeDrawerTab);
   });
 
-  if (!AppState.drawerOpen) return;
+  const body = $('drawer-body');
+  if (!body) return;
 
-  let html = '';
-
-  if (activeTab === 'runtime') {
-    const startupEvents = ((metrics.startup || {}).events || []).slice(-6).map((item) => {
-      return formatClock(item.ts) + ' · ' + titleize(item.stage || 'startup') + (item.detail ? ' · ' + item.detail : '');
-    });
-    const checkpoints = ((metrics.runtime || {}).checkpoints || []).slice(-6).map((item) => {
-      return formatClock(item.ts) + ' · ' + titleize(item.stage || 'checkpoint') + (item.detail ? ' · ' + item.detail : '');
-    });
-    const routeRefinement = buildRouteRefinementItems(session, queueVisibility, artifacts);
-    html =
-      '<div class="drawer-grid">' +
-        sectionHtml('Bounded Run Health', renderKeyValueTable([
-          { key: 'Run active', value: String(!!summary.session_active) },
-          { key: 'Target IVR', value: summary.session_target || '—' },
-          { key: 'Runtime checkpoints', value: String(summary.runtime_checkpoint_count || 0) },
-          { key: 'Cleanup count', value: String(summary.cleanup_count || 0) },
-          { key: 'Stale runtime', value: String(!!summary.stale_runtime) },
-        ])) +
-        sectionHtml('Route Refinement Cues', renderList(routeRefinement, 'meta')) +
-        sectionHtml('Exception-First Run Alerts', renderList((AppState.legacyLogs || []).slice(-8).map((item) => {
-          return new Date(item.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' · ' + item.message;
-        }), 'meta')) +
-        sectionHtml('Secondary Startup Diagnostics', renderList(startupEvents, 'meta')) +
-        sectionHtml('Runtime Checkpoint Chronology', renderList(checkpoints, 'meta')) +
-      '</div>';
-  } else if (activeTab === 'session') {
-    const chronology = (session.chronology || []).slice(-10).map((item) => {
-      return formatTimer(Math.floor((item.t_ms || 0) / 1000)) + ' · ' + titleize(item.kind || 'event') + ' · ' + item.text_preview;
-    });
-    const promptCount = (session.chronology || []).filter((item) => item.kind === 'prompt').length;
-    const actionCount = (session.chronology || []).filter((item) => item.kind === 'action').length;
-    html =
-      '<div class="drawer-grid">' +
-        sectionHtml('Call-Path Replay', renderKeyValueTable([
-          { key: 'Target', value: session.target || '—' },
-          { key: 'Duration', value: session.duration_ms != null ? formatDuration(session.duration_ms) : '—' },
-          { key: 'Graph nodes', value: String(session.graph_node_count || 0) },
-          { key: 'Manual response mode', value: String(!!session.manual_mode) },
-          { key: 'Prompt matches', value: String(promptCount) },
-          { key: 'Anchored responses', value: String(actionCount) },
-          { key: 'Event count', value: String(session.event_count || 0) },
-          { key: 'Error', value: session.error || '—' },
-        ])) +
-        sectionHtml('Prompt & Action Chronology', renderList(chronology, 'meta')) +
-      '</div>';
-  } else if (activeTab === 'websocket') {
-    const counts = websocket.counts || {};
-    const countRows = Object.keys(counts).sort().map((key) => ({ key, value: String(counts[key]) }));
-    const recent = (websocket.recent || []).slice(-10).map((item) => {
-      return formatClock(item.ts) + ' · ' + String(item.endpoint || 'ws') + ' · ' + String(item.phase || 'event');
-    });
-    const streamLast = ((metrics.stream_server || {}).last_stream_metrics) || {};
-    html =
-      '<div class="drawer-grid">' +
-        sectionHtml('Technical Diagnostics Counts', countRows.length ? renderKeyValueTable(countRows) : renderEmptyState('◦', 'No diagnostics counts', 'Technical diagnostics counters appear after connections.')) +
-        sectionHtml('Technical Diagnostics Snapshot', renderKeyValueTable([
-          { key: 'Status', value: streamLast.stream_status || '—' },
-          { key: 'STT backend', value: streamLast.stt_backend || '—' },
-          { key: 'STT connected', value: String(streamLast.stt_connected) },
-          { key: 'Connect ms', value: streamLast.stt_connect_ms != null ? String(streamLast.stt_connect_ms) : '—' },
-          { key: 'Last error', value: (metrics.stream_server || {}).last_error || '—' },
-        ])) +
-        sectionHtml('Recent Technical Diagnostics', renderList(recent, 'meta')) +
-      '</div>';
-  } else if (activeTab === 'queue') {
-    const queue = queueVisibility.session_queue || {};
-    const checkpoint = queueVisibility.last_checkpoint || {};
-    html =
-      '<div class="drawer-grid">' +
-        sectionHtml('Checkpoint Verification Summary', renderKeyValueTable([
-          { key: 'Current depth', value: queue.current_depth != null ? String(queue.current_depth) : '—' },
-          { key: 'Max depth', value: queue.max_depth_seen != null ? String(queue.max_depth_seen) : '—' },
-          { key: 'Puts total', value: queue.puts_total != null ? String(queue.puts_total) : '—' },
-          { key: 'Gets total', value: queue.gets_total != null ? String(queue.gets_total) : '—' },
-          { key: 'Elapsed ms', value: queue.elapsed_ms != null ? String(queue.elapsed_ms) : '—' },
-        ])) +
-        sectionHtml('Latest Checkpoint Verification', renderKeyValueTable([
-          { key: 'Stage', value: checkpoint.stage || '—' },
-          { key: 'Category', value: checkpoint.category || '—' },
-          { key: 'Detail', value: checkpoint.detail || '—' },
-          { key: 't_ms', value: checkpoint.t_ms != null ? String(checkpoint.t_ms) : '—' },
-        ])) +
-      '</div>';
-  } else if (activeTab === 'artifacts') {
-    const recordingArtifacts = (artifacts.recording_artifacts || []).map((item) => {
-      return String(item.recording_sid || 'artifact') + ' · ' + String(item.status || 'unknown');
-    });
-    html =
-      '<div class="drawer-grid">' +
-        sectionHtml('Evidence & Artifacts Summary', renderKeyValueTable([
-          { key: 'Reports', value: artifacts.reports ? String(artifacts.reports.file_count) : '—' },
-          { key: 'Recordings', value: artifacts.recordings ? String(artifacts.recordings.file_count) : '—' },
-          { key: 'Replays', value: artifacts.replays ? String(artifacts.replays.file_count) : '—' },
-          { key: 'Snapshots', value: artifacts.snapshots ? String(artifacts.snapshots.file_count) : '—' },
-        ])) +
-        sectionHtml('Captured Evidence', renderList(recordingArtifacts, 'meta')) +
-      '</div>';
-  } else if (activeTab === 'smoke') {
-    const diagnose = AppState.diagnose || {};
-    const issues = diagnose.issues || [];
-    const fixes = (diagnose.fixes || []).map((item) => item.label || item.action || 'Suggested fix');
-    html =
-      '<div class="drawer-grid">' +
-        sectionHtml('Run Readiness', renderKeyValueTable([
-          { key: 'Twilio auth', value: diagnose.twilio ? String(!!diagnose.twilio.ok) : 'Unknown' },
-          { key: 'Deepgram key', value: diagnose.deepgram ? String(!!diagnose.deepgram.ok) : 'Unknown' },
-          { key: 'Stream listening', value: diagnose.stream_server ? String(!!diagnose.stream_server.listening) : 'Unknown' },
-          { key: 'Tunnel backend', value: diagnose.tunnel ? String(diagnose.tunnel.backend || 'Unknown') : 'Unknown' },
-          { key: 'Suggested stream', value: diagnose.suggested_stream_url || '—' },
-        ])) +
-        sectionHtml('Readiness Issues', renderList(issues.map((item) => String(item)), 'meta')) +
-        sectionHtml('Suggested Fixes', renderList(fixes, 'meta')) +
-      '</div>';
+  if (AppState.activeDrawerTab === 'runtime') {
+    if (typeof renderRuntimeTab === 'function') renderRuntimeTab(body);
+  } else if (AppState.activeDrawerTab === 'queue') {
+    if (typeof renderQueueTab === 'function') renderQueueTab(body);
+  } else if (AppState.activeDrawerTab === 'artifacts') {
+    if (typeof renderArtifactsTab === 'function') renderArtifactsTab(body);
+  } else if (AppState.activeDrawerTab === 'session') {
+    if (typeof renderSessionTab === 'function') renderSessionTab(body);
+  } else if (AppState.activeDrawerTab === 'websocket') {
+    if (typeof renderWebsocketTab === 'function') renderWebsocketTab(body);
+  } else if (AppState.activeDrawerTab === 'telemetry') {
+    body.innerHTML = '<div class="telemetry-monitor" id="telemetry-monitor"></div>';
+    renderTelemetryMonitor();
+  } else if (AppState.activeDrawerTab === 'smoke') {
+    if (typeof renderSmokeTab === 'function') renderSmokeTab(body);
   }
-
-  body.innerHTML = html || renderEmptyState('◦', 'No review data', 'Select a review tab once run data is available.');
 }
 
-function renderConferenceStatus() {
-  const status = AppState.latestStatus || {};
-  const sidDisplay = $('conf-sid-display');
-  const opStatus = $('operator-status');
+function renderPrepReadinessStrip() {
+  const root = $('prep-readiness-strip');
+  if (!root) return;
 
-  if (status.conference_sid) {
-    sidDisplay.textContent = status.conference_sid.slice(0, 10) + '…';
-    sidDisplay.title = status.conference_sid;
-    sidDisplay.className = 'conf-value tone-accent';
+  const diagnostics = AppState.diagnose || {};
+  const metrics = AppState.runtimeMetrics || {};
+  const stream = metrics.stream_server || {};
+
+  const items = [
+    { label: 'Backend', status: diagnostics.server_active ? 'ok' : 'error' },
+    { label: 'Ngrok', status: diagnostics.tunnel_active ? 'ok' : 'error' },
+    { label: 'Twilio', status: diagnostics.twilio_ready ? 'ok' : 'warn' },
+    { label: 'Media Stream', status: diagnostics.media_stream_ready ? 'ok' : 'warn' },
+    { label: 'WS Stream', status: stream.active_streams ? 'ok' : 'warn' },
+    { label: 'STT Engine', status: diagnostics.stt_ready ? 'ok' : 'error' },
+    { label: 'TTS Engine', status: diagnostics.tts_ready ? 'ok' : 'error' },
+    { label: 'AI Model', status: diagnostics.ai_ready ? 'ok' : 'warn' },
+    { label: 'Recording', status: 'ok' },
+    { label: 'Transcript', status: 'ok' },
+    { label: 'Conf Bridge', status: 'ok' },
+    { label: 'Artifacts', status: 'ok' },
+    { label: 'Suite Engine', status: 'ok' },
+    { label: 'Templates', status: AppState.savedMaps.length ? 'ok' : 'gray' }
+  ];
+
+  root.innerHTML = `<div class="status-card-compact">` + items.map(item => `
+    <div class="status-card-item">
+      <div class="status-card-label">${item.label}</div>
+      <div class="status-pill tone-${item.status} btn-compact" style="min-height: 22px; font-size: 9px; padding: 0 8px;">
+        ${item.status === 'ok' ? 'Ready' : (item.status === 'error' ? 'Broken' : (item.status === 'warn' ? 'Warning' : 'N/A'))}
+      </div>
+    </div>
+  `).join('') + `</div>`;
+}
+
+function renderPrepConfig() {
+  const p = AppState.prep;
+  $('prep-target').value = p.target;
+  $('prep-caller-id').value = p.callerId;
+  $('prep-profile').value = p.profile;
+  $('prep-record').checked = p.record;
+  $('prep-transcript').checked = p.transcript;
+  $('prep-injection-mode').value = p.injectionMode;
+  $('prep-silence-timeout').value = p.silenceTimeout;
+  $('prep-retry-limit').value = p.retryLimit;
+}
+
+function updatePrepState() {
+  AppState.prep.target = $('prep-target').value;
+  AppState.prep.callerId = $('prep-caller-id').value;
+  AppState.prep.profile = $('prep-profile').value;
+  AppState.prep.record = $('prep-record').checked;
+  AppState.prep.transcript = $('prep-transcript').checked;
+  AppState.prep.injectionMode = $('prep-injection-mode').value;
+  AppState.prep.silenceTimeout = parseInt($('prep-silence-timeout').value);
+  AppState.prep.retryLimit = parseInt($('prep-retry-limit').value);
+  
+  // Sync header target if changed
+  if (AppState.prep.target) {
+    $('f-target').value = AppState.prep.target;
   } else {
-    sidDisplay.textContent = 'Inactive';
-    sidDisplay.className = 'conf-value';
+    AppState.prep.target = normalizeTarget($('f-target').value);
+  }
+}
+
+function renderPrepChecklist() {
+  const root = $('prep-checklist');
+  if (!root) return;
+
+  const diagnostics = AppState.diagnose || {};
+  const items = [
+    { label: 'Twilio Connected', status: diagnostics.twilio_ready ? 'ok' : 'error' },
+    { label: 'Media Stream Active', status: diagnostics.media_stream_ready ? 'ok' : 'warn' },
+    { label: 'Recording Webhook', status: 'ok' },
+    { label: 'STT Ready', status: diagnostics.stt_ready ? 'ok' : 'error' },
+    { label: 'TTS Ready', status: diagnostics.tts_ready ? 'ok' : 'error' },
+    { label: 'DTMF Injection', status: 'ok' },
+    { label: 'AI Model Loaded', status: diagnostics.ai_ready ? 'ok' : 'warn' },
+    { label: 'Call Logging Active', status: 'ok' },
+    { label: 'Template Library', status: AppState.savedMaps.length ? 'ok' : 'gray' },
+    { label: 'Suite Engine Ready', status: 'ok' },
+    { label: 'Conf Bridge Ready', status: 'ok' },
+    { label: 'Tunnel Reachable', status: diagnostics.tunnel_active ? 'ok' : 'error' }
+  ];
+
+  root.innerHTML = items.map(item => `
+    <div class="checklist-item">
+      <div class="checklist-indicator tone-${item.status}" style="background-color: var(--${item.status === 'ok' ? 'success' : (item.status === 'error' ? 'danger' : (item.status === 'warn' ? 'warn' : 'text-4'))});"></div>
+      <div class="checklist-label">${item.label}</div>
+    </div>
+  `).join('');
+}
+
+function renderPrepTriggers() {
+  const root = $('prep-triggers-list');
+  if (!root) return;
+
+  root.innerHTML = AppState.prep.triggers.map((t, i) => `
+    <div class="trigger-phrase-row">
+      <input type="text" value="${escapeHtml(t.phrase)}" placeholder="Trigger Phrase" onchange="updateTrigger(${i}, 'phrase', this.value)">
+      <input type="text" value="${escapeHtml(t.response)}" placeholder="Response" onchange="updateTrigger(${i}, 'response', this.value)">
+      <select onchange="updateTrigger(${i}, 'type', this.value)">
+        <option value="auto">Auto-detect</option>
+        <option value="dtmf" ${detectInputType(t.response) === 'dtmf' ? 'selected' : ''}>DTMF</option>
+        <option value="speech" ${detectInputType(t.response) === 'speech' ? 'selected' : ''}>Speech</option>
+      </select>
+      <button class="btn-ghost-xs" onclick="removeTrigger(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+window.updateTrigger = (index, field, value) => {
+  AppState.prep.triggers[index][field] = value;
+};
+
+window.removeTrigger = (index) => {
+  AppState.prep.triggers.splice(index, 1);
+  renderPrepTriggers();
+};
+
+window.addTrigger = () => {
+  AppState.prep.triggers.push({ phrase: '', response: '' });
+  renderPrepTriggers();
+};
+
+function renderPrepReadyResponses() {
+  const root = $('prep-ready-responses-list');
+  if (!root) return;
+
+  const responses = [
+    'Representative', 'Billing', 'Technical Support', 'Yes', 'No', 
+    'Repeat', 'Main Menu', 'Account Number', 'Press 0', 'ZIP Code'
+  ];
+
+  root.innerHTML = responses.map(r => `
+    <button class="ready-chip">${escapeHtml(r)}</button>
+  `).join('');
+}
+
+function renderDiscoverWorkspace() {
+  const d = AppState.discover;
+  if (!d.activeSessionId) {
+    // Generate mock session for Slice 5 demo
+    d.activeSessionId = 'discovery-' + Math.floor(Math.random() * 10000);
+    d.targetIvr = $('f-target').value || '+18005550114';
+    d.stats = {
+      statesFound: 24,
+      unknownStates: 8,
+      coverage: 68,
+      currentDepth: 3,
+      runtime: '04:12',
+      confidence: 85
+    };
+    d.explorationQueue = [
+      { path: 'Main → 2 → 1', reason: 'Unexplored branch', confidence: 92, risk: 'Low' },
+      { path: 'Main → 3', reason: 'Unknown prompt', confidence: 45, risk: 'Medium' }
+    ];
+    d.events = [
+      { timestamp: '10:04:12', type: 'discovery', detail: 'New state discovered: Billing Info' },
+      { timestamp: '10:04:35', type: 'loop', detail: 'Loop detected: Returns to Main Menu' },
+      { timestamp: '10:05:01', type: 'unresolved', detail: 'Unknown prompt detected at depth 3' }
+    ];
+    d.unknownPrompts = [
+      { id: 'p1', transcript: '“Please enter your 16-digit account number...”', confidence: 88, suggestedLabel: 'Account Entry' },
+      { id: 'p2', transcript: '“I’m sorry, I didn’t catch that. Could you repeat?”', confidence: 95, suggestedLabel: 'Retry Prompt' }
+    ];
   }
 
-  if (status.operator_connected) {
-    opStatus.textContent = 'Connected';
-    opStatus.className = 'conf-value tone-ok';
-  } else {
-    opStatus.textContent = 'Disconnected';
-    opStatus.className = 'conf-value';
-  }
+  renderDiscoverStatusStrip();
+  renderDiscoverMap();
+  renderProbeControl();
+  renderExplorationQueue();
+  renderDiscoveryEvents();
+  renderUnknownPrompts();
+  renderStateDetails();
+}
 
-  const currentMode = status.monitor_mode || 'silent';
-  document.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.classList.toggle('is-active', btn.dataset.mode === currentMode);
+function applyRunMockData() {
+  AppState.run.stats = {
+    activeRuns: 2,
+    queuedRuns: 5,
+    successRate: '94.2%',
+    failedRuns: 1,
+    escalations: 1,
+    avgConfidence: '88%',
+    driftAlerts: 1,
+    workerAvailability: 'Ready'
+  };
+
+  AppState.run.activeRuns = [
+    { 
+      id: 'r1', 
+      suiteName: 'Comcast Billing', 
+      state: 'Navigating', 
+      activePath: 'Main Menu → Billing → Payments', 
+      confidence: '94%', 
+      runtime: '02:15',
+      drift: null
+    },
+    { 
+      id: 'r2', 
+      suiteName: 'Insurance Claim', 
+      state: 'Verifying', 
+      activePath: 'Main Menu → Claims → Policy # → Verification', 
+      confidence: '68%', 
+      runtime: '04:30',
+      drift: 'Verification prompt wording changed'
+    }
+  ];
+}
+
+applyRunMockData();
+
+function renderDiscoverStatusStrip() {
+  const root = $('discovery-status-strip');
+  if (!root) return;
+  const s = AppState.discover.stats;
+  const items = [
+    { label: 'Session', value: AppState.discover.activeSessionId },
+    { label: 'Target', value: AppState.discover.targetIvr },
+    { label: 'States Found', value: s.statesFound },
+    { label: 'Unknown', value: s.unknownStates, tone: 'warn' },
+    { label: 'Coverage', value: s.coverage + '%' },
+    { label: 'Depth', value: s.currentDepth },
+    { label: 'Mode', value: AppState.discover.probeMode, tone: 'accent' },
+    { label: 'Runtime', value: s.runtime },
+    { label: 'Confidence', value: s.confidence + '%' }
+  ];
+
+  root.innerHTML = items.map(item => `
+    <div class="discovery-stat">
+      <div class="discovery-stat-label">${item.label}</div>
+      <div class="discovery-stat-value ${item.tone ? 'tone-' + item.tone : ''}">${item.value}</div>
+    </div>
+  `).join('');
+}
+
+function renderDiscoverMap() {
+  const root = $('discover-map-surface');
+  if (!root) return;
+  root.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">🗺️</div>
+      <p>Discovery Graph Intelligence</p>
+      <span>65% Hero Map Area — Visualizing discovered states, loops, and unexplored branches.</span>
+    </div>
+  `;
+}
+
+function renderProbeControl() {
+  const root = $('probe-control-panel');
+  if (!root) return;
+  const modes = ['Conservative', 'Balanced', 'Aggressive', 'Exhaustive'];
+  root.innerHTML = `
+    <div class="probe-mode-selector">
+      ${modes.map(m => `
+        <button class="probe-mode-btn ${AppState.discover.probeMode === m ? 'is-active' : ''}" onclick="setProbeMode('${m}')">
+          ${m}
+        </button>
+      `).join('')}
+    </div>
+    <div style="padding: 0 12px 12px;">
+      <div class="config-field">
+        <label>Max Depth</label>
+        <input type="number" value="5" readonly>
+      </div>
+      <div class="config-field">
+        <label>Branch Timeout (ms)</label>
+        <input type="number" value="10000" readonly>
+      </div>
+    </div>
+  `;
+}
+
+function setProbeMode(mode) {
+  AppState.discover.probeMode = mode;
+  renderProbeControl();
+  renderDiscoverStatusStrip();
+}
+
+function renderExplorationQueue() {
+  const root = $('exploration-queue');
+  if (!root) return;
+  root.innerHTML = AppState.discover.explorationQueue.map(item => `
+    <div class="queue-item">
+      <div class="queue-item-header">
+        <span class="queue-item-path">${escapeHtml(item.path)}</span>
+        <span class="queue-item-confidence">${item.confidence}% Conf</span>
+      </div>
+      <div class="discovery-stat-label">${item.reason} — Risk: ${item.risk}</div>
+    </div>
+  `).join('');
+}
+
+function renderDiscoveryEvents() {
+  const root = $('discovery-events');
+  if (!root) return;
+  root.innerHTML = AppState.discover.events.map(e => `
+    <div class="event-item">
+      <span class="event-timestamp">${e.timestamp}</span>
+      <span class="event-detail">${escapeHtml(e.detail)}</span>
+    </div>
+  `).join('');
+}
+
+function renderUnknownPrompts() {
+  const root = $('unknown-prompts');
+  if (!root) return;
+  root.innerHTML = AppState.discover.unknownPrompts.map(p => `
+    <div class="prompt-card">
+      <div class="prompt-transcript">${escapeHtml(p.transcript)}</div>
+      <div class="prompt-actions">
+        <button class="btn-secondary btn-compact">Label</button>
+        <button class="btn-tertiary btn-compact">Retry</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderStateDetails() {
+  const root = $('state-details');
+  if (!root) return;
+  if (!AppState.discover.selectedStateId) {
+    root.innerHTML = '<div class="empty-state">Select a node to view state details</div>';
+    return;
+  }
+}
+
+function initDiscoverEvents() {
+  $('btn-discover-refresh-map').addEventListener('click', () => {
+    console.log('[discover] Refreshing discovery map...');
+  });
+}
+
+function renderReviewWorkspace() {
+  renderReviewHeader();
+  renderReviewTimelineHero();
+  renderReviewTranscript();
+  renderReviewTemplateBuilder();
+}
+
+function renderReviewHeader() {
+  const root = $('review-header');
+  if (!root) return;
+
+  const calls = [
+    { id: 'call-101', date: '2024-05-13 09:12', target: '+18005550199', duration: '02:45', outcome: 'Success', states: 12, unknown: 1, template: 'None', recording: true, transcript: true },
+    { id: 'call-100', date: '2024-05-13 08:45', target: '+18005550114', duration: '01:20', outcome: 'Failed', states: 4, unknown: 2, template: 'Draft', recording: true, transcript: true }
+  ];
+
+  const selected = calls[0]; // Mock selection
+
+  root.innerHTML = `
+    <div class="review-header-strip">
+      <div class="review-call-selector">
+        <label>Historical Evidence</label>
+        <select id="review-call-select">
+          ${calls.map(c => `<option value="${c.id}">${c.date} — ${c.target}</option>`).join('')}
+        </select>
+      </div>
+      <div class="review-header-stats">
+        <div class="header-stat">
+          <span class="stat-label">Duration</span>
+          <span class="stat-value">${selected.duration}</span>
+        </div>
+        <div class="header-stat">
+          <span class="stat-label">Outcome</span>
+          <span class="stat-value tone-ok">${selected.outcome}</span>
+        </div>
+        <div class="header-stat">
+          <span class="stat-label">States</span>
+          <span class="stat-value">${selected.states}</span>
+        </div>
+        <div class="header-stat">
+          <span class="stat-label">Unknown</span>
+          <span class="stat-value tone-warn">${selected.unknown}</span>
+        </div>
+        <div class="header-stat">
+          <span class="stat-label">Template</span>
+          <span class="stat-value">${selected.template}</span>
+        </div>
+        <div class="header-stat">
+          <span class="stat-label">Evidence</span>
+          <div class="stat-row">
+            <span class="badge ${selected.recording ? 'tone-ok' : ''}">WAV</span>
+            <span class="badge ${selected.transcript ? 'tone-ok' : ''}">TXT</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderReviewTimelineHero() {
+  const root = $('review-timeline-hero');
+  if (!root) return;
+
+  // Mock timeline markers
+  const markers = [
+    { t: 0, type: 'start', label: 'Call Started' },
+    { t: 5, type: 'prompt', label: 'Welcome to IVR' },
+    { t: 12, type: 'dtmf', label: '1' },
+    { t: 15, type: 'prompt', label: 'Billing Dept' },
+    { t: 25, type: 'speech', label: 'Representative' },
+    { t: 30, type: 'transition', label: 'Transfer detected', tone: 'warn' },
+    { t: 45, type: 'end', label: 'Disconnected' }
+  ];
+
+  root.innerHTML = `
+    <div class="timeline-viz">
+      <div class="timeline-axis">
+        ${[0, 10, 20, 30, 40, 50, 60].map(s => `<div class="axis-tick">0:${s.toString().padStart(2, '0')}</div>`).join('')}
+      </div>
+      <div class="timeline-track">
+        ${markers.map(m => `
+          <div class="timeline-marker ${m.type} ${m.tone || ''}" style="left: ${(m.t / 60) * 100}%" title="${m.label}">
+            <div class="marker-pin"></div>
+            <div class="marker-label">${m.label}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderReviewTranscript() {
+  const root = $('review-transcript-list');
+  if (!root) return;
+
+  const items = [
+    { time: '0:05', speaker: 'IVR', text: 'Welcome to global logistics. Please press 1 for billing or say representative.', confidence: 0.98, state: 'Main Menu' },
+    { time: '0:12', speaker: 'User', text: '[DTMF 1]', confidence: 1.0, state: 'Action' },
+    { time: '0:15', speaker: 'IVR', text: 'You have reached billing. To continue, say representative or enter your account number.', confidence: 0.94, state: 'Billing Menu' },
+    { time: '0:25', speaker: 'User', text: 'representative', confidence: 0.88, state: 'Action' },
+    { time: '0:30', speaker: 'System', text: '[Transfer Detected]', confidence: 1.0, state: 'Transfer', tone: 'warn' }
+  ];
+
+  root.innerHTML = items.map(item => `
+    <div class="transcript-review-row ${item.tone || ''}">
+      <div class="review-row-meta">
+        <span class="review-time">${item.time}</span>
+        <span class="review-speaker">${item.speaker}</span>
+      </div>
+      <div class="review-row-content">
+        <div class="review-text" contenteditable="true">${escapeHtml(item.text)}</div>
+        <div class="review-row-actions">
+          <div class="review-state-label">${item.state}</div>
+          <div class="review-confidence ${item.confidence < 0.9 ? 'tone-warn' : ''}">${Math.round(item.confidence * 100)}%</div>
+          <button class="btn-ghost-xs">Note</button>
+          <button class="btn-ghost-xs tone-ok">Verify</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderReviewTemplateBuilder() {
+  const root = $('review-template-builder');
+  if (!root) return;
+
+  root.innerHTML = `
+    <div class="template-builder-shell">
+      <div class="config-group">
+        <div class="config-field">
+          <label>Template Name</label>
+          <input type="text" placeholder="e.g., Billing Inquiry Flow">
+        </div>
+        <div class="config-field-row">
+          <div class="config-field grow-1">
+            <label>Provider</label>
+            <input type="text" placeholder="Global Logistics">
+          </div>
+          <div class="config-field grow-1">
+            <label>Intent</label>
+            <input type="text" placeholder="Check balance">
+          </div>
+        </div>
+      </div>
+
+      <div class="template-section">
+        <div class="section-title">Sequence Extraction</div>
+        <div class="template-sequence">
+          <div class="sequence-item">
+            <span class="seq-num">1</span>
+            <span class="seq-label">Main Menu</span>
+            <span class="seq-arrow">→</span>
+            <span class="seq-action">DTMF 1</span>
+          </div>
+          <div class="sequence-item">
+            <span class="seq-num">2</span>
+            <span class="seq-label">Billing Menu</span>
+            <span class="seq-arrow">→</span>
+            <span class="seq-action">Speech "Representative"</span>
+          </div>
+          <button class="btn-ghost-sm btn-full-sm">+ Add Sequence Step</button>
+        </div>
+      </div>
+
+      <div class="template-section">
+        <div class="section-title">Required Inputs</div>
+        <div class="template-inputs">
+          <div class="input-chip">account_number</div>
+          <div class="input-chip">zip_code</div>
+          <button class="btn-ghost-xs">+</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function initPrepEvents() {
+  const inputs = [
+    'prep-target', 'prep-caller-id', 'prep-profile', 
+    'prep-record', 'prep-transcript', 'prep-injection-mode', 
+    'prep-silence-timeout', 'prep-retry-limit'
+  ];
+  
+  inputs.forEach(id => {
+    const el = $(id);
+    if (el) {
+      el.addEventListener('change', updatePrepState);
+    }
+  });
+
+  $('btn-add-trigger').addEventListener('click', addTrigger);
+  $('prep-btn-validate').addEventListener('click', () => {
+    addLog('[system] Validating mission setup...');
+    fetchDiagnose(true);
+  });
+  $('prep-btn-dry-run').addEventListener('click', () => {
+    addLog('[system] Initiating dry run (no call)...');
+  });
+  $('prep-btn-discovery').addEventListener('click', () => {
+    addLog('[system] Starting discovery mission...');
+    startCall();
+  });
+  $('prep-btn-start').addEventListener('click', () => {
+    addLog('[system] Starting live call mission...');
+    startCall();
   });
 }
 
 function renderOperatorConsole() {
   renderHeaderStatus();
-  renderCaption();
-  renderHeartbeat();
+  renderStatusCard();
   renderTimeline();
   renderGraph();
-  renderControlStatus();
-  renderConferenceStatus();
+  renderRecentEvents();
+  renderUnresolvedStates();
   renderDrawer();
 
-  document.querySelectorAll('[data-filter]').forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.filter === AppState.selectedTimelineFilter);
-  });
+  // Workspace-specific rendering
+  if (AppState.currentWorkspace === 'prep') {
+    renderPrepWorkspace();
+  } else if (AppState.currentWorkspace === 'review') {
+    renderReviewWorkspace();
+  }
+
+  // Initialize controls if they don't exist
+  if (!$('smart-input')) {
+    renderInjectionBar();
+    renderReadyResponses();
+    renderPromptMarkers();
+  }
 }
 
 window.renderOperatorConsole = renderOperatorConsole;
@@ -947,8 +1322,172 @@ function switchWorkspace(workspaceId) {
     ws.classList.toggle('is-hidden', ws.id !== 'ws-' + workspaceId);
   });
 
+  if (workspaceId === 'prep') {
+    renderPrepWorkspace();
+  } else if (workspaceId === 'review') {
+    renderReviewWorkspace();
+  } else if (workspaceId === 'discover') {
+    renderDiscoverWorkspace();
+  } else if (workspaceId === 'run') {
+    renderRunWorkspace();
+  }
+
   console.log('[system] Switched to workspace:', workspaceId);
 }
+
+function renderRunWorkspace() {
+  renderAutomationHealthStrip();
+  renderSuiteLibrary();
+  renderActiveRuns();
+  renderRunIntelligence();
+}
+
+function renderAutomationHealthStrip() {
+  const root = $('automation-health-strip');
+  if (!root) return;
+  const s = AppState.run.stats;
+  const items = [
+    { label: 'Active', value: s.activeRuns, tone: s.activeRuns > 0 ? 'accent' : 'neutral' },
+    { label: 'Queued', value: s.queuedRuns, tone: 'neutral' },
+    { label: 'Success', value: s.successRate, tone: 'ok' },
+    { label: 'Failed', value: s.failedRuns, tone: s.failedRuns > 0 ? 'error' : 'neutral' },
+    { label: 'Escalations', value: s.escalations, tone: s.escalations > 0 ? 'error' : 'neutral' },
+    { label: 'Confidence', value: s.avgConfidence, tone: 'accent' },
+    { label: 'Drift', value: s.driftAlerts, tone: s.driftAlerts > 0 ? 'warn' : 'neutral' },
+    { label: 'Workers', value: s.workerAvailability, tone: 'ok' }
+  ];
+
+  root.innerHTML = items.map(item => `
+    <div class="run-stat">
+      <div class="run-stat-label">${item.label}</div>
+      <div class="run-stat-value" style="color: var(--${item.tone === 'ok' ? 'success' : (item.tone === 'error' ? 'danger' : (item.tone === 'warn' ? 'warn' : (item.tone === 'accent' ? 'accent' : 'text-1')))});">${item.value}</div>
+    </div>
+  `).join('');
+}
+
+function renderSuiteLibrary() {
+  const root = $('suite-library-list');
+  if (!root) return;
+  root.innerHTML = AppState.run.suiteLibrary.map(s => `
+    <div class="suite-card">
+      <div class="suite-card-header">
+        <div>
+          <div class="suite-name">${escapeHtml(s.name)}</div>
+          <div class="suite-meta">${escapeHtml(s.provider)} • ${escapeHtml(s.intent)}</div>
+        </div>
+        <div class="badge-run ${s.driftStatus === 'Stable' ? 'status-active' : 'status-drift'}">${s.driftStatus}</div>
+      </div>
+      <div class="suite-stats">
+        <div class="discovery-stat">
+          <div class="discovery-stat-label">Success</div>
+          <div class="discovery-stat-value">${s.successRate}</div>
+        </div>
+        <div class="discovery-stat">
+          <div class="discovery-stat-label">Last Run</div>
+          <div class="discovery-stat-value" style="font-size: 11px;">${s.lastRun}</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <button class="btn-primary btn-compact" style="flex: 1;">Run</button>
+        <button class="btn-secondary btn-compact">View</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderActiveRuns() {
+  const root = $('active-runs-list');
+  if (!root) return;
+  if (AppState.run.activeRuns.length === 0) {
+    root.innerHTML = `<div class="empty-state">No active autonomous runs</div>`;
+    return;
+  }
+  root.innerHTML = AppState.run.activeRuns.map(r => `
+    <div class="active-run-card ${AppState.run.selectedRunId === r.id ? 'is-selected' : ''}" onclick="selectRun('${r.id}')">
+      <div class="run-state-row">
+        <div class="suite-name">${escapeHtml(r.suiteName)}</div>
+        <div class="badge-run status-active">${r.state}</div>
+      </div>
+      <div class="run-path-preview">${escapeHtml(r.activePath)}</div>
+      <div class="suite-stats">
+        <div class="discovery-stat">
+          <div class="discovery-stat-label">Confidence</div>
+          <div class="discovery-stat-value">${r.confidence}</div>
+        </div>
+        <div class="discovery-stat">
+          <div class="discovery-stat-label">Runtime</div>
+          <div class="discovery-stat-value">${r.runtime}</div>
+        </div>
+      </div>
+      ${r.drift ? `
+        <div class="drift-alert">
+          <span>⚠️</span>
+          <div>Potential drift detected: ${escapeHtml(r.drift)}</div>
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function renderRunIntelligence() {
+  const root = $('run-intelligence-content');
+  if (!root) return;
+  const intel = AppState.run.intelligence;
+  root.innerHTML = `
+    <div class="intelligence-item">
+      <div class="intelligence-label">Current Decision</div>
+      <div class="intelligence-value">${escapeHtml(intel.currentDecision)}</div>
+    </div>
+    <div class="intelligence-item">
+      <div class="intelligence-label">Detected Prompt</div>
+      <div class="intelligence-value">${escapeHtml(intel.detectedPrompt)}</div>
+    </div>
+    <div class="intelligence-item">
+      <div class="intelligence-label">Selected Response</div>
+      <div class="intelligence-value">${escapeHtml(intel.selectedResponse)}</div>
+    </div>
+    <div class="intelligence-item">
+      <div class="intelligence-label">Confidence</div>
+      <div class="intelligence-value" style="font-size: 18px; font-weight: 600; color: var(--accent);">${intel.confidence}</div>
+    </div>
+    <div class="intelligence-item">
+      <div class="intelligence-label">Fallback Plan</div>
+      <div class="intelligence-value">${escapeHtml(intel.fallbackPlan)}</div>
+    </div>
+    <div class="intelligence-item">
+      <div class="intelligence-label">Outcome Predictions</div>
+      <div class="predictions-list">
+        ${(intel.predictions || []).map(p => `
+          <div class="prediction-item">
+            <span>${escapeHtml(p.outcome)}</span>
+            <span class="prediction-conf">${p.confidence}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+window.selectRun = (id) => {
+  AppState.run.selectedRunId = id;
+  // Mock intelligence update
+  const run = AppState.run.activeRuns.find(r => r.id === id);
+  if (run) {
+    AppState.run.intelligence = {
+      currentDecision: 'Navigating to ' + run.activePath.split('→').pop().trim(),
+      detectedPrompt: 'Please hold while I connect your call...',
+      selectedResponse: 'Silence (Wait)',
+      confidence: run.confidence,
+      fallbackPlan: 'Retry DTMF 0 after 5s',
+      predictions: [
+        { outcome: 'Successful Navigation', confidence: '92%' },
+        { outcome: 'Transfer to Agent', confidence: '5%' },
+        { outcome: 'Disconnect', confidence: '3%' }
+      ]
+    };
+  }
+  renderRunWorkspace();
+};
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1036,10 +1575,46 @@ $('f-target').addEventListener('change', fetchMaps);
 
 applyModeUI();
 updateInputChip();
+initPrepEvents();
+initDiscoverEvents();
+
+// Operational Telemetry Bridge
+const telemetryUrl = `ws://${window.location.hostname}:8081/ws/events`;
+const telemetry = new WsManager(telemetryUrl);
+telemetry.connect();
+
+// Telemetry Debug Surface
+const telemetryLog = [];
+EventBus.onAny((event) => {
+  telemetryLog.unshift({
+    ts: Date.now(),
+    type: event.type,
+    payload: JSON.stringify(event.payload).substring(0, 100)
+  });
+  if (telemetryLog.length > 20) telemetryLog.pop();
+  renderTelemetryMonitor();
+});
+
+function renderTelemetryMonitor() {
+  const container = $('telemetry-monitor');
+  if (!container) return;
+  container.innerHTML = telemetryLog.map(log => `
+    <div class="telemetry-log-item">
+      <span class="telemetry-ts">${new Date(log.ts).toLocaleTimeString()}</span>
+      <span class="telemetry-type">${log.type}</span>
+      <span class="telemetry-payload">${escapeHtml(log.payload)}</span>
+    </div>
+  `).join('');
+}
+
 renderOperatorConsole();
 
 api.getConfig().then((cfg) => {
-  if (cfg && cfg.target) $('f-target').value = cfg.target.replace(/^\+1/, '');
+  if (cfg && cfg.target) {
+    const target = cfg.target.replace(/^\+1/, '');
+    $('f-target').value = target;
+    AppState.prep.target = normalizeTarget(target);
+  }
   fetchMaps();
 }).catch((error) => console.log('Config load failed:', error));
 
