@@ -25,6 +25,9 @@ RECORDINGS_DIR     = _DATA / "recordings"
 REPLAYS_DIR        = _DATA / "replays"
 SNAPSHOTS_DIR      = _DATA / "snapshots"
 BENCHMARKS_DIR     = _DATA / "benchmarks"
+EVENTS_DIR         = _DATA / "events"
+
+SNAPSHOT_INTERVAL = 100
 
 
 class ObservableQueue(queue.Queue):
@@ -52,9 +55,9 @@ class ObservableQueue(queue.Queue):
             self._last_get_at = time.time()
         return item
 
-    def metrics(self) -> dict[str, int | float | None]:
+    def metrics(self) -> dict[str, int | float | str | None]:
         with self._metrics_lock:
-            return {
+            m = {
                 "current_depth": self.qsize(),
                 "puts_total": self._puts_total,
                 "gets_total": self._gets_total,
@@ -62,6 +65,12 @@ class ObservableQueue(queue.Queue):
                 "last_put_at": self._last_put_at,
                 "last_get_at": self._last_get_at,
             }
+            try:
+                from ...events.event_sink import sink
+                m.update(sink.metrics())
+            except ImportError:
+                pass
+            return m
 
 
 @dataclass
@@ -236,6 +245,7 @@ class RunSuiteState:
             runner.abort()
 
 
-# Module-level singletons — shared across the process.
+# Storage Layout: ~/.ivr_assessor/test_runs/YYYY-MM-DD/<test_id>/manifest.json
+TEST_RUNS_DIR      = _DATA / "test_runs"
 STATE = AppState()
 RS_STATE = RunSuiteState()

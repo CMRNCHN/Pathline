@@ -32,6 +32,7 @@
       <button class="nav-btn" data-workspace="run">Run</button>
     </nav>
     <span class="status-pill tone-warn" id="hdr-status">Idle</span>
+    <span class="status-pill tone-info is-hidden" id="hdr-runtime-state">ACTIVE</span>
     <button class="btn-secondary" id="btn-test-suite" type="button">Suite Planning</button>
     <button class="btn-secondary" id="btn-run-suites" type="button">Suite Execution</button>
     <button class="btn-secondary" id="btn-settings" type="button">Review / Replay</button>
@@ -142,6 +143,53 @@
           </div>
           <div class="prep-responses-body" id="prep-ready-responses-list">
             <!-- Ready Response Chips -->
+          </div>
+        </section>
+
+        <section class="panel telecom-validation-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Controlled Operational Validation</div>
+              <h2 class="panel-title">Telecom Test Harness</h2>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="config-grid">
+               <div class="config-field">
+                 <label>Max Duration (sec)</label>
+                 <input type="number" id="test-max-duration" value="300">
+               </div>
+               <div class="config-field">
+                 <label>Max Depth</label>
+                 <input type="number" id="test-max-depth" value="10">
+               </div>
+               <div class="config-field">
+                 <label>Max DTMF Actions</label>
+                 <input type="number" id="test-max-dtmf" value="20">
+               </div>
+            </div>
+            <div class="config-field-row mt-12">
+              <label class="config-toggle">
+                <input type="checkbox" id="test-stop-on-transfer" checked>
+                <span>Stop on Transfer</span>
+              </label>
+              <label class="config-toggle">
+                <input type="checkbox" id="test-stop-on-low-confidence" checked>
+                <span>Stop on Low Confidence</span>
+              </label>
+            </div>
+            <div class="mt-12">
+               <button class="btn-primary" id="btn-run-validation-test">Run Validation Test</button>
+               <button class="btn-secondary is-hidden" id="btn-abort-validation-test">Abort Test</button>
+            </div>
+            <div id="test-result-summary" class="mt-12 is-hidden">
+               <div class="panel-kicker">Latest Result</div>
+               <div id="test-outcome-badge" class="status-pill">UNKNOWN</div>
+               <div id="test-result-details" class="text-muted-xs mt-4"></div>
+               <div id="test-evidence-link" class="mt-4 is-hidden">
+                 <a href="#" class="btn-tertiary btn-compact">View Evidence Manifest</a>
+               </div>
+            </div>
           </div>
         </section>
       </div>
@@ -343,6 +391,26 @@
   <div id="ws-review" class="workspace is-hidden">
     <section class="review-header" id="review-header">
       <!-- Replay Header / Call Selector -->
+      <div class="panel-header">
+        <div>
+          <div class="panel-kicker">Session Replay</div>
+          <h2 class="panel-title">Operational History</h2>
+        </div>
+        <div class="panel-actions">
+          <div id="replay-metadata-badge" class="metadata-badge is-hidden">
+            <span class="badge-label">Mode:</span>
+            <span id="replay-source-type" class="badge-value">-</span>
+            <span class="badge-label">Offset:</span>
+            <span id="replay-snapshot-offset" class="badge-value">0</span>
+            <span class="badge-label ml-4">Media:</span>
+            <span id="replay-media-reference" class="badge-value">None</span>
+          </div>
+          <select id="replay-session-selector" class="input-select">
+            <option value="">Select a session to replay...</option>
+          </select>
+          <button id="btn-refresh-replays" class="btn-secondary">Refresh</button>
+        </div>
+      </div>
     </section>
 
     <div class="review-main-area">
@@ -363,6 +431,9 @@
           </div>
           <div class="timeline-hero-surface" id="review-timeline-hero">
             <!-- Timeline Hero Visualization -->
+          </div>
+          <div id="replay-controls" class="mt-4">
+            <!-- Temporal Replay Controller (Slice 6) -->
           </div>
         </div>
       </section>
@@ -595,6 +666,7 @@
 </div>
 
 <script src="/static/js/run_suites.js"></script>
+<script type="module" src="/static/js/modules/replay.js"></script>
 
 </body>
 </html>

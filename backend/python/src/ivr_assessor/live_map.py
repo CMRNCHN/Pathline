@@ -144,6 +144,7 @@ class LiveMappingSession:
     _clock: object = field(default=None, repr=False)
 
     def run(self) -> LiveMappingSummary:
+        from .runtime.runtime_supervisor import supervisor
         session_id = self.session_id or self.telephony.dial(self.target_number)
         self.session_id = session_id
         last_action: str | None = None
@@ -157,6 +158,9 @@ class LiveMappingSession:
             return self.wall_clock_cap_s is not None and (clock() - started) >= self.wall_clock_cap_s
 
         while action_count < self.max_actions:
+            # Emit heartbeat for supervisor
+            supervisor.record_heartbeat(session_id)
+
             if _over_cap():
                 break
             event = self.prompt_source.next_event(session_id)

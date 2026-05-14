@@ -1,4 +1,95 @@
-// Requires: common/time.js, common/dom.js, common/api.js, common/state.js
+let activeTestId = null;
+let testPollInterval = null;
+
+async function runValidationTest() {
+  const target = normalizeTarget($('f-target').value);
+  if (!target) {
+    alert('Please enter a target phone number in the header');
+    return;
+  }
+
+  const payload = {
+    target_number_ref: target,
+    max_duration_seconds: $('test-max-duration').value,
+    max_depth: $('test-max-depth').value,
+    max_dtmf_actions: $('test-max-dtmf').value,
+    stop_on_transfer: $('test-stop-on-transfer').checked,
+    stop_on_low_confidence: $('test-stop-on-low-confidence').checked
+  };
+
+  try {
+    const data = await api.runTelecomTest(payload);
+    if (data.status === 'started') {
+      activeTestId = data.test_id;
+      showTestRunning(true);
+      startTestPolling();
+      addLog('[test] Validation test started: ' + activeTestId);
+    }
+  } catch (error) {
+    alert('Failed to start test: ' + error.message);
+  }
+}
+
+async function abortValidationTest() {
+  if (!activeTestId) return;
+  try {
+    await api.abortTelecomTest(activeTestId);
+    addLog('[test] Abort requested');
+  } catch (error) {
+    addLog('[error] Failed to abort: ' + error.message);
+  }
+}
+
+function showTestRunning(isRunning) {
+  $('btn-run-validation-test').classList.toggle('is-hidden', isRunning);
+  $('btn-abort-validation-test').classList.toggle('is-hidden', !isRunning);
+  $('test-result-summary').classList.remove('is-hidden');
+  if (isRunning) {
+    $('test-outcome-badge').textContent = 'RUNNING';
+    $('test-outcome-badge').className = 'status-pill tone-accent';
+    $('test-evidence-link').classList.add('is-hidden');
+  }
+}
+
+function startTestPolling() {
+  if (testPollInterval) clearInterval(testPollInterval);
+  testPollInterval = setInterval(async () => {
+    if (!activeTestId) return;
+    try {
+      const data = await api.getTelecomTestStatus(activeTestId);
+      if (data.status === 'completed') {
+        clearInterval(testPollInterval);
+        testPollInterval = null;
+        showTestRunning(false);
+        applyTestResult(data.result);
+      }
+    } catch (error) {
+      console.error('Test poll error:', error);
+    }
+  }, 2000);
+}
+
+function applyTestResult(result) {
+  if (!result) return;
+  const badge = $('test-outcome-badge');
+  badge.textContent = result.outcome;
+  
+  if (result.outcome === 'PASSED') badge.className = 'status-pill tone-ok';
+  else if (result.outcome === 'ABORTED' || result.outcome === 'TIMED_OUT') badge.className = 'status-pill tone-warn';
+  else badge.className = 'status-pill tone-error';
+
+  $('test-result-details').textContent = `
+    Duration: ${Math.round(result.ended_at - result.started_at)}s |
+    States: ${result.states_discovered} |
+    Events: ${result.events_count} |
+    Reason: ${result.safety_stop_reason || 'N/A'}
+  `;
+  
+  $('test-evidence-link').classList.remove('is-hidden');
+  // In a real implementation, this would link to the manifest or review workspace
+}
+
+// ... existing code ...
 
 let padBuffer = '';
 
@@ -51,6 +142,13 @@ function inferTimelineTone(entry) {
   const detail = String(entry.detail || '').toLowerCase();
   if (marker === 'prompt') return 'accent';
   if (marker === 'action') return 'ok';
+  
+  // Operational resilience events
+  if (marker.includes('stalled') || marker.includes('disconnected')) return 'error';
+  if (marker.includes('recovering') || marker.includes('recovery')) return 'accent';
+  if (marker.includes('recovered')) return 'ok';
+  if (marker.includes('cleaned')) return 'warn';
+
   if (marker.includes('disconnect') || marker.includes('rejected') || detail.includes('error') || detail.includes('failed')) return 'error';
   if (entry.category === 'cleanup' || marker.includes('cleanup') || marker.includes('reset')) return 'warn';
   if (entry.source === 'websocket') return 'accent';
@@ -60,6 +158,14 @@ function inferTimelineTone(entry) {
 function classifyTimelineEntry(entry) {
   const marker = String(entry.marker || '').toLowerCase();
   const detail = String(entry.detail || '').toLowerCase();
+  
+  // Operational resilience events
+  if (marker.includes('stalled') || 
+      marker.includes('recovery') || 
+      marker.includes('recovered') || 
+      marker.includes('cleaned') ||
+      marker.includes('disconnected')) return 'notice';
+
   if (entry.source === 'session_event' && marker === 'prompt') return 'transcript';
   if (entry.source === 'session_event' && marker === 'action') return 'response';
   if (entry.source === 'websocket') return 'websocket';
@@ -186,7 +292,31 @@ function renderHeaderStatus() {
     statusEl.classList.add('tone-warn');
     statusEl.textContent = 'Idle';
   }
-  $('btn-end').disabled = !AppState.callRunning;
+
+  const rel = $('hdr-runtime-state');
+  if (rel) {
+    if (status.is_running && status.runtime_health) {
+      const health = status.runtime_health;
+      let state = 'ACTIVE';
+      if (health.runtime_state_counts) {
+        const counts = health.runtime_state_counts;
+        if (counts.STALLING > 0) state = 'STALLING';
+        else if (counts.RECOVERING > 0) state = 'RECOVERING';
+        else if (counts.DISCONNECTED > 0) state = 'DISCONNECTED';
+        else if (counts.FAILED > 0) state = 'FAILED';
+      }
+      rel.textContent = state;
+      rel.classList.remove('is-hidden');
+      
+      let tone = 'tone-info';
+      if (state === 'STALLING') tone = 'tone-warn';
+      else if (state === 'DISCONNECTED' || state === 'FAILED') tone = 'tone-error';
+      else if (state === 'RECOVERING') tone = 'tone-accent';
+      rel.className = 'status-pill ' + tone;
+    } else {
+      rel.classList.add('is-hidden');
+    }
+  }
 }
 
 function renderCaption() {
@@ -340,6 +470,7 @@ function renderStatusCard() {
   const session = metrics.session || {};
   const status = AppState.latestStatus || {};
   const runtime = metrics.runtime || {};
+  const sink = runtime.prompt_queue || {};
 
   const target = session.target || normalizeTarget($('f-target').value) || 'Unset';
   const duration = AppState.sessionElapsedMs ? formatDuration(AppState.sessionElapsedMs) : '00:00';
@@ -352,7 +483,7 @@ function renderStatusCard() {
     { label: 'Coverage', value: (runtime.checkpoint_count || 0) + ' nodes' },
     { label: 'Confidence', value: status.active_confidence != null ? Math.round(status.active_confidence * 100) + '%' : '—' },
     { label: 'Stream', value: stream.active_streams ? 'Connected' : 'Offline', tone: stream.active_streams ? 'ok' : 'error' },
-    { label: 'Latency', value: streamLast.stt_connect_ms ? streamLast.stt_connect_ms + 'ms' : '—' },
+    { label: 'Persistence', value: sink.persisted_event_count ? sink.persisted_event_count + ' events' : (sink.persisted_event_count === 0 ? 'Active' : 'Offline'), tone: sink.persisted_event_count !== undefined ? 'ok' : 'warn' },
     { label: 'AI Status', value: streamLast.stt_connected ? 'Ready' : 'Wait', tone: streamLast.stt_connected ? 'ok' : 'warn' },
     { label: 'Mode', value: AppState.manualMode ? 'Manual' : 'Auto' },
   ];
@@ -1115,6 +1246,7 @@ function applyModeUI() {
 }
 
 async function fetchStatus() {
+  if (AppState.mode === 'replay') return;
   try {
     const data = await api.getStatus();
     const previousRunning = AppState.callRunning;
@@ -1142,6 +1274,7 @@ async function fetchStatus() {
 }
 
 async function fetchRuntimeMetrics() {
+  if (AppState.mode === 'replay') return;
   try {
     const data = await api.getRuntimeMetrics();
     AppState.runtimeMetrics = data;
@@ -1157,6 +1290,7 @@ async function fetchRuntimeMetrics() {
 }
 
 async function fetchRuntimeDiagnostics() {
+  if (AppState.mode === 'replay') return;
   try {
     AppState.runtimeDiagnostics = await api.getRuntimeDiagnostics();
     renderOperatorConsole();
@@ -1572,6 +1706,9 @@ document.querySelectorAll('[data-drawer-tab]').forEach((button) => {
 });
 
 $('f-target').addEventListener('change', fetchMaps);
+
+$('btn-run-validation-test').addEventListener('click', runValidationTest);
+$('btn-abort-validation-test').addEventListener('click', abortValidationTest);
 
 applyModeUI();
 updateInputChip();

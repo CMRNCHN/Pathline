@@ -1,40 +1,39 @@
 # IVRSuite — Active Handoff
-
-Last Updated: 2026-05-13 (Slice 2: Real-Time Operational Telemetry Bridge)
+Last Updated: 2026-05-13 (Slice 8: Real Telecom Test Harness & Operational Validation)
 
 ---
 
 ## Current Status
 
-Completed Slice 2 of Operational Cohesion phase. Established a real-time WebSocket telemetry bridge between the backend event bus and the frontend workspaces.
+Completed Slice 8 of Operational Cohesion phase. Implemented a controlled, safe telecom validation harness for real-world IVR testing.
 
-### Completed this session (Slice 2: Real-Time Operational Telemetry Bridge)
+### Completed this session (Slice 8: Real Telecom Test Harness & Operational Validation)
 
-- **Backend WebSocket Bridge**:
-    - Added `/ws/events` endpoint to `streaming_server.py`.
-    - Integrated `StreamingServer` with the backend `EventBus` to broadcast `OperationalEvent` payloads.
-    - Implemented safe subscriber management and cleanup for WebSocket clients.
-- **Frontend Telemetry Client**:
-    - Refined `WsManager` in `common/websocket.js` to automatically dispatch received events to the frontend `EventBus`.
-    - Added reconnection logic and improved error handling for telemetry WebSockets.
-- **Workspace Integration & Debug Visibility**:
-    - Initialized the telemetry bridge in `main.js`, connecting to port 8081.
-    - Added an "Operational Telemetry" tab to the Review drawer in `index.html`.
-    - Implemented `renderTelemetryMonitor` in `main.js` to provide a real-time event log for developers.
-    - Updated `renderDrawer` to explicitly handle the new telemetry workspace.
+- **Telecom Test Harness**:
+    - Created `testing/telecom_test_plan.py` for bounded test configuration.
+    - Created `testing/telecom_test_runner.py` to execute bounded tests and enforce safety limits.
+    - Created `testing/safety_guards.py` for real-time monitoring of duration, depth, DTMF, transfer, and confidence.
+    - Created `testing/evidence_manifest.py` for generating and retrieving JSON evidence manifests.
+- **Persistence & API**:
+    - Centralized `TEST_RUNS_DIR` in `backend/ui/ui_state.py`.
+    - Implemented API routes for listing tests, starting tests, polling status, and retrieving evidence.
+    - Fixed core logic bugs in Slice 8 stubs (imports, EventBus singleton usage, NameErrors).
+- **Frontend**:
+    - Integrated "Controlled Operational Validation" panel into the Prep workspace.
+    - Added real-time polling and outcome visualization for telecom tests.
 - **Validation**:
-    - `pytest backend/python/tests/test_live_map_gui.py` (16 passed).
-    - Verified real-time propagation of `CALL_STARTED`, `TRANSCRIPT_FINAL`, and other operational events.
+    - Added `tests/test_telecom_test_plan.py`, `test_safety_guards.py`, `test_evidence_manifest.py`, and `test_telecom_test_runner.py`.
+    - Total passing tests: 296.
 
 ## Remaining Operational Cohesion Gaps
 
-- **Persistence**: Events are currently transient; need a lightweight sink to `storage/events/` for replay and auditability.
-- **Lineage Tracking**: Fully wiring `session_id`, `state_id`, and `path_id` across all event sources.
-- **Automated Escalation Visibility**: Routing `RUN_ESCALATED` events from the `Run` workspace to the `Live` workspace for immediate human intervention.
+- **Scrubber UI**: Graphical scrubber for the operational timeline.
+- **Synchronized Media Replay**: Linking the operational timeline to audio/waveform playback.
+- **Autonomous Runtime Policies**: Advanced recovery strategies and automatic chaos mitigation.
 
 ## Recommendations for Next Slice
 
-- **Slice 3: Lightweight Event Persistence & Lineage Sink**: Implement a background worker to persist the `EventBus` stream to `storage/events/` in JSONL format, ensuring every operational event is recorded for forensic replay.
+- **Slice 8: Visual Timeline Scrubber & Media Synchronization**: Implement the graphical scrubber and integrate audio playback synchronized with the operational cursor.
 
 ---
 
@@ -77,6 +76,7 @@ ivr_assessor/
     routes/
       mapper_routes.py       — mapper API handlers
       run_suite_routes.py    — run suite API handlers
+      replay_routes.py      — replay API handlers
     ui/
       ui_state.py            — AppState, RunSuiteState, QueuePromptSource + all storage paths
       template_loader.py     — HTML template rendering
@@ -92,7 +92,9 @@ ivr_assessor/
 ```text
 frontend/static/js/
   common/            — time.js, dom.js, api.js, events.js (+EventBus), state.js, websocket.js
-  modules/test_suites.js
+  modules/
+    test_suites.js
+    replay.js
   main.js, run_suites.js
 ```
 

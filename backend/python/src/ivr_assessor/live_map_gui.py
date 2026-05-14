@@ -32,9 +32,10 @@ from .backend.ui.ui_state import (
     AppState,
     QueuePromptSource,
 )
+from .events.event_sink import sink as EventSink
 from .backend.ui.template_loader import render_index, TEMPLATE_INDEX
 from .backend.ui.frontend_assets import load_static
-from .backend.routes import mapper_routes, run_suite_routes
+from .backend.routes import mapper_routes, run_suite_routes, replay_routes, telecom_test_routes
 from .backend.routes.run_suite_routes import normalize_suite_filename as _normalize_suite_filename  # noqa: F401 (public re-export for tests)
 
 _STREAM_PORT = 8081
@@ -501,6 +502,10 @@ def _run_session_thread(
             user_phone_number=user or None,
             stream_url=stream_url,
         )
+        STATE.logs.append(f"[dial] calling {target}…")
+        call_sid = telephony.dial(target)
+        STATE.logs.append(f"[twilio] call SID: {call_sid}")
+
         session = LiveMappingSession(
             target_number=target,
             response_mode="dtmf",
@@ -508,32 +513,25 @@ def _run_session_thread(
             telephony=telephony,
             response_library=ResponseLibrary(clips=[]),
             manual_mode=manual_mode,
+            session_id=call_sid,
         )
         STATE.session = session
-        STATE.logs.append(f"[dial] calling {target}…")
 
-        def _attach_status_poller() -> None:
-            for _ in range(40):
-                time.sleep(0.1)
-                if session.session_id:
-                    STATE.logs.append(f"[twilio] call SID: {session.session_id}")
-                    try:
-                        _poll_call_status(telephony._client, session.session_id)
-                    except Exception:
-                        pass
-                    return
-        threading.Thread(target=_attach_status_poller, daemon=True).start()
-
-        summary = session.run()
-        STATE.graph = summary.graph
-        STATE.record_runtime_checkpoint(
-            "session.run_complete",
-            "session ended cleanly",
-            category="session",
-            graph_nodes=len(summary.graph),
-            queue=source.metrics(),
-        )
-        STATE.logs.append("[ok] session ended cleanly")
+        from .runtime.runtime_supervisor import supervisor
+        STATE.is_running = True
+        try:
+            summary = supervisor.supervised_session(call_sid, session.run, call_sid=call_sid)
+            STATE.graph = summary.graph
+            STATE.record_runtime_checkpoint(
+                "session.run_complete",
+                "session ended cleanly",
+                category="session",
+                graph_nodes=len(summary.graph),
+                queue=source.metrics(),
+            )
+            STATE.logs.append("[ok] session ended cleanly")
+        finally:
+            STATE.is_running = False
         try:
             map_store.save_map(target, summary.graph)
             STATE.logs.append(f"Saved map for {target}")
@@ -667,6 +665,32 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             self._json(mapper_routes.get_map(unquote(self.path[len("/api/maps/"):]))); return
         if self.path == "/api/run-suites":
             self._json(run_suite_routes.list_run_suites()); return
+        if self.path == "/api/replays":
+            self._json(replay_routes.get_replays()); return
+        if self.path.startswith("/api/replays/"):
+            from urllib.parse import unquote, urlparse, parse_qs
+            parsed = urlparse(self.path)
+            parts = parsed.path[len("/api/replays/"):].split("/")
+            session_id = unquote(parts[0])
+            
+            if len(parts) > 1:
+                sub_route = parts[1]
+                if sub_route == "events":
+                    self._json(replay_routes.get_replay_events(session_id)); return
+                if sub_route == "timeline":
+                    self._json(replay_routes.get_replay_timeline(session_id)); return
+                if sub_route == "state":
+                    offset = int(parts[2]) if len(parts) > 2 else None
+                    self._json(replay_routes.get_replay(session_id, offset=offset)); return
+                if sub_route == "diff":
+                    from_off = int(parts[2]) if len(parts) > 2 else 0
+                    to_off = int(parts[3]) if len(parts) > 3 else 0
+                    self._json(replay_routes.get_replay_diff(session_id, from_off, to_off)); return
+            
+            # Default: full reconstruction
+            params = parse_qs(parsed.query)
+            offset = int(params.get("offset", [0])[0]) if "offset" in params else None
+            self._json(replay_routes.get_replay(session_id, offset=offset)); return
         if self.path.startswith("/api/run-suites/") and self.path.endswith("/poll"):
             from urllib.parse import unquote
             suite_id = unquote(self.path[len("/api/run-suites/"):-len("/poll")])
@@ -687,6 +711,15 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             except FileNotFoundError:
                 self.send_response(404); self.end_headers()
             return
+        if self.path == "/api/telecom-tests":
+            self._json(telecom_test_routes.get_telecom_tests()); return
+        if self.path.startswith("/api/telecom-tests/"):
+            from urllib.parse import unquote
+            parts = self.path[len("/api/telecom-tests/"):].split("/")
+            test_id = unquote(parts[0])
+            if len(parts) > 1 and parts[1] == "evidence":
+                 self._json(telecom_test_routes.get_telecom_test_evidence(test_id)); return
+            self._json(telecom_test_routes.get_telecom_test_status(test_id)); return
         if self.path.startswith("/api/export/"):
             self._handle_export(); return
         self.send_response(404); self.end_headers()
@@ -700,6 +733,12 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             data = {}
 
         try:
+            if self.path == "/api/telecom-tests/run":
+                self._json(telecom_test_routes.handle_run_telecom_test(data, _run_session_thread)); return
+            if self.path.startswith("/api/telecom-tests/") and self.path.endswith("/abort"):
+                from urllib.parse import unquote
+                test_id = unquote(self.path.split("/")[3])
+                self._json(telecom_test_routes.handle_abort_telecom_test(test_id)); return
             if self.path == "/api/start":
                 self._json(mapper_routes.handle_start(data, _run_session_thread)); return
             if self.path == "/api/prompt":
@@ -897,6 +936,9 @@ def launch(default_stream_url: str | None = None) -> None:
     print(f"Stream server → starting on port {_STREAM_PORT}…")
     if _ensure_stream_server() is not None:
         print(f"Stream server → ✓ ready on :{_STREAM_PORT}")
+        EventSink.start()
+        from .runtime.runtime_supervisor import supervisor
+        supervisor.start()
     else:
         print(f"Stream server → ✗ failed to start on :{_STREAM_PORT}")
 

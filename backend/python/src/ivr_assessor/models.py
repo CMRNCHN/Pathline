@@ -8,6 +8,9 @@ class CallEvent:
     kind: str
     text: str
     t_ms: int
+    intent: str = ""
+    node_id: str = ""
+    dtmf: str = ""
 
 
 @dataclass

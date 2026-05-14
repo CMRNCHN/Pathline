@@ -326,6 +326,11 @@ def iterate_map(
 
         register_transcript_callback(_on_transcript)
 
+        from .events.event_sink import sink as EventSink
+        from .runtime.runtime_supervisor import supervisor
+        EventSink.start()
+        supervisor.start()
+
     def _runner(
         target: str,
         planned_path: list[str],
@@ -368,7 +373,20 @@ def iterate_map(
             forced_branches=list(planned_path),
         )
         try:
-            summary = session.run()
+            from .runtime.runtime_supervisor import supervisor
+            # Use call_sid if available from telephony.dial, but session.run does it
+            # To be safe, generate a temporary one or dial early.
+            # In interactive mode, we want supervised registration BEFORE dial might fail?
+            # Actually, supervised_session will call register_session.
+            
+            # If session_id is None, supervised_session might have issues.
+            # Let's ensure it has one.
+            if mode == "interactive" and not session.session_id:
+                # We can dial now to get the ID
+                session.session_id = telephony.dial(target)
+            
+            call_sid = session.session_id or f"cli-{int(time.time())}"
+            summary = supervisor.supervised_session(call_sid, session.run, call_sid=call_sid)
         except Exception as exc:  # pragma: no cover — surfaced to user
             return SessionOutcome(
                 nodes_added=0,

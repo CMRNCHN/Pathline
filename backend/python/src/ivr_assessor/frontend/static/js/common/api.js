@@ -46,4 +46,10 @@ const api = {
   exportRunSuiteUrl: (id) => '/api/run-suites/' + id + '/export',
   deleteRunSuite:    (id) => _fetch('/api/run-suites/' + id, { method: 'DELETE' }),
   abortRunSuite:     () => _post('/api/run-suites/abort', {}),
+
+  // Telecom tests
+  runTelecomTest: (payload) => _post('/api/telecom-tests/run', payload),
+  getTelecomTestStatus: (id) => _fetch('/api/telecom-tests/' + id),
+  abortTelecomTest: (id) => _post('/api/telecom-tests/' + id + '/abort', {}),
+  getTelecomTestEvidence: (id) => _fetch('/api/telecom-tests/' + id + '/evidence'),
 };

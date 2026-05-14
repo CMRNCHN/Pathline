@@ -30,6 +30,10 @@ def build_status_payload() -> dict:
             idx += 1
         STATE.ledger_idx = idx
     graph = session.mapper.graph() if session else STATE.graph
+    
+    from ...runtime.runtime_supervisor import supervisor
+    health = supervisor.get_health_snapshot()
+    
     return {
         "is_running": STATE.is_running,
         "session_ended": not STATE.is_running and not session,
@@ -39,6 +43,7 @@ def build_status_payload() -> dict:
         "live_caption": STATE.live_caption,
         "error": STATE.error,
         "manual_mode": bool(session.manual_mode) if session else False,
+        "runtime_health": health,
     }
 
 

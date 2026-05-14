@@ -1,6 +1,6 @@
 # IVRSuite — Project State
 
-Last Updated: 2026-05-10
+Last Updated: 2026-05-13
 
 ---
 
@@ -14,11 +14,32 @@ regression suites against IVR systems, and supports audio QA benchmarking.
 
 ## Test Suite
 
-**251 passing**
+**296 passing**
 
 ```bash
 /Users/cameroncohen/.pyenv/versions/3.12.8/bin/pytest backend/python/tests/ -q
 ```
+
+---
+
+## Replay Infrastructure (Slice 4: Reconstruction)
+
+- **ReplayState**: Deterministic reconstruction model for session state.
+- **ReplayReducer**: Pure logic to apply ordered `OperationalEvent` streams to state.
+- **ReplayService**: Loads session events via `ReplayLoader` and reconstructs `ReplayState`.
+- **API**: `/api/replays` (index), `/api/replays/<id>` (state), `/api/replays/<id>/events` (raw).
+- **Frontend Hydration**: `replay.js` rebuilds graph, timeline, and metrics without live websockets.
+- **Mode Isolation**: `AppState.mode` supports "live" and "replay" with isolation for live polling.
+
+---
+
+## Event Infrastructure (Slice 3: Persistence)
+
+- **EventBus**: Central pub/sub for `OperationalEvent` instances.
+- **EventSink**: Subscribes to `EventBus` and persists all events to append-only JSONL files.
+- **Storage Layout**: `~/.ivr_assessor/events/YYYY-MM-DD/session_<session_id>.jsonl`.
+- **ReplayLoader**: Utility for reconstructing timelines from persisted event streams.
+- **Lineage**: Initial `session_id` propagation through `StreamingServer` and `EventBus`.
 
 ---
 
@@ -122,6 +143,20 @@ All constants live in `backend/ui/ui_state.py`:
 | REPLAYS_DIR             | ~/.ivr_assessor/replays/           |
 | SNAPSHOTS_DIR           | ~/.ivr_assessor/snapshots/         |
 | BENCHMARKS_DIR          | ~/.ivr_assessor/benchmarks/        |
+| EVENTS_DIR              | ~/.ivr_assessor/events/            |
+| TEST_RUNS_DIR          | ~/.ivr_assessor/test_runs/         |
+
+---
+
+## Telecom Validation (Slice 8)
+
+- **TelecomTestPlan**: Model for controlled real IVR tests (bounds, goals).
+- **TelecomTestRunner**: Executes bounded tests, enforces limits, emits events.
+- **SafetyGuards**: Real-time monitoring for duration, depth, DTMF, transfer, and confidence.
+- **TelecomTestResult**: Structured outcome with failure/stop reasons.
+- **EvidenceManifest**: JSON manifest linking event logs, replays, and snapshots.
+- **API**: `/api/telecom-tests` (list), `/api/telecom-tests/run` (start), `/api/telecom-tests/<id>/status`, `/api/telecom-tests/<id>/evidence`.
+- **Frontend**: "Controlled Operational Validation" panel in Prep workspace.
 
 ---
 

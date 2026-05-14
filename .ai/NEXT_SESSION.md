@@ -1,29 +1,23 @@
 # Next Session Objectives
 
-Last Updated: 2026-05-07
+Last Updated: 2026-05-13
 
 ---
 
 ## Immediate Priorities
 
-1. **Backend event bus** (event_bus.py)
-   - Centralize event dispatch between streaming_server.py and live_map_gui.py
-   - Replace ad-hoc callback registration with a typed event bus
-   - See RUNTIME_SPLIT_POINTS.md for split plan
+1. **Visual Timeline Scrubber & Media Synchronization**
+   - Implement a graphical scrubber for the replay timeline.
+   - Synchronize audio playback with the operational cursor.
+   - Enable seek-to-event from the scrubber.
 
-2. **Session snapshots**
-   - Capture full session state at end of each run
-   - Store in storage/snapshots/
-   - Enable replay from snapshot
-
-3. **WER benchmark smoke test**
+2. **WER benchmark smoke test**
    - Add one real WAV fixture to tests/fixtures/audio/
    - Run wer_benchmark.py end-to-end
 
-4. **Smoke test local pipeline**
-   - Set STT_BACKEND=faster-whisper and TTS_BACKEND=piper in .env
-   - Run ./run_ivr_assessor.sh live-map-gui
-   - Make a real test call
+3. **Autonomous Recovery Policies**
+   - Define policy-driven recovery actions in `RecoveryManager`.
+   - Implement automatic retry with backoff for transient failures.
 
 ---
 

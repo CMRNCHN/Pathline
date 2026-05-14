@@ -109,6 +109,7 @@ class StreamingServer:
         self._created_monotonic = time.monotonic()
         self._last_status_message = ""
         self._last_error: str | None = None
+        self._current_session_id: str | None = None
         self._stream_idle_timeouts = 0
         self._listen_idle_timeouts = 0
         self._listen_connections_total = 0
@@ -163,6 +164,9 @@ class StreamingServer:
 
     def _dispatch_transcript(self, text: str, is_final: bool, speech_final: bool) -> None:
         """Entry point from transcribers — routes through the dedup filter."""
+        if hasattr(self, "session_id") and self.session_id:
+            from .runtime.runtime_supervisor import supervisor
+            supervisor.update_activity(self.session_id, websocket_connected=True)
         self._transcript_filter(text, is_final, speech_final)
 
     def _raw_dispatch_transcript(self, text: str, is_final: bool, speech_final: bool) -> None:
@@ -171,7 +175,10 @@ class StreamingServer:
             EventBus.publish(OperationalEvent(
                 type=EventType.TRANSCRIPT_FINAL,
                 payload={"text": text, "speech_final": speech_final},
-                meta=EventMetadata(source_component="streaming_server")
+                meta=EventMetadata(
+                    session_id=self._current_session_id,
+                    source_component="streaming_server"
+                )
             ))
         for cb in self._callbacks:
             try:
@@ -181,6 +188,9 @@ class StreamingServer:
 
     def _dispatch_status(self, msg: str) -> None:
         self._last_status_message = msg
+        if hasattr(self, "session_id") and self.session_id:
+            from .runtime.runtime_supervisor import supervisor
+            supervisor.update_activity(self.session_id, websocket_connected=True)
         for cb in self._status_callbacks:
             try:
                 cb(msg)
@@ -377,10 +387,14 @@ class StreamingServer:
         self._stream_sequence += 1
         self._last_stream_connected_at = time.time()
 
+        params = dict(websocket.query_params)
+        session_id = params.get("session_id") or params.get("CallSid") or f"stream-{self._stream_sequence}"
+        self._current_session_id = session_id
+
         EventBus.publish(OperationalEvent(
             type=EventType.CALL_STARTED,
-            payload={"stream_sequence": self._stream_sequence},
-            meta=EventMetadata(source_component="streaming_server")
+            payload={"stream_sequence": self._stream_sequence, "session_id": session_id},
+            meta=EventMetadata(session_id=session_id, source_component="streaming_server")
         ))
         self._last_stream_disconnect_reason = ""
         self._last_stream_close_code = None
@@ -497,6 +511,13 @@ class StreamingServer:
         _DEEPGRAM_QUEUE_MAX = 50
         audio_buffer = bytearray()
         BUFFER_FLUSH_SIZE = 160 * 5  # 5 × 20ms = 100ms
+        
+        # Assign session_id from stream path if possible (e.g. /stream/{session_id})
+        self.session_id = websocket.path_params.get("session_id")
+        if self.session_id:
+            from .runtime.runtime_supervisor import supervisor
+            supervisor.update_activity(self.session_id, websocket_connected=True)
+
         try:
             while True:
                 try:
@@ -648,6 +669,10 @@ class StreamingServer:
                 media_frames=media_count,
             )
             if connected:
+                if self.session_id:
+                    from .runtime.runtime_supervisor import supervisor
+                    supervisor.update_activity(self.session_id, websocket_connected=False)
+
                 logger.info("Stream finished: media_count=%d transcriber_stats=%s", media_count, stats)
                 self._dispatch_status(
                     f"[stream] final stats: frames={media_count} transcriber={stats}"

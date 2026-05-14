@@ -8,6 +8,8 @@ const AppState = {
   runtimeDiagnostics: null,
   runtimeMetrics: null,
   diagnose: null,
+  mode: 'live', // 'live' or 'replay'
+  replayState: null,
   savedMaps: [],
   latestStatus: null,
   latestGraph: {},
