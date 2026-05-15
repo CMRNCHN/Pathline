@@ -437,7 +437,7 @@ def test_runner_happy_path_no_telephony() -> None:
         ],
     )
     runner = _build_runner(suite)
-    run_id = runner.start()
+    runner.start()
     runner._thread.join(timeout=5)
     assert runner.run_result is not None
     assert runner.run_result.status == SuiteRunStatus.PASSED

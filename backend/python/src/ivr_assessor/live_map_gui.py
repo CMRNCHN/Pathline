@@ -803,7 +803,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
                 self._json(run_suite_routes.save_suite(data))
                 return
             if self.path == "/api/suites/run":
-                stream_url_fn = lambda: _to_wss(_detect_ngrok_url() or _default_stream_url)
+                def stream_url_fn():
+                    return _to_wss(_detect_ngrok_url() or _default_stream_url)
                 self._json(run_suite_routes.run_test_suite(data, stream_url_fn))
                 return
             if self.path == "/api/run-suites/import":

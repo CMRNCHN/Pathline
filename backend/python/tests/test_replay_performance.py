@@ -1,7 +1,6 @@
 import pytest
 import time
 from pathlib import Path
-from ivr_assessor.events.replay_service import ReplayService
 from ivr_assessor.events.event_types import EventType
 
 
@@ -11,12 +10,6 @@ def test_replay_seek_latency_baseline():
     fixture_path = Path(__file__).parent / "fixtures" / "sample_ivr_trace.json"
     if not fixture_path.exists():
         pytest.skip("Sample trace fixture not found")
-
-    # Create a minimal event stream for testing
-    service = ReplayService()
-
-    # Mock load_replay with timing
-    session_id = "perf_test_session"
 
     # We'll test with the actual service but measure performance
     # This is a baseline verification, not an optimization task

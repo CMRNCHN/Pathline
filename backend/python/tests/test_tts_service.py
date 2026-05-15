@@ -152,9 +152,6 @@ def test_wav_to_mulaw8k_8khz_input_passthrough() -> None:
 def test_wav_to_mulaw8k_reduces_size_from_22khz() -> None:
     """Resampling from 22050 to 8000 Hz should reduce byte count."""
     wav_22k = _make_wav(sample_rate=22050, n_samples=2205)  # 100ms of audio
-    wav_8k = _make_wav(sample_rate=8000, n_samples=800)     # ~100ms at 8kHz
     result_22k = PiperTTS._wav_to_mulaw8k(wav_22k)
-    result_8k = PiperTTS._wav_to_mulaw8k(wav_8k)
     # 22kHz result should be approximately 8/22 of the 22kHz sample count
-    # Both represent ~100ms of audio → should produce similar mulaw byte counts
     assert len(result_22k) < 2205  # fewer than original samples

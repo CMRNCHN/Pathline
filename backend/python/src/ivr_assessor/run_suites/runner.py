@@ -431,7 +431,7 @@ class SuiteRunner:
 
         # Wait for CallStarted event or just pass if no telephony
         if ctx.step.expected_event:
-            ev = self._wait_for_event(ctx, ctx.step.expected_event)
+            self._wait_for_event(ctx, ctx.step.expected_event)
             ctx.result.actual_response = ctx.step.expected_event
 
     def _step_wait_for_prompt(self, ctx: _StepContext) -> None:

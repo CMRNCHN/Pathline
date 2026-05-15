@@ -734,12 +734,16 @@ class StreamingServer:
         recordings_dir = reports_dir / "recordings"
         recordings_dir.mkdir(parents=True, exist_ok=True)
 
+        # Twilio requires auth to download recordings.
+        # Ensure recording URL ends with .wav
+        dl_url = recording_url if recording_url.endswith(".wav") else recording_url + ".wav"
+
         wav_path = recordings_dir / f"{recording_sid}.wav"
         transcript_path = recordings_dir / f"{recording_sid}.txt"
         artifact = {
             "call_sid": call_sid,
             "recording_sid": recording_sid,
-            "recording_url": dl_url if "dl_url" in locals() else recording_url,
+            "recording_url": dl_url,
             "wav_path": str(wav_path),
             "transcript_path": str(transcript_path),
             "status": "queued",
@@ -747,10 +751,8 @@ class StreamingServer:
         }
         self._remember_recording_artifact(artifact)
 
-        # Twilio requires auth to download recordings.
         account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
         auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-        dl_url = recording_url if recording_url.endswith(".wav") else recording_url + ".wav"
 
         try:
             self._dispatch_status(f"[recording] downloading {recording_sid}…")

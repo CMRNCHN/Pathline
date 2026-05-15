@@ -20,8 +20,7 @@ class EvidenceManifest:
 
         # Reference existing artifact paths instead of duplicating
         event_log_path = EVENTS_DIR / self.date_str / f"session_{self.session_id}.jsonl"
-        snapshot_pattern = SNAPSHOTS_DIR / f"snapshot_{self.session_id}_*.json"
-        
+
         # We don't know the exact recording name format yet, but we'll reference the dir
         # or a specific file if we can determine it from session_id.
         recording_path = RECORDINGS_DIR / f"{self.session_id}.wav" # Assumption

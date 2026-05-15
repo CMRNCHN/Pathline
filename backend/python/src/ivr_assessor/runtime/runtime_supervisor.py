@@ -7,11 +7,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Callable
 
-logger = logging.getLogger(__name__)
-
 from ..events.event_types import EventType
 from ..events.event_bus import bus
 from ..events.event_models import OperationalEvent, EventMetadata
+
+logger = logging.getLogger(__name__)
 
 class RuntimeState(str, Enum):
     INITIALIZING = "INITIALIZING"
