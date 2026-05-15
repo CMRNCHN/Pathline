@@ -35,7 +35,11 @@ class SessionCleanup:
         # 1. Record cleanup start
         bus.publish(OperationalEvent(
             type="SESSION_CLEANUP_STARTED",
-            payload={"reason": reason, "call_sid": info.call_sid},
+            payload={
+                "reason": reason,
+                "call_sid": info.call_sid,
+                "runtime_state": info.runtime_state.value
+            },
             meta=EventMetadata(session_id=session_id, source_component="session_cleanup")
         ))
 

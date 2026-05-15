@@ -222,6 +222,24 @@ class RuntimeSupervisor:
     def get_session_info(self, session_id: str) -> Optional[SessionRuntimeInfo]:
         return self.registry.get(session_id)
 
+    def _detect_stale_session(self, session_id: str) -> tuple[bool, float, float]:
+        """
+        Detect if a session is stale.
+        Returns: (is_stale: bool, idle_duration_ms: float, timeout_ms: float)
+
+        Stale = no activity within RUNTIME_STALL_TIMEOUT_SECONDS (60s)
+        """
+        info = self.registry.get(session_id)
+        if not info:
+            return (False, 0.0, float(self.RUNTIME_STALL_TIMEOUT_SECONDS * 1000))
+
+        now = time.time()
+        idle_duration = now - info.last_activity_at
+        timeout_duration = float(self.RUNTIME_STALL_TIMEOUT_SECONDS)
+
+        is_stale = idle_duration > timeout_duration
+        return (is_stale, idle_duration * 1000, timeout_duration * 1000)
+
     def get_health_snapshot(self) -> Dict[str, Any]:
         state_counts = {}
         for state in RuntimeState:
@@ -281,11 +299,19 @@ class RuntimeSupervisor:
         for info in self.registry.list_all():
             # Check for stalled sessions (no activity)
             if info.runtime_state == RuntimeState.ACTIVE:
-                if now - info.last_activity_at > self.RUNTIME_STALL_TIMEOUT_SECONDS:
+                idle_duration = now - info.last_activity_at
+                if idle_duration > self.RUNTIME_STALL_TIMEOUT_SECONDS:
                     self._transition_state(info, RuntimeState.STALLING)
+                    action_message = "Operator: Session stalled. Monitor for recovery or restart if needed."
                     bus.publish(OperationalEvent(
                         type=EventType.RUNTIME_STALLED,
-                        payload={"reason": "activity_timeout", "call_sid": info.call_sid},
+                        payload={
+                            "reason": "activity_timeout",
+                            "idle_for_s": round(idle_duration, 1),
+                            "threshold_s": self.RUNTIME_STALL_TIMEOUT_SECONDS,
+                            "call_sid": info.call_sid,
+                            "action_expected": action_message
+                        },
                         meta=EventMetadata(session_id=info.session_id, source_component="supervisor")
                     ))
                 elif now - info.last_heartbeat_at > self.HEARTBEAT_TIMEOUT_SECONDS:
