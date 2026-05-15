@@ -48,6 +48,9 @@ export const ReplayModule = {
 
     async loadReplay(sessionId) {
         console.log(`[replay] Loading session ${sessionId}`);
+        if (window.Telemetry) {
+            window.Telemetry.track('replay_loaded', { sessionId }, sessionId);
+        }
 
         // Save current live state before switching to replay
         this._saveCurrentLiveState();
