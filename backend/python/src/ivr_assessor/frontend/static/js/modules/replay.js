@@ -11,8 +11,46 @@ import { ReplayTimeline } from './replay_timeline.js';
 export const ReplayModule = {
     currentTranscripts: [], // Store transcripts for sync
 
+    _saveCurrentLiveState() {
+        // Backup critical live state before switching to replay mode
+        AppState.liveBackup = {
+            mode: AppState.mode,
+            currentWorkspace: AppState.currentWorkspace,
+            callRunning: AppState.callRunning,
+            manualMode: AppState.manualMode,
+            suiteRunning: AppState.suiteRunning,
+            latestStatus: AppState.latestStatus,
+            latestGraph: { ...AppState.latestGraph },
+            sessionElapsedMs: AppState.sessionElapsedMs,
+            selectedTimelineFilter: AppState.selectedTimelineFilter,
+            selectedTimelineEvent: AppState.selectedTimelineEvent
+        };
+        console.log('[replay] Live state backed up');
+    },
+
+    _restoreLiveState() {
+        // Restore live state after exiting replay mode
+        if (AppState.liveBackup) {
+            AppState.mode = AppState.liveBackup.mode;
+            AppState.currentWorkspace = AppState.liveBackup.currentWorkspace;
+            AppState.callRunning = AppState.liveBackup.callRunning;
+            AppState.manualMode = AppState.liveBackup.manualMode;
+            AppState.suiteRunning = AppState.liveBackup.suiteRunning;
+            AppState.latestStatus = AppState.liveBackup.latestStatus;
+            AppState.latestGraph = { ...AppState.liveBackup.latestGraph };
+            AppState.sessionElapsedMs = AppState.liveBackup.sessionElapsedMs;
+            AppState.selectedTimelineFilter = AppState.liveBackup.selectedTimelineFilter;
+            AppState.selectedTimelineEvent = AppState.liveBackup.selectedTimelineEvent;
+            AppState.liveBackup = null;
+            console.log('[replay] Live state restored');
+        }
+    },
+
     async loadReplay(sessionId) {
         console.log(`[replay] Loading session ${sessionId}`);
+
+        // Save current live state before switching to replay
+        this._saveCurrentLiveState();
 
         // Show loading skeletons
         this.showLoadingSkeletons();
@@ -37,6 +75,7 @@ export const ReplayModule = {
         } catch (error) {
             console.error(`[replay] Failed to load replay:`, error);
             this.hideLoadingProgress();
+            this._restoreLiveState();
             EventBus.emit(REPLAY_EVENTS.REPLAY_FAILED, { sessionId, error });
         }
     },
@@ -298,7 +337,7 @@ export const ReplayModule = {
     },
 
     exitReplay() {
-        AppState.mode = 'live';
+        this._restoreLiveState();
         AppState.replayState = null;
         console.log('[replay] Exited replay mode');
         // main.js will resume live polling updates naturally if it checks AppState.mode

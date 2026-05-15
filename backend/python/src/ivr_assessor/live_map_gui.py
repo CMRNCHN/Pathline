@@ -897,25 +897,36 @@ def launch(default_stream_url: str | None = None) -> None:
     STATE.begin_startup_trace()
     STATE.record_runtime_checkpoint("launch.begin", "launching live map GUI", category="startup")
     _default_stream_url = default_stream_url
-    bootstrap = bootstrap_runtime()
-    STATE.record_startup_event(
-        "bootstrap.ready",
-        "runtime bootstrap complete",
-        env_method=bootstrap.get("env_method"),
-        env_keys_loaded=bootstrap.get("env_keys_loaded"),
-        log_level=bootstrap.get("log_level"),
-    )
-    STATE.record_runtime_checkpoint(
-        "bootstrap.ready",
-        "runtime bootstrap complete",
-        category="startup",
-        env_method=bootstrap.get("env_method"),
-        env_keys_loaded=bootstrap.get("env_keys_loaded"),
-        log_level=bootstrap.get("log_level"),
-    )
-    logger.info("Launching live map GUI")
+
+    # Stage 1: Bootstrap runtime environment
+    try:
+        bootstrap = bootstrap_runtime()
+        STATE.record_startup_event(
+            "bootstrap.ready",
+            "runtime bootstrap complete",
+            env_method=bootstrap.get("env_method"),
+            env_keys_loaded=bootstrap.get("env_keys_loaded"),
+            log_level=bootstrap.get("log_level"),
+        )
+        STATE.record_runtime_checkpoint(
+            "bootstrap.ready",
+            "runtime bootstrap complete",
+            category="startup",
+            env_method=bootstrap.get("env_method"),
+            env_keys_loaded=bootstrap.get("env_keys_loaded"),
+            log_level=bootstrap.get("log_level"),
+        )
+        logger.info("Launching live map GUI")
+        print("✓ Bootstrap complete")
+    except Exception as exc:
+        STATE.record_startup_event("bootstrap.error", str(exc))
+        print(f"✗ Bootstrap failed: {exc}")
+        import typer
+        raise typer.Exit(code=1)
+
     print(f"[DEBUG] Expected stream auth token: {default_stream_auth_token()}")
 
+    # Stage 2: Check credentials
     _REQUIRED = {
         "TWILIO_ACCOUNT_SID": "place calls",
         "TWILIO_AUTH_TOKEN":  "place calls",
@@ -931,31 +942,72 @@ def launch(default_stream_url: str | None = None) -> None:
         print("   See .env.example at the repo root for all options.\n")
     else:
         STATE.record_startup_event("credentials.ready", "all required credentials present")
-        print("✓  All required credentials present")
+        print("✓ All required credentials present")
 
+    # Stage 3: Start stream server
     print(f"Stream server → starting on port {_STREAM_PORT}…")
-    if _ensure_stream_server() is not None:
-        print(f"Stream server → ✓ ready on :{_STREAM_PORT}")
-        EventSink.start()
-        from .runtime.runtime_supervisor import supervisor
-        supervisor.start()
-    else:
-        print(f"Stream server → ✗ failed to start on :{_STREAM_PORT}")
+    stream_ready = False
+    try:
+        if _ensure_stream_server() is not None:
+            print(f"✓ Stream server ready on :{_STREAM_PORT}")
+            STATE.record_startup_event("stream_server.success", f"listening on {_STREAM_PORT}")
+            stream_ready = True
+        else:
+            STATE.record_startup_event("stream_server.failed", f"could not bind to :{_STREAM_PORT}")
+            print(f"✗ Stream server failed to start on :{_STREAM_PORT}")
+            print(f"  Try: fuser -k -9 {_STREAM_PORT}/tcp")
+    except Exception as exc:
+        STATE.record_startup_event("stream_server.exception", str(exc))
+        print(f"✗ Stream server error: {exc}")
+        print(f"  Try: fuser -k -9 {_STREAM_PORT}/tcp")
 
-    server = HTTPServer(("127.0.0.1", _GUI_PORT), LiveMapRequestHandler)
-    STATE.record_startup_event("gui.ready", f"listening on {_GUI_PORT}")
-    STATE.record_runtime_checkpoint(
-        "gui.ready",
-        f"listening on {_GUI_PORT}",
-        category="startup",
-        port=_GUI_PORT,
-    )
-    print(f"Live Map GUI  →  http://127.0.0.1:{_GUI_PORT}/")
+    # Stage 4: Start event sink and supervisor (only if stream server is ready)
+    if stream_ready:
+        try:
+            EventSink.start()
+            STATE.record_startup_event("event_sink.ready", "started")
+            print("✓ Event sink started")
+        except Exception as exc:
+            STATE.record_startup_event("event_sink.error", str(exc))
+            print(f"✗ Event sink failed: {exc}")
+            logger.exception("Event sink startup failed")
+
+        try:
+            from .runtime.runtime_supervisor import supervisor
+            supervisor.start()
+            STATE.record_startup_event("supervisor.ready", "started")
+            print("✓ Supervisor started")
+        except Exception as exc:
+            STATE.record_startup_event("supervisor.error", str(exc))
+            print(f"✗ Supervisor failed: {exc}")
+            logger.exception("Supervisor startup failed")
+    else:
+        STATE.record_startup_event("startup.degraded", "stream server unavailable; skipping event sink and supervisor")
+        print("⚠  Stream server unavailable; operating in limited mode (no live recording)")
+
+    # Stage 5: Start GUI server
+    try:
+        server = HTTPServer(("127.0.0.1", _GUI_PORT), LiveMapRequestHandler)
+        STATE.record_startup_event("gui.ready", f"listening on {_GUI_PORT}")
+        STATE.record_runtime_checkpoint(
+            "gui.ready",
+            f"listening on {_GUI_PORT}",
+            category="startup",
+            port=_GUI_PORT,
+        )
+        print(f"✓ Live Map GUI → http://127.0.0.1:{_GUI_PORT}/")
+    except Exception as exc:
+        STATE.record_startup_event("gui.error", str(exc))
+        print(f"✗ GUI server failed: {exc}")
+        import typer
+        raise typer.Exit(code=1)
+
+    # Stage 6: Configure stream URL
     if default_stream_url:
         wss = _to_wss(default_stream_url) or ""
         STATE.record_startup_event("stream_url.ready", wss)
         STATE.record_runtime_checkpoint("stream_url.ready", wss, category="startup")
-        print(f"Stream URL    →  {wss}  (pre-wired)")
+        print(f"✓ Stream URL → {wss}  (pre-wired)")
     else:
         STATE.record_startup_event("stream_url.pending", f"expose port {_STREAM_PORT}")
         STATE.record_runtime_checkpoint(
@@ -963,9 +1015,14 @@ def launch(default_stream_url: str | None = None) -> None:
             f"expose port {_STREAM_PORT}",
             category="startup",
         )
-        print(f"Stream URL    →  expose port {_STREAM_PORT} with: ngrok http {_STREAM_PORT}")
+        print(f"⚠  Stream URL → expose port {_STREAM_PORT} with: ngrok http {_STREAM_PORT}")
+
     print("Press Ctrl+C to stop.")
-    webbrowser.open(f"http://127.0.0.1:{_GUI_PORT}/")
+    try:
+        webbrowser.open(f"http://127.0.0.1:{_GUI_PORT}/")
+    except Exception:
+        pass
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:

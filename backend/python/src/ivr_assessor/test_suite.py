@@ -377,29 +377,74 @@ def save_suite_result(
     result: TestSuiteResult,
     output_dir: str | Path | None = None,
 ) -> tuple[Path, Path]:
-    """Save test suite result to JSON and Markdown.
+    """Save test suite result to JSON and Markdown with atomic writes.
 
     Returns: (json_path, markdown_path)
+    Raises: OSError if write fails (permissions, disk-full, etc.)
     """
+    import tempfile
+
     if output_dir is None:
         output_dir = Path.home() / ".ivr_assessor" / "reports"
     else:
         output_dir = Path(output_dir)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise OSError(f"Failed to create reports directory {output_dir}: {exc}")
 
     # Create suite-specific directory
     suite_dir = output_dir / result.suite_name.replace(" ", "_").lower()
-    suite_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        suite_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise OSError(f"Failed to create suite directory {suite_dir}: {exc}")
 
-    # Save JSON
-    json_path = suite_dir / f"result-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
-    with open(json_path, "w") as f:
-        json.dump(result.as_dict(), f, indent=2)
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    json_path = suite_dir / f"result-{timestamp}.json"
+    md_path = suite_dir / f"result-{timestamp}.md"
 
-    # Save Markdown summary
-    md_path = suite_dir / f"result-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
-    with open(md_path, "w") as f:
-        f.write(result.as_markdown())
+    # Atomic write for JSON (write to temp, then rename)
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            dir=suite_dir,
+            delete=False,
+            suffix='.json.tmp'
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            json.dump(result.as_dict(), tmp, indent=2)
+
+        # Atomic rename
+        tmp_path.replace(json_path)
+    except OSError as exc:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+        raise OSError(f"Failed to write result JSON to {json_path}: {exc}")
+
+    # Atomic write for Markdown
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            dir=suite_dir,
+            delete=False,
+            suffix='.md.tmp'
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            tmp.write(result.as_markdown())
+
+        # Atomic rename
+        tmp_path.replace(md_path)
+    except OSError as exc:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+        raise OSError(f"Failed to write result markdown to {md_path}: {exc}")
 
     return json_path, md_path
