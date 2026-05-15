@@ -9,6 +9,8 @@ import { AppState } from '../common/state.js';
 import { ReplayTimeline } from './replay_timeline.js';
 
 export const ReplayModule = {
+    currentTranscripts: [], // Store transcripts for sync
+
     async loadReplay(sessionId) {
         console.log(`[replay] Loading session ${sessionId}`);
         EventBus.emit(REPLAY_EVENTS.REPLAY_LOADING, { sessionId });
@@ -63,21 +65,14 @@ export const ReplayModule = {
             }
         }
 
-        // 2. Rebuild Transcript Timeline
-        if (state.transcripts && window.updateTimeline) {
-            // Convert replay transcripts to the format expected by UI
-            // Assuming window.updateTimeline handles adding items to the list
-            // We might need to clear it first or pass a full list
-            const formattedLogs = state.transcripts.map(t => {
-                const prefix = t.speaker === 'system' ? '[transcript]' : '[user]';
-                return `${prefix} ${t.text}`;
-            });
-            
-            // In live mode, main.js usually appends from STATE.logs.
-            // For replay, we might need a way to swap the log source.
-            AppState.legacyLogs = formattedLogs;
-            if (window.renderLogs) {
-                window.renderLogs(formattedLogs);
+        // 2. Rebuild Transcript Timeline (with clickable sync)
+        if (state.transcripts) {
+            this.currentTranscripts = state.transcripts;
+            this.renderReplayTranscripts(state.transcripts);
+            // Highlight the most recent transcript at current cursor position
+            const mostRecentIndex = state.transcripts.length > 0 ? state.transcripts.length - 1 : -1;
+            if (mostRecentIndex >= 0) {
+                this.highlightCurrentTranscript(mostRecentIndex);
             }
         }
 
@@ -98,6 +93,72 @@ export const ReplayModule = {
                 session_id: state.session_id
             });
         }
+    },
+
+    renderReplayTranscripts(transcripts) {
+        const container = document.getElementById('review-transcript-list');
+        if (!container) return;
+
+        // Clear existing content
+        container.innerHTML = '';
+
+        // Render each transcript item as clickable
+        transcripts.forEach((transcript, index) => {
+            const row = document.createElement('div');
+            row.className = 'transcript-replay-row';
+            row.dataset.transcriptIndex = index;
+            row.style.cursor = 'pointer';
+            row.style.padding = '8px 12px';
+            row.style.borderLeft = '3px solid transparent';
+            row.style.transition = 'all 100ms ease-in';
+            row.innerHTML = `
+                <div class="review-row-meta">
+                    <span class="review-speaker">${transcript.speaker === 'system' ? 'IVR' : 'User'}</span>
+                </div>
+                <div class="review-row-content">
+                    <div class="review-text">${this._escapeHtml(transcript.text)}</div>
+                </div>
+            `;
+
+            // Click to seek to a cursor position where this transcript exists
+            row.addEventListener('click', () => {
+                // Estimate cursor position: distribute transcript indices across timeline
+                const estimatedCursor = Math.floor((index / transcripts.length) * ReplayTimeline.totalEvents);
+                ReplayTimeline.seekDebounced(estimatedCursor, ReplayTimeline.cursor);
+            });
+
+            // Hover effect
+            row.addEventListener('mouseenter', () => {
+                row.style.backgroundColor = 'rgba(128, 148, 182, 0.1)';
+            });
+            row.addEventListener('mouseleave', () => {
+                row.style.backgroundColor = 'transparent';
+            });
+
+            container.appendChild(row);
+        });
+    },
+
+    highlightCurrentTranscript(cursorIndex) {
+        // Highlight the transcript item matching the current timeline cursor
+        const rows = document.querySelectorAll('.transcript-replay-row');
+        rows.forEach(row => {
+            const index = parseInt(row.dataset.transcriptIndex, 10);
+            if (index === cursorIndex) {
+                row.style.borderLeftColor = 'var(--accent)';
+                row.style.backgroundColor = 'rgba(128, 148, 182, 0.15)';
+                row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                row.style.borderLeftColor = 'transparent';
+                row.style.backgroundColor = 'transparent';
+            }
+        });
+    },
+
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     },
 
     exitReplay() {
