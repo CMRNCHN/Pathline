@@ -1,5 +1,5 @@
 import time
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from ..events.event_types import EventType
 from ..events.event_bus import bus as EventBus
 from ..events.event_models import OperationalEvent, EventMetadata

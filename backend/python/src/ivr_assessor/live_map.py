@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 import time
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from .events.event_bus import bus as EventBus
 from .events.event_types import EventType

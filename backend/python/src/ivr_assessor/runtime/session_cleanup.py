@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import logging
-import time
-from typing import Optional
 
 from .runtime_supervisor import supervisor, RuntimeState
 from ..events.event_types import EventType
@@ -21,7 +19,6 @@ class SessionCleanup:
         """
         Cleans up a session. Returns True if cleanup was performed or already done.
         """
-        from .runtime_supervisor import supervisor
         info = supervisor.get_session_info(session_id)
         if not info:
             return False
@@ -46,7 +43,6 @@ class SessionCleanup:
         try:
             # 2. Perform actual cleanup
             # Flush EventSink state before registry removal
-            from ..events.event_sink import sink as event_sink
             # EventSink is currently sync, but we want to ensure any buffered writes 
             # (OS level) are encouraged.
             

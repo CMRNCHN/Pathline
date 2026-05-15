@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .models import RunSuite, TestScenario, TestStep, StepAction
+from .models import RunSuite, StepAction
 
 _SUITE_DIR = Path.home() / ".ivr_assessor" / "run_suites"
 

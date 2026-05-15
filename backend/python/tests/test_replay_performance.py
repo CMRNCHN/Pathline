@@ -2,7 +2,6 @@ import pytest
 import time
 from pathlib import Path
 from ivr_assessor.events.replay_service import ReplayService
-from ivr_assessor.events.replay_loader import ReplayLoader
 from ivr_assessor.events.event_types import EventType
 
 

@@ -17,7 +17,7 @@ import queue
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from .events import (
@@ -47,7 +47,6 @@ from .models import (
 from .status import StepStatus, FailureReason, is_terminal
 from .validators import (
     validate_text_contains,
-    validate_expected_event,
     validate_intent,
     validate_node,
     validate_no_pan_in_log,

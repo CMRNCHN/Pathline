@@ -1,8 +1,6 @@
 import json
-import os
 import shutil
 import tempfile
-import time
 from pathlib import Path
 from ivr_assessor.events.event_sink import EventSink
 from ivr_assessor.events.event_models import OperationalEvent, EventMetadata

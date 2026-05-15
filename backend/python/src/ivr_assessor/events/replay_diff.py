@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 def diff_states(before: Optional[Any], after: Any) -> Dict[str, Any]:
     """

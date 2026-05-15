@@ -19,9 +19,7 @@ from .call_template import (
     parse_mode_overrides,
 )
 from .discovery_loop import (
-    DiscoveryReport,
     SessionOutcome,
-    plan_dfs_path,
     run_discovery_loop,
 )
 from .execution_controller import ExecutionController
@@ -658,7 +656,7 @@ def test_suite_command(
         raise typer.Exit(code=2)
 
     json_path, md_path = save_suite_result(result, output_dir=output)
-    typer.echo(f"Results saved:")
+    typer.echo("Results saved:")
     typer.echo(f"  JSON: {json_path}")
     typer.echo(f"  Markdown: {md_path}")
     typer.echo(f"\nSummary: {result.passed_cases}/{result.total_cases} cases passed")

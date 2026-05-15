@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 import threading
 
 import pytest
@@ -20,7 +19,6 @@ from ivr_assessor.run_suites.events import (
     IVRRuntimeEvent,
     RunSuiteStartedEvent,
     StepPassedEvent,
-    StepFailedEvent,
     StepTimedOutEvent,
 )
 from ivr_assessor.run_suites.loader import (
@@ -42,10 +40,9 @@ from ivr_assessor.run_suites.models import (
     SuiteRunStatus,
 )
 from ivr_assessor.run_suites.reports import RunReport
-from ivr_assessor.run_suites.runner import SuiteRunner, _StepFailed, _StepTimeout
+from ivr_assessor.run_suites.runner import SuiteRunner
 from ivr_assessor.run_suites.status import (
     StepStatus,
-    FailureReason,
     is_valid_transition,
     is_terminal,
 )

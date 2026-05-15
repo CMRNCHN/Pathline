@@ -4,9 +4,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
-from .models import RunResult, StepResult, ScenarioResult
+from .models import RunResult
 from .status import StepStatus
 from ..backend.ui.ui_state import RUN_SUITE_REPORTS_DIR as _REPORTS_DIR
 

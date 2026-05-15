@@ -1,4 +1,3 @@
-import pytest
 from ivr_assessor.runtime.runtime_supervisor import RuntimeSupervisor, RuntimeState
 from ivr_assessor.runtime.recovery_manager import RecoveryManager
 

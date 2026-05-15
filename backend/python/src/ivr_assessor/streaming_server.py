@@ -17,11 +17,11 @@ from pathlib import Path
 from secrets import compare_digest
 import threading
 import time
-from typing import Callable, Any
+from typing import Callable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
-from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
 from .audio_pipeline import VoiceActivityDetector, process_audio_frame

@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from ivr_assessor.testing.telecom_test_plan import TelecomTestPlan
 from ivr_assessor.testing.safety_guards import SafetyGuards
 from ivr_assessor.events.event_types import EventType

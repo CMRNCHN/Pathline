@@ -1,9 +1,8 @@
 import json
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, Any, List, Optional
-from ..backend.ui.ui_state import EVENTS_DIR, REPLAYS_DIR, SNAPSHOTS_DIR, RECORDINGS_DIR, TEST_RUNS_DIR
+from typing import Dict, Any, Optional
+from ..backend.ui.ui_state import EVENTS_DIR, SNAPSHOTS_DIR, RECORDINGS_DIR, TEST_RUNS_DIR
 
 class EvidenceManifest:
     def __init__(self, test_id: str, session_id: str):

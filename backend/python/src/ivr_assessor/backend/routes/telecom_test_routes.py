@@ -1,7 +1,6 @@
 import threading
 import uuid
-import os
-from typing import Callable, Dict, Any
+from typing import Callable
 from ...testing.evidence_manifest import EvidenceManifest
 from ...backend.ui.ui_state import STATE
 from ...testing.telecom_test_plan import TelecomTestPlan

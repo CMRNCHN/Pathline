@@ -1,6 +1,5 @@
 import pytest
 import json
-from pathlib import Path
 from ivr_assessor.events.event_types import EventType
 from ivr_assessor.events.replay_service import ReplayService
 from ivr_assessor.events.snapshot_service import SnapshotService
