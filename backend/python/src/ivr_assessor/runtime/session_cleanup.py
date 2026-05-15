@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import logging
-import time
-from typing import Optional
 
-from .runtime_supervisor import supervisor, RuntimeState
+from . import runtime_supervisor
+from .runtime_supervisor import RuntimeState
 from ..events.event_types import EventType
 from ..events.event_bus import bus
 from ..events.event_models import OperationalEvent, EventMetadata
@@ -21,28 +20,30 @@ class SessionCleanup:
         """
         Cleans up a session. Returns True if cleanup was performed or already done.
         """
-        from .runtime_supervisor import supervisor
+        supervisor = runtime_supervisor.supervisor
         info = supervisor.get_session_info(session_id)
         if not info:
             return False
 
         if info.cleanup_state:
-            # Even if marked cleaned, ensure it's removed from registry if reason is final
-            if reason != "stale_cleanup":
-                 supervisor.registry.remove(session_id)
+            # Already cleaned; ensure removed from registry
+            supervisor.registry.remove(session_id)
             return True
 
         # 1. Record cleanup start
         bus.publish(OperationalEvent(
             type="SESSION_CLEANUP_STARTED",
-            payload={"reason": reason, "call_sid": info.call_sid},
+            payload={
+                "reason": reason,
+                "call_sid": info.call_sid,
+                "runtime_state": info.runtime_state.value
+            },
             meta=EventMetadata(session_id=session_id, source_component="session_cleanup")
         ))
 
         try:
             # 2. Perform actual cleanup
             # Flush EventSink state before registry removal
-            from ..events.event_sink import sink as event_sink
             # EventSink is currently sync, but we want to ensure any buffered writes 
             # (OS level) are encouraged.
             

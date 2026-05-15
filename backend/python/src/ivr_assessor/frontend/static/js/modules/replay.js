@@ -9,22 +9,157 @@ import { AppState } from '../common/state.js';
 import { ReplayTimeline } from './replay_timeline.js';
 
 export const ReplayModule = {
+    currentTranscripts: [], // Store transcripts for sync
+
+    _saveCurrentLiveState() {
+        // Backup critical live state before switching to replay mode
+        AppState.liveBackup = {
+            mode: AppState.mode,
+            currentWorkspace: AppState.currentWorkspace,
+            callRunning: AppState.callRunning,
+            manualMode: AppState.manualMode,
+            suiteRunning: AppState.suiteRunning,
+            latestStatus: AppState.latestStatus,
+            latestGraph: { ...AppState.latestGraph },
+            sessionElapsedMs: AppState.sessionElapsedMs,
+            selectedTimelineFilter: AppState.selectedTimelineFilter,
+            selectedTimelineEvent: AppState.selectedTimelineEvent
+        };
+        console.log('[replay] Live state backed up');
+    },
+
+    _restoreLiveState() {
+        // Restore live state after exiting replay mode
+        if (AppState.liveBackup) {
+            AppState.mode = AppState.liveBackup.mode;
+            AppState.currentWorkspace = AppState.liveBackup.currentWorkspace;
+            AppState.callRunning = AppState.liveBackup.callRunning;
+            AppState.manualMode = AppState.liveBackup.manualMode;
+            AppState.suiteRunning = AppState.liveBackup.suiteRunning;
+            AppState.latestStatus = AppState.liveBackup.latestStatus;
+            AppState.latestGraph = { ...AppState.liveBackup.latestGraph };
+            AppState.sessionElapsedMs = AppState.liveBackup.sessionElapsedMs;
+            AppState.selectedTimelineFilter = AppState.liveBackup.selectedTimelineFilter;
+            AppState.selectedTimelineEvent = AppState.liveBackup.selectedTimelineEvent;
+            AppState.liveBackup = null;
+            console.log('[replay] Live state restored');
+        }
+    },
+
     async loadReplay(sessionId) {
         console.log(`[replay] Loading session ${sessionId}`);
+
+        // Save current live state before switching to replay
+        this._saveCurrentLiveState();
+
+        // Show loading skeletons
+        this.showLoadingSkeletons();
+        this.updateLoadingProgress('Loading session...', 0);
+
         EventBus.emit(REPLAY_EVENTS.REPLAY_LOADING, { sessionId });
-        
+
         try {
+            this.updateLoadingProgress('Initializing timeline...', 25);
             // Initialize timeline first, it will handle default end-of-run state
             await ReplayTimeline.init(sessionId);
-            
+
+            this.updateLoadingProgress('Hydrating state...', 50);
             // ReplayTimeline.init calls ReplayTimeline.seek which emits 'replay:state_loaded'
             // We listen for that to hydrate
-            
+
+            this.updateLoadingProgress('Rendering interface...', 75);
             AppState.mode = 'replay';
+
+            this.hideLoadingProgress();
             EventBus.emit(REPLAY_EVENTS.REPLAY_LOADED, { sessionId });
         } catch (error) {
             console.error(`[replay] Failed to load replay:`, error);
+            this.hideLoadingProgress();
+            this._restoreLiveState();
             EventBus.emit(REPLAY_EVENTS.REPLAY_FAILED, { sessionId, error });
+        }
+    },
+
+    showLoadingSkeletons() {
+        // Show skeleton for graph
+        const graphContainer = document.getElementById('graph-container') || document.querySelector('[data-graph-root]');
+        if (graphContainer) {
+            graphContainer.innerHTML = `
+                <div style="
+                    padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                ">
+                    <div style="height: 20px; background: rgba(128, 148, 182, 0.15); border-radius: 4px;"></div>
+                    <div style="height: 20px; width: 80%; background: rgba(128, 148, 182, 0.15); border-radius: 4px;"></div>
+                    <div style="height: 20px; width: 60%; background: rgba(128, 148, 182, 0.15); border-radius: 4px;"></div>
+                </div>
+            `;
+        }
+
+        // Show skeleton for transcripts
+        const transcriptContainer = document.getElementById('review-transcript-list');
+        if (transcriptContainer) {
+            transcriptContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${Array(3).fill().map(() => `
+                        <div style="height: 40px; background: rgba(128, 148, 182, 0.15); border-radius: 6px;"></div>
+                    `).join('')}
+                </div>
+            `;
+        }
+    },
+
+    updateLoadingProgress(message, percent) {
+        let progressBar = document.getElementById('replay-loading-progress');
+        if (!progressBar) {
+            const container = document.body;
+            progressBar = document.createElement('div');
+            progressBar.id = 'replay-loading-progress';
+            progressBar.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: rgba(0, 0, 0, 0.7);
+                padding: 16px;
+                text-align: center;
+                color: var(--text-1);
+                font-size: 12px;
+                z-index: 1000;
+                animation: slideDown 200ms ease-out;
+            `;
+            container.appendChild(progressBar);
+        }
+
+        progressBar.innerHTML = `
+            <div style="margin-bottom: 8px;">${this._escapeHtml(message)}</div>
+            <div style="
+                height: 3px;
+                background: rgba(128, 148, 182, 0.2);
+                border-radius: 2px;
+                overflow: hidden;
+            ">
+                <div style="
+                    height: 100%;
+                    width: ${percent}%;
+                    background: var(--accent);
+                    transition: width 200ms ease-out;
+                "></div>
+            </div>
+        `;
+    },
+
+    hideLoadingProgress() {
+        const progressBar = document.getElementById('replay-loading-progress');
+        if (progressBar) {
+            progressBar.style.animation = 'slideUp 200ms ease-in';
+            setTimeout(() => {
+                if (progressBar.parentNode) {
+                    progressBar.parentNode.removeChild(progressBar);
+                }
+            }, 200);
         }
     },
 
@@ -51,34 +186,30 @@ export const ReplayModule = {
             }
         }
 
-        // 1. Rebuild Graph
+        // 1. Rebuild Graph (with empty state handling)
         if (state.nodes || state.edges) {
             AppState.latestGraph = {
-                nodes: state.nodes,
-                edges: state.edges
+                nodes: state.nodes || [],
+                edges: state.edges || []
             };
             // Force graph render if renderGraph exists (usually in main.js)
             if (window.renderGraph) {
                 window.renderGraph(AppState.latestGraph);
             }
+        } else {
+            // Empty graph state
+            this.renderEmptyState('graph');
         }
 
-        // 2. Rebuild Transcript Timeline
-        if (state.transcripts && window.updateTimeline) {
-            // Convert replay transcripts to the format expected by UI
-            // Assuming window.updateTimeline handles adding items to the list
-            // We might need to clear it first or pass a full list
-            const formattedLogs = state.transcripts.map(t => {
-                const prefix = t.speaker === 'system' ? '[transcript]' : '[user]';
-                return `${prefix} ${t.text}`;
-            });
-            
-            // In live mode, main.js usually appends from STATE.logs.
-            // For replay, we might need a way to swap the log source.
-            AppState.legacyLogs = formattedLogs;
-            if (window.renderLogs) {
-                window.renderLogs(formattedLogs);
-            }
+        // 2. Rebuild Transcript Timeline (with clickable sync and empty state)
+        if (state.transcripts && state.transcripts.length > 0) {
+            this.currentTranscripts = state.transcripts;
+            this.renderReplayTranscripts(state.transcripts);
+            // Highlight the most recent transcript at current cursor position
+            const mostRecentIndex = state.transcripts.length - 1;
+            this.highlightCurrentTranscript(mostRecentIndex);
+        } else {
+            this.renderEmptyState('transcripts');
         }
 
         // 3. Rebuild Operational Metrics
@@ -100,8 +231,113 @@ export const ReplayModule = {
         }
     },
 
+    renderReplayTranscripts(transcripts) {
+        const container = document.getElementById('review-transcript-list');
+        if (!container) return;
+
+        // Clear existing content
+        container.innerHTML = '';
+
+        // Render each transcript item as clickable
+        transcripts.forEach((transcript, index) => {
+            const row = document.createElement('div');
+            row.className = 'transcript-replay-row';
+            row.dataset.transcriptIndex = index;
+            row.style.cursor = 'pointer';
+            row.style.padding = '8px 12px';
+            row.style.borderLeft = '3px solid transparent';
+            row.style.transition = 'all 100ms ease-in';
+            row.innerHTML = `
+                <div class="review-row-meta">
+                    <span class="review-speaker">${transcript.speaker === 'system' ? 'IVR' : 'User'}</span>
+                </div>
+                <div class="review-row-content">
+                    <div class="review-text">${this._escapeHtml(transcript.text)}</div>
+                </div>
+            `;
+
+            // Click to seek to a cursor position where this transcript exists
+            row.addEventListener('click', () => {
+                // Estimate cursor position: distribute transcript indices across timeline
+                const estimatedCursor = Math.floor((index / transcripts.length) * ReplayTimeline.totalEvents);
+                ReplayTimeline.seekDebounced(estimatedCursor, ReplayTimeline.cursor);
+            });
+
+            // Hover effect
+            row.addEventListener('mouseenter', () => {
+                row.style.backgroundColor = 'rgba(128, 148, 182, 0.1)';
+            });
+            row.addEventListener('mouseleave', () => {
+                row.style.backgroundColor = 'transparent';
+            });
+
+            container.appendChild(row);
+        });
+    },
+
+    highlightCurrentTranscript(cursorIndex) {
+        // Highlight the transcript item matching the current timeline cursor
+        const rows = document.querySelectorAll('.transcript-replay-row');
+        rows.forEach(row => {
+            const index = parseInt(row.dataset.transcriptIndex, 10);
+            if (index === cursorIndex) {
+                row.style.borderLeftColor = 'var(--accent)';
+                row.style.backgroundColor = 'rgba(128, 148, 182, 0.15)';
+                row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                row.style.borderLeftColor = 'transparent';
+                row.style.backgroundColor = 'transparent';
+            }
+        });
+    },
+
+    renderEmptyState(type) {
+        let container, title, description;
+
+        if (type === 'transcripts') {
+            container = document.getElementById('review-transcript-list');
+            title = 'No transcripts recorded';
+            description = 'This session has no transcript data available.';
+        } else if (type === 'graph') {
+            container = document.getElementById('graph-container') || document.querySelector('[data-graph-root]');
+            title = 'No IVR states discovered';
+            description = 'This session recorded no state transitions.';
+        } else if (type === 'events') {
+            container = document.querySelector('[data-timeline-root]');
+            title = 'No events recorded';
+            description = 'This session has no operational events.';
+        }
+
+        if (!container) return;
+
+        container.innerHTML = `
+            <div style="
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 120px;
+                padding: 32px;
+                background: rgba(128, 148, 182, 0.05);
+                border: 1px dashed rgba(128, 148, 182, 0.2);
+                border-radius: 10px;
+                color: var(--text-3);
+            ">
+                <div style="font-size: 32px; margin-bottom: 12px;">📭</div>
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">${this._escapeHtml(title)}</div>
+                <div style="font-size: 12px; text-align: center; max-width: 200px;">${this._escapeHtml(description)}</div>
+            </div>
+        `;
+    },
+
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
     exitReplay() {
-        AppState.mode = 'live';
+        this._restoreLiveState();
         AppState.replayState = null;
         console.log('[replay] Exited replay mode');
         // main.js will resume live polling updates naturally if it checks AppState.mode

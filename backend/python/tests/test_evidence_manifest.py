@@ -1,7 +1,6 @@
 import os
 import json
 import shutil
-from pathlib import Path
 from ivr_assessor.testing.evidence_manifest import EvidenceManifest, TEST_RUNS_DIR
 
 def test_evidence_manifest_generation():

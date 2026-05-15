@@ -1,4 +1,3 @@
-import pytest
 from ivr_assessor.events.replay_state import ReplayState
 from ivr_assessor.events.replay_reducer import apply_event
 from ivr_assessor.events.event_types import EventType

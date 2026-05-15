@@ -10,6 +10,7 @@ const AppState = {
   diagnose: null,
   mode: 'live', // 'live' or 'replay'
   replayState: null,
+  liveBackup: null, // Backup of live state before entering replay
   savedMaps: [],
   latestStatus: null,
   latestGraph: {},

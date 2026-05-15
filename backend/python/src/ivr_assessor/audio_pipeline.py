@@ -11,8 +11,6 @@ One Twilio packet = exactly one 20ms VAD frame. No partial-frame buffering neede
 from __future__ import annotations
 
 import logging
-import math
-import struct
 import time
 from typing import Callable
 

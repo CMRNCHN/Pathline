@@ -24,7 +24,7 @@ def test_cli_inspect_replay_outputs_summary():
         [
             "inspect-replay",
             "--trace-path",
-            "backend/python/tests/fixtures/sample_ivr_trace.json",
+            "tests/fixtures/sample_ivr_trace.json",
         ],
     )
     assert result.exit_code == 0

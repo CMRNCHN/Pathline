@@ -1,5 +1,4 @@
-import pytest
-from ivr_assessor.runtime.runtime_supervisor import RuntimeSupervisor, RuntimeState
+from ivr_assessor.runtime.runtime_supervisor import RuntimeSupervisor
 from ivr_assessor.runtime.session_cleanup import SessionCleanup
 
 def test_cleanup_idempotency():

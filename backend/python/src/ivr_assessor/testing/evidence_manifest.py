@@ -1,9 +1,8 @@
 import json
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, Any, List, Optional
-from ..backend.ui.ui_state import EVENTS_DIR, REPLAYS_DIR, SNAPSHOTS_DIR, RECORDINGS_DIR, TEST_RUNS_DIR
+from typing import Dict, Any, Optional
+from ..backend.ui.ui_state import EVENTS_DIR, SNAPSHOTS_DIR, RECORDINGS_DIR, TEST_RUNS_DIR
 
 class EvidenceManifest:
     def __init__(self, test_id: str, session_id: str):
@@ -21,8 +20,7 @@ class EvidenceManifest:
 
         # Reference existing artifact paths instead of duplicating
         event_log_path = EVENTS_DIR / self.date_str / f"session_{self.session_id}.jsonl"
-        snapshot_pattern = SNAPSHOTS_DIR / f"snapshot_{self.session_id}_*.json"
-        
+
         # We don't know the exact recording name format yet, but we'll reference the dir
         # or a specific file if we can determine it from session_id.
         recording_path = RECORDINGS_DIR / f"{self.session_id}.wav" # Assumption
