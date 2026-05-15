@@ -47,34 +47,14 @@ export const ReplayModule = {
         if (graphContainer) {
             graphContainer.innerHTML = `
                 <div style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 300px;
                     padding: 20px;
-                    background: rgba(128, 148, 182, 0.05);
-                    border-radius: 10px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
                 ">
-                    <div style="
-                        width: 100%;
-                        display: flex;
-                        flex-direction: column;
-                        gap: 12px;
-                    ">
-                        <div style="
-                            height: 20px;
-                            background: linear-gradient(90deg, rgba(128, 148, 182, 0.2), rgba(128, 148, 182, 0.05));
-                            border-radius: 4px;
-                            animation: pulse 1.5s ease-in-out infinite;
-                        "></div>
-                        <div style="
-                            height: 20px;
-                            width: 80%;
-                            background: linear-gradient(90deg, rgba(128, 148, 182, 0.2), rgba(128, 148, 182, 0.05));
-                            border-radius: 4px;
-                            animation: pulse 1.5s ease-in-out infinite 0.3s;
-                        "></div>
-                    </div>
+                    <div style="height: 20px; background: rgba(128, 148, 182, 0.15); border-radius: 4px;"></div>
+                    <div style="height: 20px; width: 80%; background: rgba(128, 148, 182, 0.15); border-radius: 4px;"></div>
+                    <div style="height: 20px; width: 60%; background: rgba(128, 148, 182, 0.15); border-radius: 4px;"></div>
                 </div>
             `;
         }
@@ -83,18 +63,9 @@ export const ReplayModule = {
         const transcriptContainer = document.getElementById('review-transcript-list');
         if (transcriptContainer) {
             transcriptContainer.innerHTML = `
-                <div style="
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                ">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
                     ${Array(3).fill().map(() => `
-                        <div style="
-                            height: 40px;
-                            background: linear-gradient(90deg, rgba(128, 148, 182, 0.2), rgba(128, 148, 182, 0.05));
-                            border-radius: 6px;
-                            animation: pulse 1.5s ease-in-out infinite;
-                        "></div>
+                        <div style="height: 40px; background: rgba(128, 148, 182, 0.15); border-radius: 6px;"></div>
                     `).join('')}
                 </div>
             `;
