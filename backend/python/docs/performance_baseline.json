@@ -1,0 +1,584 @@
+{
+  "meta": {
+    "captured_at": "2026-05-15T15:30:09.842038+00:00",
+    "python": "3.11.15",
+    "platform": "Linux-6.18.5-x86_64-with-glibc2.39"
+  },
+  "replay": {
+    "operation": "replay_seek",
+    "event_count": 100,
+    "offsets": [
+      99,
+      56,
+      14,
+      0,
+      11,
+      74,
+      4,
+      85,
+      88,
+      10
+    ],
+    "samples_ms": [
+      0.732,
+      0.535,
+      0.367,
+      0.353,
+      0.394,
+      0.539,
+      0.325,
+      0.658,
+      0.585,
+      0.371
+    ],
+    "summary": {
+      "count": 10,
+      "min_ms": 0.325,
+      "max_ms": 0.732,
+      "mean_ms": 0.486,
+      "p50_ms": 0.465,
+      "p95_ms": 0.699,
+      "p99_ms": 0.726
+    },
+    "threshold_ms": 200.0,
+    "exceeds_threshold": false,
+    "stream_load": {
+      "samples_ms": [
+        0.306,
+        0.286,
+        0.287,
+        0.313,
+        0.331
+      ],
+      "summary": {
+        "count": 5,
+        "min_ms": 0.286,
+        "max_ms": 0.331,
+        "mean_ms": 0.305,
+        "p50_ms": 0.306,
+        "p95_ms": 0.328,
+        "p99_ms": 0.331
+      },
+      "threshold_ms": 200.0,
+      "exceeds_threshold": false
+    },
+    "profile": {
+      "name": "replay_seek(offset=99)",
+      "duration_ms": 1.705,
+      "calls": 3183,
+      "top_functions": [
+        {
+          "function": "benchmarks/profile_replay.py:71:<lambda>",
+          "cumulative_ms": 1.677,
+          "total_ms": 0.011,
+          "ncalls": 1
+        },
+        {
+          "function": "ivr_assessor/events/replay_service.py:50:load_replay",
+          "cumulative_ms": 1.666,
+          "total_ms": 0.056,
+          "ncalls": 1
+        },
+        {
+          "function": "ivr_assessor/events/replay_reducer.py:27:apply_event",
+          "cumulative_ms": 0.771,
+          "total_ms": 0.391,
+          "ncalls": 99
+        },
+        {
+          "function": "ivr_assessor/events/replay_loader.py:43:get_timeline",
+          "cumulative_ms": 0.721,
+          "total_ms": 0.006,
+          "ncalls": 1
+        },
+        {
+          "function": "ivr_assessor/events/replay_loader.py:15:load_events",
+          "cumulative_ms": 0.632,
+          "total_ms": 0.1,
+          "ncalls": 1
+        },
+        {
+          "function": "json/__init__.py:299:loads",
+          "cumulative_ms": 0.489,
+          "total_ms": 0.075,
+          "ncalls": 100
+        },
+        {
+          "function": "json/decoder.py:332:decode",
+          "cumulative_ms": 0.39,
+          "total_ms": 0.127,
+          "ncalls": 100
+        },
+        {
+          "function": "ivr_assessor/events/replay_reducer.py:9:parse_timestamp",
+          "cumulative_ms": 0.311,
+          "total_ms": 0.231,
+          "ncalls": 198
+        },
+        {
+          "function": "json/decoder.py:343:raw_decode",
+          "cumulative_ms": 0.166,
+          "total_ms": 0.166,
+          "ncalls": 100
+        },
+        {
+          "function": "ivr_assessor/events/replay_service.py:161:_find_session_file",
+          "cumulative_ms": 0.096,
+          "total_ms": 0.009,
+          "ncalls": 1
+        }
+      ]
+    }
+  },
+  "snapshots": {
+    "operation": "snapshot_load",
+    "skipped": false,
+    "sessions": 5,
+    "create": {
+      "samples_ms": [
+        0.023,
+        0.027,
+        0.048,
+        0.026,
+        0.027
+      ],
+      "summary": {
+        "count": 5,
+        "min_ms": 0.023,
+        "max_ms": 0.048,
+        "mean_ms": 0.03,
+        "p50_ms": 0.027,
+        "p95_ms": 0.044,
+        "p99_ms": 0.048
+      }
+    },
+    "persist": {
+      "samples_ms": [
+        1.666,
+        1.338,
+        1.634,
+        1.331,
+        1.206
+      ],
+      "summary": {
+        "count": 5,
+        "min_ms": 1.206,
+        "max_ms": 1.666,
+        "mean_ms": 1.435,
+        "p50_ms": 1.338,
+        "p95_ms": 1.66,
+        "p99_ms": 1.665
+      }
+    },
+    "load": {
+      "samples_ms": [
+        0.778,
+        0.608,
+        0.535,
+        0.634,
+        0.502
+      ],
+      "summary": {
+        "count": 5,
+        "min_ms": 0.502,
+        "max_ms": 0.778,
+        "mean_ms": 0.611,
+        "p50_ms": 0.608,
+        "p95_ms": 0.749,
+        "p99_ms": 0.772
+      },
+      "threshold_ms": 100.0,
+      "exceeds_threshold": false
+    },
+    "threshold_ms": 100.0,
+    "exceeds_threshold": false,
+    "profile": {
+      "name": "snapshot_load(bench_snap_00)",
+      "duration_ms": 1.024,
+      "calls": 1408,
+      "top_functions": [
+        {
+          "function": "benchmarks/profile_snapshots.py:110:<lambda>",
+          "cumulative_ms": 1.006,
+          "total_ms": 0.014,
+          "ncalls": 1
+        },
+        {
+          "function": "ivr_assessor/events/replay_service.py:50:load_replay",
+          "cumulative_ms": 0.992,
+          "total_ms": 0.015,
+          "ncalls": 1
+        },
+        {
+          "function": "json/__init__.py:299:loads",
+          "cumulative_ms": 0.559,
+          "total_ms": 0.06,
+          "ncalls": 81
+        },
+        {
+          "function": "ivr_assessor/events/replay_loader.py:43:get_timeline",
+          "cumulative_ms": 0.54,
+          "total_ms": 0.003,
+          "ncalls": 1
+        },
+        {
+          "function": "ivr_assessor/events/replay_loader.py:15:load_events",
+          "cumulative_ms": 0.486,
+          "total_ms": 0.077,
+          "ncalls": 1
+        },
+        {
+          "function": "json/decoder.py:332:decode",
+          "cumulative_ms": 0.479,
+          "total_ms": 0.103,
+          "ncalls": 81
+        },
+        {
+          "function": "ivr_assessor/events/replay_service.py:117:_get_best_snapshot",
+          "cumulative_ms": 0.346,
+          "total_ms": 0.02,
+          "ncalls": 1
+        },
+        {
+          "function": "json/decoder.py:343:raw_decode",
+          "cumulative_ms": 0.316,
+          "total_ms": 0.316,
+          "ncalls": 81
+        },
+        {
+          "function": "json/__init__.py:274:load",
+          "cumulative_ms": 0.207,
+          "total_ms": 0.003,
+          "ncalls": 1
+        },
+        {
+          "function": "ivr_assessor/events/replay_service.py:161:_find_session_file",
+          "cumulative_ms": 0.08,
+          "total_ms": 0.029,
+          "ncalls": 1
+        }
+      ]
+    }
+  },
+  "exports": {
+    "operation": "export",
+    "node_count": 14,
+    "event_count_in_state": 120,
+    "json": {
+      "operation": "export_json",
+      "iterations": 25,
+      "samples_ms": [
+        0.346,
+        0.355,
+        0.361,
+        0.334,
+        0.352,
+        0.325,
+        0.409,
+        0.325,
+        0.343,
+        0.349,
+        0.319,
+        0.318,
+        0.321,
+        0.325,
+        0.34,
+        0.318,
+        0.353,
+        0.367,
+        0.337,
+        0.353,
+        0.319,
+        0.319,
+        0.342,
+        0.337,
+        0.336
+      ],
+      "summary": {
+        "count": 25,
+        "min_ms": 0.318,
+        "max_ms": 0.409,
+        "mean_ms": 0.34,
+        "p50_ms": 0.337,
+        "p95_ms": 0.366,
+        "p99_ms": 0.399
+      },
+      "threshold_ms": 500.0,
+      "exceeds_threshold": false,
+      "profile": {
+        "name": "export_json",
+        "duration_ms": 0.36,
+        "calls": 9,
+        "top_functions": [
+          {
+            "function": "benchmarks/profile_exports.py:125:<lambda>",
+            "cumulative_ms": 0.355,
+            "total_ms": 0.006,
+            "ncalls": 1
+          },
+          {
+            "function": "json/__init__.py:183:dumps",
+            "cumulative_ms": 0.347,
+            "total_ms": 0.002,
+            "ncalls": 1
+          },
+          {
+            "function": "json/encoder.py:183:encode",
+            "cumulative_ms": 0.345,
+            "total_ms": 0.008,
+            "ncalls": 1
+          },
+          {
+            "function": "json/encoder.py:205:iterencode",
+            "cumulative_ms": 0.336,
+            "total_ms": 0.336,
+            "ncalls": 1
+          },
+          {
+            "function": "ivr_assessor/events/replay_state.py:27:as_dict",
+            "cumulative_ms": 0.002,
+            "total_ms": 0.002,
+            "ncalls": 1
+          },
+          {
+            "function": "~:0:<built-in method builtins.isinstance>",
+            "cumulative_ms": 0.001,
+            "total_ms": 0.001,
+            "ncalls": 2
+          },
+          {
+            "function": "~:0:<method 'disable' of '_lsprof.Profiler' objects>",
+            "cumulative_ms": 0.0,
+            "total_ms": 0.0,
+            "ncalls": 1
+          },
+          {
+            "function": "~:0:<method 'join' of 'str' objects>",
+            "cumulative_ms": 0.0,
+            "total_ms": 0.0,
+            "ncalls": 1
+          }
+        ]
+      }
+    },
+    "mermaid": {
+      "operation": "export_mermaid",
+      "iterations": 25,
+      "samples_ms": [
+        0.021,
+        0.016,
+        0.015,
+        0.012,
+        0.016,
+        0.012,
+        0.017,
+        0.013,
+        0.014,
+        0.015,
+        0.012,
+        0.037,
+        0.012,
+        0.012,
+        0.015,
+        0.012,
+        0.016,
+        0.015,
+        0.021,
+        0.015,
+        0.012,
+        0.012,
+        0.015,
+        0.015,
+        0.016
+      ],
+      "summary": {
+        "count": 25,
+        "min_ms": 0.012,
+        "max_ms": 0.037,
+        "mean_ms": 0.016,
+        "p50_ms": 0.015,
+        "p95_ms": 0.021,
+        "p99_ms": 0.033
+      },
+      "threshold_ms": 500.0,
+      "exceeds_threshold": false,
+      "profile": {
+        "name": "export_mermaid",
+        "duration_ms": 0.062,
+        "calls": 120,
+        "top_functions": [
+          {
+            "function": "benchmarks/profile_exports.py:129:<lambda>",
+            "cumulative_ms": 0.06,
+            "total_ms": 0.006,
+            "ncalls": 1
+          },
+          {
+            "function": "ivr_assessor/map_store.py:134:export_mermaid",
+            "cumulative_ms": 0.054,
+            "total_ms": 0.041,
+            "ncalls": 1
+          },
+          {
+            "function": "~:0:<method 'get' of 'dict' objects>",
+            "cumulative_ms": 0.003,
+            "total_ms": 0.003,
+            "ncalls": 27
+          },
+          {
+            "function": "~:0:<method 'append' of 'list' objects>",
+            "cumulative_ms": 0.002,
+            "total_ms": 0.002,
+            "ncalls": 27
+          },
+          {
+            "function": "~:0:<built-in method builtins.sorted>",
+            "cumulative_ms": 0.002,
+            "total_ms": 0.002,
+            "ncalls": 3
+          },
+          {
+            "function": "~:0:<method 'replace' of 'str' objects>",
+            "cumulative_ms": 0.002,
+            "total_ms": 0.002,
+            "ncalls": 28
+          },
+          {
+            "function": "~:0:<method 'items' of 'dict' objects>",
+            "cumulative_ms": 0.001,
+            "total_ms": 0.001,
+            "ncalls": 16
+          },
+          {
+            "function": "~:0:<built-in method builtins.len>",
+            "cumulative_ms": 0.001,
+            "total_ms": 0.001,
+            "ncalls": 14
+          },
+          {
+            "function": "~:0:<method 'join' of 'str' objects>",
+            "cumulative_ms": 0.0,
+            "total_ms": 0.0,
+            "ncalls": 1
+          },
+          {
+            "function": "~:0:<method 'keys' of 'dict' objects>",
+            "cumulative_ms": 0.0,
+            "total_ms": 0.0,
+            "ncalls": 1
+          }
+        ]
+      }
+    },
+    "markdown": {
+      "operation": "export_markdown",
+      "iterations": 25,
+      "samples_ms": [
+        0.037,
+        0.034,
+        0.034,
+        0.031,
+        0.034,
+        0.036,
+        0.034,
+        0.032,
+        0.033,
+        0.033,
+        0.036,
+        0.035,
+        0.031,
+        0.03,
+        0.033,
+        0.031,
+        0.034,
+        0.033,
+        0.053,
+        0.033,
+        0.031,
+        0.03,
+        0.033,
+        0.037,
+        0.033
+      ],
+      "summary": {
+        "count": 25,
+        "min_ms": 0.03,
+        "max_ms": 0.053,
+        "mean_ms": 0.034,
+        "p50_ms": 0.033,
+        "p95_ms": 0.037,
+        "p99_ms": 0.049
+      },
+      "threshold_ms": 500.0,
+      "exceeds_threshold": false,
+      "profile": {
+        "name": "export_markdown",
+        "duration_ms": 0.161,
+        "calls": 438,
+        "top_functions": [
+          {
+            "function": "benchmarks/profile_exports.py:133:<lambda>",
+            "cumulative_ms": 0.159,
+            "total_ms": 0.008,
+            "ncalls": 1
+          },
+          {
+            "function": "ivr_assessor/map_store.py:157:export_markdown",
+            "cumulative_ms": 0.151,
+            "total_ms": 0.064,
+            "ncalls": 1
+          },
+          {
+            "function": "ivr_assessor/map_store.py:134:export_mermaid",
+            "cumulative_ms": 0.049,
+            "total_ms": 0.037,
+            "ncalls": 1
+          },
+          {
+            "function": "~:0:<built-in method builtins.sum>",
+            "cumulative_ms": 0.011,
+            "total_ms": 0.003,
+            "ncalls": 1
+          },
+          {
+            "function": "~:0:<method 'append' of 'list' objects>",
+            "cumulative_ms": 0.011,
+            "total_ms": 0.011,
+            "ncalls": 160
+          },
+          {
+            "function": "~:0:<method 'get' of 'dict' objects>",
+            "cumulative_ms": 0.011,
+            "total_ms": 0.011,
+            "ncalls": 123
+          },
+          {
+            "function": "ivr_assessor/map_store.py:161:<genexpr>",
+            "cumulative_ms": 0.008,
+            "total_ms": 0.006,
+            "ncalls": 15
+          },
+          {
+            "function": "~:0:<built-in method builtins.sorted>",
+            "cumulative_ms": 0.006,
+            "total_ms": 0.006,
+            "ncalls": 17
+          },
+          {
+            "function": "~:0:<method 'join' of 'str' objects>",
+            "cumulative_ms": 0.005,
+            "total_ms": 0.005,
+            "ncalls": 15
+          },
+          {
+            "function": "~:0:<method 'items' of 'dict' objects>",
+            "cumulative_ms": 0.003,
+            "total_ms": 0.003,
+            "ncalls": 30
+          }
+        ]
+      }
+    },
+    "threshold_ms": 500.0
+  }
+}
