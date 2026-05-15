@@ -57,7 +57,15 @@ export const ReplayTimeline = {
     async seek(position, oldPosition = null) {
         this.cursor = Math.max(0, Math.min(this.totalEvents, position));
         this.updateDisplay();
-        
+
+        if (window.Telemetry && oldPosition !== null && oldPosition !== this.cursor) {
+            window.Telemetry.track(
+                'replay_scrubbed',
+                { from: oldPosition, to: this.cursor, total: this.totalEvents },
+                this.sessionId,
+            );
+        }
+
         try {
             // Fetch cursor metadata (includes media_time_ms)
             const cursorData = await API.get(`/replays/${this.sessionId}/cursor/${this.cursor}`);

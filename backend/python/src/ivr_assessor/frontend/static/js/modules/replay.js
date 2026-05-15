@@ -12,7 +12,10 @@ export const ReplayModule = {
     async loadReplay(sessionId) {
         console.log(`[replay] Loading session ${sessionId}`);
         EventBus.emit(REPLAY_EVENTS.REPLAY_LOADING, { sessionId });
-        
+        if (window.Telemetry) {
+            window.Telemetry.track('replay_loaded', { sessionId }, sessionId);
+        }
+
         try {
             // Initialize timeline first, it will handle default end-of-run state
             await ReplayTimeline.init(sessionId);
