@@ -13,20 +13,143 @@ export const ReplayModule = {
 
     async loadReplay(sessionId) {
         console.log(`[replay] Loading session ${sessionId}`);
+
+        // Show loading skeletons
+        this.showLoadingSkeletons();
+        this.updateLoadingProgress('Loading session...', 0);
+
         EventBus.emit(REPLAY_EVENTS.REPLAY_LOADING, { sessionId });
-        
+
         try {
+            this.updateLoadingProgress('Initializing timeline...', 25);
             // Initialize timeline first, it will handle default end-of-run state
             await ReplayTimeline.init(sessionId);
-            
+
+            this.updateLoadingProgress('Hydrating state...', 50);
             // ReplayTimeline.init calls ReplayTimeline.seek which emits 'replay:state_loaded'
             // We listen for that to hydrate
-            
+
+            this.updateLoadingProgress('Rendering interface...', 75);
             AppState.mode = 'replay';
+
+            this.hideLoadingProgress();
             EventBus.emit(REPLAY_EVENTS.REPLAY_LOADED, { sessionId });
         } catch (error) {
             console.error(`[replay] Failed to load replay:`, error);
+            this.hideLoadingProgress();
             EventBus.emit(REPLAY_EVENTS.REPLAY_FAILED, { sessionId, error });
+        }
+    },
+
+    showLoadingSkeletons() {
+        // Show skeleton for graph
+        const graphContainer = document.getElementById('graph-container') || document.querySelector('[data-graph-root]');
+        if (graphContainer) {
+            graphContainer.innerHTML = `
+                <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 300px;
+                    padding: 20px;
+                    background: rgba(128, 148, 182, 0.05);
+                    border-radius: 10px;
+                ">
+                    <div style="
+                        width: 100%;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    ">
+                        <div style="
+                            height: 20px;
+                            background: linear-gradient(90deg, rgba(128, 148, 182, 0.2), rgba(128, 148, 182, 0.05));
+                            border-radius: 4px;
+                            animation: pulse 1.5s ease-in-out infinite;
+                        "></div>
+                        <div style="
+                            height: 20px;
+                            width: 80%;
+                            background: linear-gradient(90deg, rgba(128, 148, 182, 0.2), rgba(128, 148, 182, 0.05));
+                            border-radius: 4px;
+                            animation: pulse 1.5s ease-in-out infinite 0.3s;
+                        "></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Show skeleton for transcripts
+        const transcriptContainer = document.getElementById('review-transcript-list');
+        if (transcriptContainer) {
+            transcriptContainer.innerHTML = `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                ">
+                    ${Array(3).fill().map(() => `
+                        <div style="
+                            height: 40px;
+                            background: linear-gradient(90deg, rgba(128, 148, 182, 0.2), rgba(128, 148, 182, 0.05));
+                            border-radius: 6px;
+                            animation: pulse 1.5s ease-in-out infinite;
+                        "></div>
+                    `).join('')}
+                </div>
+            `;
+        }
+    },
+
+    updateLoadingProgress(message, percent) {
+        let progressBar = document.getElementById('replay-loading-progress');
+        if (!progressBar) {
+            const container = document.body;
+            progressBar = document.createElement('div');
+            progressBar.id = 'replay-loading-progress';
+            progressBar.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: rgba(0, 0, 0, 0.7);
+                padding: 16px;
+                text-align: center;
+                color: var(--text-1);
+                font-size: 12px;
+                z-index: 1000;
+                animation: slideDown 200ms ease-out;
+            `;
+            container.appendChild(progressBar);
+        }
+
+        progressBar.innerHTML = `
+            <div style="margin-bottom: 8px;">${this._escapeHtml(message)}</div>
+            <div style="
+                height: 3px;
+                background: rgba(128, 148, 182, 0.2);
+                border-radius: 2px;
+                overflow: hidden;
+            ">
+                <div style="
+                    height: 100%;
+                    width: ${percent}%;
+                    background: var(--accent);
+                    transition: width 200ms ease-out;
+                "></div>
+            </div>
+        `;
+    },
+
+    hideLoadingProgress() {
+        const progressBar = document.getElementById('replay-loading-progress');
+        if (progressBar) {
+            progressBar.style.animation = 'slideUp 200ms ease-in';
+            setTimeout(() => {
+                if (progressBar.parentNode) {
+                    progressBar.parentNode.removeChild(progressBar);
+                }
+            }, 200);
         }
     },
 
