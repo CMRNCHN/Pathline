@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 
-from .runtime_supervisor import supervisor, RuntimeState
+from . import runtime_supervisor
+from .runtime_supervisor import RuntimeState
 from ..events.event_types import EventType
 from ..events.event_bus import bus
 from ..events.event_models import OperationalEvent, EventMetadata
@@ -19,14 +20,14 @@ class SessionCleanup:
         """
         Cleans up a session. Returns True if cleanup was performed or already done.
         """
+        supervisor = runtime_supervisor.supervisor
         info = supervisor.get_session_info(session_id)
         if not info:
             return False
 
         if info.cleanup_state:
-            # Even if marked cleaned, ensure it's removed from registry if reason is final
-            if reason != "stale_cleanup":
-                 supervisor.registry.remove(session_id)
+            # Already cleaned; ensure removed from registry
+            supervisor.registry.remove(session_id)
             return True
 
         # 1. Record cleanup start
