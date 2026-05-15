@@ -642,31 +642,42 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             if status == 200:
                 self._raw(200, ctype, body)
             else:
-                self.send_response(status); self.end_headers()
+                self.send_response(status)
+                self.end_headers()
             return
         if self.path == "/api/status":
-            self._json(mapper_routes.build_status_payload()); return
+            self._json(mapper_routes.build_status_payload())
+            return
         if self.path == "/api/config":
             self._json(mapper_routes.get_config(
                 _default_stream_url, _persistent_stream, _to_wss, default_stream_auth_token
-            )); return
+            ))
+            return
         if self.path == "/api/maps":
-            self._json(mapper_routes.get_maps()); return
+            self._json(mapper_routes.get_maps())
+            return
         if self.path == "/api/diagnose":
-            self._json(_diagnose()); return
+            self._json(_diagnose())
+            return
         if self.path == "/api/runtime-metrics":
-            self._json(_runtime_metrics_payload()); return
+            self._json(_runtime_metrics_payload())
+            return
         if self.path == "/api/runtime-diagnostics":
-            self._json(_runtime_diagnostics_payload()); return
+            self._json(_runtime_diagnostics_payload())
+            return
         if self.path == "/api/suites":
-            self._json(run_suite_routes.list_suites()); return
+            self._json(run_suite_routes.list_suites())
+            return
         if self.path.startswith("/api/maps/"):
             from urllib.parse import unquote
-            self._json(mapper_routes.get_map(unquote(self.path[len("/api/maps/"):]))); return
+            self._json(mapper_routes.get_map(unquote(self.path[len("/api/maps/"):])))
+            return
         if self.path == "/api/run-suites":
-            self._json(run_suite_routes.list_run_suites()); return
+            self._json(run_suite_routes.list_run_suites())
+            return
         if self.path == "/api/replays":
-            self._json(replay_routes.get_replays()); return
+            self._json(replay_routes.get_replays())
+            return
         if self.path.startswith("/api/replays/"):
             from urllib.parse import unquote, urlparse, parse_qs
             parsed = urlparse(self.path)
@@ -676,25 +687,31 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             if len(parts) > 1:
                 sub_route = parts[1]
                 if sub_route == "events":
-                    self._json(replay_routes.get_replay_events(session_id)); return
+                    self._json(replay_routes.get_replay_events(session_id))
+                    return
                 if sub_route == "timeline":
-                    self._json(replay_routes.get_replay_timeline(session_id)); return
+                    self._json(replay_routes.get_replay_timeline(session_id))
+                    return
                 if sub_route == "state":
                     offset = int(parts[2]) if len(parts) > 2 else None
-                    self._json(replay_routes.get_replay(session_id, offset=offset)); return
+                    self._json(replay_routes.get_replay(session_id, offset=offset))
+                    return
                 if sub_route == "diff":
                     from_off = int(parts[2]) if len(parts) > 2 else 0
                     to_off = int(parts[3]) if len(parts) > 3 else 0
-                    self._json(replay_routes.get_replay_diff(session_id, from_off, to_off)); return
+                    self._json(replay_routes.get_replay_diff(session_id, from_off, to_off))
+                    return
             
             # Default: full reconstruction
             params = parse_qs(parsed.query)
             offset = int(params.get("offset", [0])[0]) if "offset" in params else None
-            self._json(replay_routes.get_replay(session_id, offset=offset)); return
+            self._json(replay_routes.get_replay(session_id, offset=offset))
+            return
         if self.path.startswith("/api/run-suites/") and self.path.endswith("/poll"):
             from urllib.parse import unquote
             suite_id = unquote(self.path[len("/api/run-suites/"):-len("/poll")])
-            self._json(run_suite_routes.poll_run_suite(suite_id)); return
+            self._json(run_suite_routes.poll_run_suite(suite_id))
+            return
         if self.path.startswith("/api/run-suites/") and "/export" in self.path:
             from urllib.parse import unquote
             from .run_suites.loader import load_suite, export_suite_json
@@ -709,20 +726,26 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
             except FileNotFoundError:
-                self.send_response(404); self.end_headers()
+                self.send_response(404)
+                self.end_headers()
             return
         if self.path == "/api/telecom-tests":
-            self._json(telecom_test_routes.get_telecom_tests()); return
+            self._json(telecom_test_routes.get_telecom_tests())
+            return
         if self.path.startswith("/api/telecom-tests/"):
             from urllib.parse import unquote
             parts = self.path[len("/api/telecom-tests/"):].split("/")
             test_id = unquote(parts[0])
             if len(parts) > 1 and parts[1] == "evidence":
-                 self._json(telecom_test_routes.get_telecom_test_evidence(test_id)); return
-            self._json(telecom_test_routes.get_telecom_test_status(test_id)); return
+                 self._json(telecom_test_routes.get_telecom_test_evidence(test_id))
+                 return
+            self._json(telecom_test_routes.get_telecom_test_status(test_id))
+            return
         if self.path.startswith("/api/export/"):
-            self._handle_export(); return
-        self.send_response(404); self.end_headers()
+            self._handle_export()
+            return
+        self.send_response(404)
+        self.end_headers()
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", 0))
@@ -734,62 +757,85 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if self.path == "/api/telecom-tests/run":
-                self._json(telecom_test_routes.handle_run_telecom_test(data, _run_session_thread)); return
+                self._json(telecom_test_routes.handle_run_telecom_test(data, _run_session_thread))
+                return
             if self.path.startswith("/api/telecom-tests/") and self.path.endswith("/abort"):
                 from urllib.parse import unquote
                 test_id = unquote(self.path.split("/")[3])
-                self._json(telecom_test_routes.handle_abort_telecom_test(test_id)); return
+                self._json(telecom_test_routes.handle_abort_telecom_test(test_id))
+                return
             if self.path == "/api/start":
-                self._json(mapper_routes.handle_start(data, _run_session_thread)); return
+                self._json(mapper_routes.handle_start(data, _run_session_thread))
+                return
             if self.path == "/api/prompt":
-                self._json(mapper_routes.handle_prompt(data)); return
+                self._json(mapper_routes.handle_prompt(data))
+                return
             if self.path == "/api/inject-dtmf":
-                self._json(mapper_routes.handle_inject_dtmf(data)); return
+                self._json(mapper_routes.handle_inject_dtmf(data))
+                return
             if self.path == "/api/inject-voice":
-                self._json(mapper_routes.handle_inject_voice(data)); return
+                self._json(mapper_routes.handle_inject_voice(data))
+                return
             if self.path == "/api/end":
-                self._json(mapper_routes.handle_end()); return
+                self._json(mapper_routes.handle_end())
+                return
             if self.path == "/api/set-mode":
-                self._json(mapper_routes.handle_set_mode(data)); return
+                self._json(mapper_routes.handle_set_mode(data))
+                return
             if self.path == "/api/edit-node":
-                self._json(mapper_routes.handle_edit_node(data)); return
+                self._json(mapper_routes.handle_edit_node(data))
+                return
             if self.path == "/api/node-notes":
-                self._json(mapper_routes.handle_node_notes(data)); return
+                self._json(mapper_routes.handle_node_notes(data))
+                return
             if self.path.startswith("/api/maps/"):
                 from urllib.parse import unquote
                 target = unquote(self.path[len("/api/maps/"):])
-                self._json(mapper_routes.handle_maps_save(target, data)); return
+                self._json(mapper_routes.handle_maps_save(target, data))
+                return
             if self.path == "/api/auto-fix":
-                self._handle_auto_fix(); return
+                self._handle_auto_fix()
+                return
             if self.path == "/api/test-twilio":
-                self._handle_test_twilio(data); return
+                self._handle_test_twilio(data)
+                return
             if self.path == "/api/suites":
-                self._json(run_suite_routes.save_suite(data)); return
+                self._json(run_suite_routes.save_suite(data))
+                return
             if self.path == "/api/suites/run":
                 stream_url_fn = lambda: _to_wss(_detect_ngrok_url() or _default_stream_url)
-                self._json(run_suite_routes.run_test_suite(data, stream_url_fn)); return
+                self._json(run_suite_routes.run_test_suite(data, stream_url_fn))
+                return
             if self.path == "/api/run-suites/import":
-                self._json(run_suite_routes.import_run_suite(data)); return
+                self._json(run_suite_routes.import_run_suite(data))
+                return
             if self.path == "/api/run-suites/save":
-                self._json(run_suite_routes.save_run_suite_json(data)); return
+                self._json(run_suite_routes.save_run_suite_json(data))
+                return
             if self.path == "/api/run-suites/abort":
-                self._json(run_suite_routes.abort_run_suite()); return
+                self._json(run_suite_routes.abort_run_suite())
+                return
             if self.path.startswith("/api/run-suites/") and self.path.endswith("/run"):
                 from urllib.parse import unquote
                 suite_id = unquote(self.path[len("/api/run-suites/"):-len("/run")])
-                self._json(run_suite_routes.start_run_suite(suite_id, _persistent_stream)); return
+                self._json(run_suite_routes.start_run_suite(suite_id, _persistent_stream))
+                return
         except ValueError as exc:
-            self._json_error(400, str(exc)); return
+            self._json_error(400, str(exc))
+            return
         except FileNotFoundError as exc:
-            self._json_error(404, str(exc)); return
+            self._json_error(404, str(exc))
+            return
 
-        self.send_response(404); self.end_headers()
+        self.send_response(404)
+        self.end_headers()
 
     def do_DELETE(self) -> None:
         if self.path.startswith("/api/maps/"):
             from urllib.parse import unquote
             target = unquote(self.path[len("/api/maps/"):])
-            self._json(mapper_routes.handle_maps_delete(target)); return
+            self._json(mapper_routes.handle_maps_delete(target))
+            return
         if self.path.startswith("/api/run-suites/"):
             from urllib.parse import unquote
             suite_id = unquote(self.path[len("/api/run-suites/"):])
@@ -798,7 +844,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._json_error(500, str(exc))
             return
-        self.send_response(404); self.end_headers()
+        self.send_response(404)
+        self.end_headers()
 
     # ── Inline handlers for routes with custom response shapes ────────────────
 
@@ -823,7 +870,9 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             body = map_store.export_markdown(graph, target).encode("utf-8")
             ctype, fname = "text/markdown; charset=utf-8", f"ivr_{target or 'map'}.md"
         else:
-            self.send_response(400); self.end_headers(); return
+            self.send_response(400)
+            self.end_headers()
+            return
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
