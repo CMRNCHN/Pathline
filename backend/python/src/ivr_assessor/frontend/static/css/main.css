@@ -2411,6 +2411,26 @@ button:disabled{
   word-spacing:0;
 }
 
+/* Generic loading spinner */
+.loader-spinner{
+  display:inline-block;
+  width:12px;
+  height:12px;
+  border:2px solid rgba(128,148,182,.3);
+  border-top:2px solid var(--accent);
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+  vertical-align:middle;
+}
+
+.loader-inline{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:var(--text-2);
+  font-size:12px;
+}
+
 /* Replay seek loading spinner */
 .replay-seek-spinner{
   display:inline-block;
