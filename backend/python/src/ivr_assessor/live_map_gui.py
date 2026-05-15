@@ -60,7 +60,9 @@ def _wait_for_port(host: str, port: int, timeout: float = 8.0) -> bool:
 
 
 def _free_port(port: int) -> None:
-    import subprocess, os as _os, signal
+    import subprocess
+    import os as _os
+    import signal
     try:
         out = subprocess.check_output(["lsof", "-t", f"-i:{port}"], stderr=subprocess.DEVNULL)
         for pid in out.decode().splitlines():
@@ -365,7 +367,8 @@ def _runtime_diagnostics_payload() -> dict[str, Any]:
 
 
 def _start_ngrok_subprocess() -> dict:
-    import shutil, subprocess
+    import shutil
+    import subprocess
     binary = shutil.which("ngrok") or "/opt/homebrew/bin/ngrok"
     if not binary or not os.path.exists(binary):
         return {"ok": False, "error": "ngrok binary not found in PATH"}
@@ -417,7 +420,6 @@ def _run_session_thread(
     stream_url: str | None,
     manual_mode: bool = False,
 ) -> None:
-    import threading
     STATE.logs.append(f"[debug] Starting session thread for target: {target}")
     STATE.record_runtime_checkpoint(
         "session.thread_start",
