@@ -1297,6 +1297,45 @@ button{cursor:pointer}
   outline:none;
   box-shadow:var(--focus-ring);
 }
+
+/* Button disabled states */
+.btn-primary:disabled,.btn-secondary:disabled,.btn-tertiary:disabled,.btn-ghost-xs:disabled,
+button:disabled{
+  cursor:not-allowed;
+  opacity:.5;
+  pointer-events:none;
+}
+
+.btn-primary:disabled{
+  background:var(--text-4);
+  border-color:transparent;
+}
+
+.btn-secondary:disabled,.btn-tertiary:disabled,.btn-ghost-xs:disabled{
+  background:transparent;
+  border-color:var(--border);
+  color:var(--text-4);
+}
+
+/* Button loading state */
+.btn-primary.is-loading,.btn-secondary.is-loading,.btn-tertiary.is-loading,.btn-ghost-xs.is-loading{
+  pointer-events:none;
+  opacity:.7;
+}
+
+.btn-primary.is-loading::after,.btn-secondary.is-loading::after,.btn-tertiary.is-loading::after,.btn-ghost-xs.is-loading::after{
+  content:'';
+  display:inline-block;
+  width:12px;
+  height:12px;
+  margin-left:6px;
+  border:2px solid rgba(255,255,255,.3);
+  border-top-color:currentColor;
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+  vertical-align:middle;
+}
+
 .btn-compact{min-height:32px;padding:0 12px;font-size:12px}
 
 .status-pill{
