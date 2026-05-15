@@ -53,27 +53,30 @@ export const ReplayModule = {
             }
         }
 
-        // 1. Rebuild Graph
+        // 1. Rebuild Graph (with empty state handling)
         if (state.nodes || state.edges) {
             AppState.latestGraph = {
-                nodes: state.nodes,
-                edges: state.edges
+                nodes: state.nodes || [],
+                edges: state.edges || []
             };
             // Force graph render if renderGraph exists (usually in main.js)
             if (window.renderGraph) {
                 window.renderGraph(AppState.latestGraph);
             }
+        } else {
+            // Empty graph state
+            this.renderEmptyState('graph');
         }
 
-        // 2. Rebuild Transcript Timeline (with clickable sync)
-        if (state.transcripts) {
+        // 2. Rebuild Transcript Timeline (with clickable sync and empty state)
+        if (state.transcripts && state.transcripts.length > 0) {
             this.currentTranscripts = state.transcripts;
             this.renderReplayTranscripts(state.transcripts);
             // Highlight the most recent transcript at current cursor position
-            const mostRecentIndex = state.transcripts.length > 0 ? state.transcripts.length - 1 : -1;
-            if (mostRecentIndex >= 0) {
-                this.highlightCurrentTranscript(mostRecentIndex);
-            }
+            const mostRecentIndex = state.transcripts.length - 1;
+            this.highlightCurrentTranscript(mostRecentIndex);
+        } else {
+            this.renderEmptyState('transcripts');
         }
 
         // 3. Rebuild Operational Metrics
@@ -153,6 +156,45 @@ export const ReplayModule = {
                 row.style.backgroundColor = 'transparent';
             }
         });
+    },
+
+    renderEmptyState(type) {
+        let container, title, description;
+
+        if (type === 'transcripts') {
+            container = document.getElementById('review-transcript-list');
+            title = 'No transcripts recorded';
+            description = 'This session has no transcript data available.';
+        } else if (type === 'graph') {
+            container = document.getElementById('graph-container') || document.querySelector('[data-graph-root]');
+            title = 'No IVR states discovered';
+            description = 'This session recorded no state transitions.';
+        } else if (type === 'events') {
+            container = document.querySelector('[data-timeline-root]');
+            title = 'No events recorded';
+            description = 'This session has no operational events.';
+        }
+
+        if (!container) return;
+
+        container.innerHTML = `
+            <div style="
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 120px;
+                padding: 32px;
+                background: rgba(128, 148, 182, 0.05);
+                border: 1px dashed rgba(128, 148, 182, 0.2);
+                border-radius: 10px;
+                color: var(--text-3);
+            ">
+                <div style="font-size: 32px; margin-bottom: 12px;">📭</div>
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">${this._escapeHtml(title)}</div>
+                <div style="font-size: 12px; text-align: center; max-width: 200px;">${this._escapeHtml(description)}</div>
+            </div>
+        `;
     },
 
     _escapeHtml(text) {
