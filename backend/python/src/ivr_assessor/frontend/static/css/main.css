@@ -1378,6 +1378,72 @@ button:disabled{
 .tone-neutral{color:var(--text-2)}
 .state-pill.tone-neutral,.status-pill.tone-neutral{background:rgba(255,255,255,.03);border-color:var(--border)}
 
+/* Badge system - unified status indicators */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:4px 8px;
+  border-radius:6px;
+  font-size:13px;
+  font-weight:600;
+  border:none;
+  white-space:nowrap;
+}
+
+.badge.sm{font-size:11px;padding:3px 6px}
+.badge.md{font-size:13px;padding:4px 8px}
+.badge.lg{font-size:14px;padding:5px 10px}
+
+.badge.tone-ok{
+  color:#fff;
+  background:var(--success);
+}
+
+.badge.tone-ok::before{
+  content:'✓';
+  font-weight:700;
+}
+
+.badge.tone-error{
+  color:#fff;
+  background:var(--danger);
+}
+
+.badge.tone-error::before{
+  content:'✕';
+  font-weight:700;
+}
+
+.badge.tone-warn{
+  color:#000;
+  background:var(--warn);
+}
+
+.badge.tone-warn::before{
+  content:'⚠';
+}
+
+.badge.tone-info{
+  color:#fff;
+  background:#4a90a4;
+}
+
+.badge.tone-info::before{
+  content:'ℹ';
+  font-style:italic;
+}
+
+.badge.tone-accent{
+  color:#fff;
+  background:var(--accent);
+}
+
+.badge.tone-accent::before{
+  content:'★';
+  font-weight:700;
+}
+
 .console-root{
   height:calc(100vh - 72px);
   display:flex;
