@@ -17,6 +17,10 @@ export const ReplayTimeline = {
     pendingSeekPosition: null,
     loadingSpinner: null,
     loadingTimeout: null,
+
+    // Display throttling for 60fps (16ms)
+    lastDisplayUpdateTime: 0,
+    displayUpdateScheduled: false,
     
     async init(sessionId) {
         this.sessionId = sessionId;
@@ -153,11 +157,32 @@ export const ReplayTimeline = {
     },
 
     updateDisplay() {
+        // Throttle display updates to 60fps (16ms) to prevent jitter
+        const now = performance.now();
+        const timeSinceLastUpdate = now - this.lastDisplayUpdateTime;
+
+        if (timeSinceLastUpdate < 16) {
+            // Defer update if less than 16ms since last update
+            if (!this.displayUpdateScheduled) {
+                this.displayUpdateScheduled = true;
+                requestAnimationFrame(() => {
+                    this._performDisplayUpdate();
+                });
+            }
+        } else {
+            this._performDisplayUpdate();
+        }
+    },
+
+    _performDisplayUpdate() {
+        this.lastDisplayUpdateTime = performance.now();
+        this.displayUpdateScheduled = false;
+
         const display = document.getElementById('replay-cursor-display');
         if (display) {
             display.textContent = `${this.cursor} / ${this.totalEvents}`;
         }
-        
+
         // Update button states
         const btnPrev = document.getElementById('btn-replay-prev');
         const btnNext = document.getElementById('btn-replay-next');
