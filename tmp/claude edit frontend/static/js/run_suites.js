@@ -157,6 +157,9 @@
 
   async function runSuite() {
     if (!_activeSuiteId || AppState.suiteRunning) return;
+    if (window.Telemetry) {
+      window.Telemetry.track('suite_started', { suiteId: _activeSuiteId });
+    }
     _stepStatuses = {};
     AppState.suiteRunning = true;
     $('rs-run-btn').style.display = 'none';
@@ -281,6 +284,9 @@
 
   $('rs-export-btn').onclick = () => {
     if (!_activeSuiteId) return;
+    if (window.Telemetry) {
+      window.Telemetry.track('export_clicked', { suiteId: _activeSuiteId, kind: 'run_suite' });
+    }
     window.open(api.exportRunSuiteUrl(_activeSuiteId), '_blank');
   };
 

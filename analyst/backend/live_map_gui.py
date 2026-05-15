@@ -35,6 +35,17 @@ from .ui.template_loader import render_index
 from .ui.frontend_assets import load_static
 from .routes import mapper_routes, run_suite_routes, replay_routes, telecom_test_routes
 from .routes.run_suite_routes import normalize_suite_filename as _normalize_suite_filename  # noqa: F401 (public re-export for tests)
+from .events.event_sink import sink as EventSink
+from .backend.ui.template_loader import render_index, TEMPLATE_INDEX
+from .backend.ui.frontend_assets import load_static
+from .backend.routes import (
+    mapper_routes,
+    run_suite_routes,
+    replay_routes,
+    telecom_test_routes,
+    telemetry_routes,
+)
+from .backend.routes.run_suite_routes import normalize_suite_filename as _normalize_suite_filename  # noqa: F401 (public re-export for tests)
 
 _STREAM_PORT = 8081
 _GUI_PORT = 8080
@@ -767,6 +778,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             data = {}
 
         try:
+            if self.path == "/api/telemetry":
+                self._json(telemetry_routes.handle_telemetry(data)); return
             if self.path == "/api/telecom-tests/run":
                 self._json(telecom_test_routes.handle_run_telecom_test(data, _run_session_thread))
                 return

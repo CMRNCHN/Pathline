@@ -1409,6 +1409,9 @@ async function startCall() {
   }
 
   addLog('[system] Starting call to ' + target + '...');
+  if (window.Telemetry) {
+    window.Telemetry.track('session_started', { target });
+  }
 
   const btn = $('btn-start');
   const originalText = btn.textContent;
