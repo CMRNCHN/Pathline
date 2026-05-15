@@ -2256,6 +2256,29 @@ button{cursor:pointer}
 .col-gap-16{display:flex;flex-direction:column;gap:16px}
 .rs-import-btn-accent{background:var(--accent-soft);color:var(--accent-strong);border-color:rgba(151,170,207,.24)}
 
+/* Replay seek loading spinner */
+.replay-seek-spinner{
+  display:inline-block;
+  width:12px;
+  height:12px;
+  border:2px solid rgba(128,148,182,.3);
+  border-top:2px solid var(--accent);
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+  margin-left:4px;
+  vertical-align:middle;
+  opacity:0;
+  transition:opacity 100ms ease-in;
+}
+
+.replay-seek-loading .replay-seek-spinner{
+  opacity:1;
+}
+
+@keyframes spin{
+  to{transform:rotate(360deg)}
+}
+
 @media (max-width: 1280px){
   .heartbeat-strip{grid-template-columns:repeat(4, minmax(0, 1fr))}
   .workspace-grid{grid-template-columns:minmax(0, 1fr)}

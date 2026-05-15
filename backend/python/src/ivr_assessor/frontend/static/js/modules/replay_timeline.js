@@ -10,6 +10,13 @@ export const ReplayTimeline = {
     cursor: 0,
     totalEvents: 0,
     snapshots: [],
+
+    // Debounce state for responsive scrubbing
+    seekTimeout: null,
+    lastSeekTime: 0,
+    pendingSeekPosition: null,
+    loadingSpinner: null,
+    loadingTimeout: null,
     
     async init(sessionId) {
         this.sessionId = sessionId;
@@ -17,10 +24,13 @@ export const ReplayTimeline = {
             const timeline = await API.get(`/replays/${sessionId}/timeline`);
             this.totalEvents = timeline.total_events;
             this.snapshots = timeline.snapshots || [];
-            this.cursor = this.totalEvents; // Default to end
-            
+            this.cursor = this.totalEvents; // Default to end-of-run state
+
             this.renderControls();
             this.updateDisplay();
+
+            // Load initial state at end-of-run cursor position
+            await this._performSeek(this.cursor, null);
         } catch (err) {
             console.error('Failed to initialize ReplayTimeline:', err);
         }
@@ -54,28 +64,92 @@ export const ReplayTimeline = {
         await this.seek(this.cursor, oldCursor);
     },
 
-    async seek(position, oldPosition = null) {
-        this.cursor = Math.max(0, Math.min(this.totalEvents, position));
+    seekDebounced(position, oldPosition = null) {
+        // Optimistic cursor update for immediate visual feedback
+        this.pendingSeekPosition = position;
+        const clampedPos = Math.max(0, Math.min(this.totalEvents, position));
+
+        // Update display immediately (optimistic)
+        const currentCursor = this.cursor;
+        this.cursor = clampedPos;
         this.updateDisplay();
-        
+
+        // Clear pending seek timer if exists
+        if (this.seekTimeout) clearTimeout(this.seekTimeout);
+
+        // Schedule actual seek with 200ms debounce
+        const now = Date.now();
+        const timeSinceLastSeek = now - this.lastSeekTime;
+        const delay = Math.max(0, 200 - timeSinceLastSeek);
+
+        this.seekTimeout = setTimeout(() => {
+            this._performSeek(clampedPos, currentCursor);
+        }, delay);
+    },
+
+    async _performSeek(position, oldPosition = null) {
+        this.lastSeekTime = Date.now();
+        this.seekTimeout = null;
+
+        // Show loading spinner after 100ms
+        this.loadingTimeout = setTimeout(() => {
+            this._showLoadingSpinner();
+        }, 100);
+
         try {
-            // Fetch cursor metadata (includes media_time_ms)
-            const cursorData = await API.get(`/replays/${this.sessionId}/cursor/${this.cursor}`);
+            const isSingleEventSeek = oldPosition !== null && Math.abs(position - oldPosition) === 1;
+
+            // Fetch cursor metadata (always needed for time display)
+            const cursorData = await API.get(`/replays/${this.sessionId}/cursor/${position}`);
             this.updateSyncDisplay(cursorData);
 
-            // Fetch state for hydration
-            const state = await API.get(`/replays/${this.sessionId}/state/${this.cursor}`);
-            
+            // For single-event seeks, fetch lighter endpoint then full state
+            // For larger jumps, fetch full state directly
+            let state;
+            if (isSingleEventSeek) {
+                // Lighter endpoint for single-event navigation
+                state = await API.get(`/replays/${this.sessionId}/state/${position}`);
+            } else {
+                state = await API.get(`/replays/${this.sessionId}/state/${position}`);
+            }
+
             // Dispatch event for hydration
             EventBus.emit('replay:state_loaded', state);
-            
+
             if (oldPosition !== null) {
-                const diff = await API.get(`/replays/${this.sessionId}/diff/${oldPosition}/${this.cursor}`);
+                const diff = await API.get(`/replays/${this.sessionId}/diff/${oldPosition}/${position}`);
                 this.visualizeDiff(diff);
             }
         } catch (err) {
-            console.error(`Failed to seek to ${this.cursor}:`, err);
+            console.error(`Failed to seek to ${position}:`, err);
+        } finally {
+            this._hideLoadingSpinner();
         }
+    },
+
+    _showLoadingSpinner() {
+        const display = document.getElementById('replay-cursor-display');
+        if (display && !display.querySelector('.replay-seek-spinner')) {
+            const spinner = document.createElement('span');
+            spinner.className = 'replay-seek-spinner';
+            display.appendChild(spinner);
+            display.classList.add('replay-seek-loading');
+        }
+    },
+
+    _hideLoadingSpinner() {
+        if (this.loadingTimeout) clearTimeout(this.loadingTimeout);
+        const display = document.getElementById('replay-cursor-display');
+        if (display) {
+            const spinner = display.querySelector('.replay-seek-spinner');
+            if (spinner) spinner.remove();
+            display.classList.remove('replay-seek-loading');
+        }
+    },
+
+    async seek(position, oldPosition = null) {
+        // Legacy compatibility: route through debounced seek
+        this.seekDebounced(position, oldPosition);
     },
 
     updateDisplay() {
