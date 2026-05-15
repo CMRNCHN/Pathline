@@ -13,7 +13,6 @@ from urllib.parse import urlsplit, urlunsplit
 from . import map_store
 from .inspection import build_runtime_diagnostics, build_session_snapshot
 from .live_map import LiveMappingSession
-from .models import CallEvent
 from .response_library import ResponseLibrary
 from .startup_runtime import bootstrap_runtime
 from .streaming_server import (
@@ -28,12 +27,11 @@ from .backend.ui.ui_state import (
     REPORTS_DIR,
     SNAPSHOTS_DIR,
     STATE,
-    RS_STATE,
     AppState,
     QueuePromptSource,
 )
 from .events.event_sink import sink as EventSink
-from .backend.ui.template_loader import render_index, TEMPLATE_INDEX
+from .backend.ui.template_loader import render_index
 from .backend.ui.frontend_assets import load_static
 from .backend.routes import mapper_routes, run_suite_routes, replay_routes, telecom_test_routes
 from .backend.routes.run_suite_routes import normalize_suite_filename as _normalize_suite_filename  # noqa: F401 (public re-export for tests)
