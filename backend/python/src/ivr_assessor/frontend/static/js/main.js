@@ -279,19 +279,7 @@ function buildTimelineRows() {
 }
 
 function renderHeaderStatus() {
-  const statusEl = $('hdr-status');
   const status = AppState.latestStatus || {};
-  statusEl.className = 'status-pill';
-  if (status.error) {
-    statusEl.classList.add('tone-error');
-    statusEl.textContent = 'Exception';
-  } else if (status.is_running) {
-    statusEl.classList.add('tone-ok');
-    statusEl.textContent = 'Active Run';
-  } else {
-    statusEl.classList.add('tone-warn');
-    statusEl.textContent = 'Idle';
-  }
 
   const rel = $('hdr-runtime-state');
   if (rel) {
@@ -316,6 +304,21 @@ function renderHeaderStatus() {
     } else {
       rel.classList.add('is-hidden');
     }
+  }
+
+  const liveBtn = $('btn-live-call');
+  const hangupBtn = $('btn-hangup-call');
+  const interactiveBtn = $('btn-interactive-call');
+  if (interactiveBtn) {
+    interactiveBtn.classList.toggle('is-active', AppState.currentWorkspace === 'live');
+  }
+  if (liveBtn) {
+    liveBtn.classList.toggle('is-busy', !!status.is_running);
+    liveBtn.textContent = status.is_running ? 'Live Now' : 'Live';
+  }
+  if (hangupBtn) {
+    hangupBtn.disabled = !status.is_running;
+    hangupBtn.classList.toggle('is-disabled', !status.is_running);
   }
 }
 
@@ -666,35 +669,223 @@ function renderPrepReadinessStrip() {
   const root = $('prep-readiness-strip');
   if (!root) return;
 
-  const diagnostics = AppState.diagnose || {};
+  const readiness = getPrepReadiness();
   const metrics = AppState.runtimeMetrics || {};
   const stream = metrics.stream_server || {};
+  const diagnostics = AppState.diagnose || {};
 
   const items = [
-    { label: 'Backend', status: diagnostics.server_active ? 'ok' : 'error' },
-    { label: 'Ngrok', status: diagnostics.tunnel_active ? 'ok' : 'error' },
-    { label: 'Twilio', status: diagnostics.twilio_ready ? 'ok' : 'warn' },
-    { label: 'Media Stream', status: diagnostics.media_stream_ready ? 'ok' : 'warn' },
-    { label: 'WS Stream', status: stream.active_streams ? 'ok' : 'warn' },
-    { label: 'STT Engine', status: diagnostics.stt_ready ? 'ok' : 'error' },
-    { label: 'TTS Engine', status: diagnostics.tts_ready ? 'ok' : 'error' },
-    { label: 'AI Model', status: diagnostics.ai_ready ? 'ok' : 'warn' },
-    { label: 'Recording', status: 'ok' },
-    { label: 'Transcript', status: 'ok' },
-    { label: 'Conf Bridge', status: 'ok' },
-    { label: 'Artifacts', status: 'ok' },
-    { label: 'Suite Engine', status: 'ok' },
-    { label: 'Templates', status: AppState.savedMaps.length ? 'ok' : 'gray' }
+    { key: 'backend', label: 'Backend', status: readiness.backend },
+    { key: 'tunnel', label: readiness.tunnelLabel, status: readiness.tunnel },
+    { key: 'twilio', label: 'Twilio', status: readiness.twilio },
+    { key: 'mediaStream', label: 'Media Stream', status: readiness.mediaStream },
+    { key: 'wsStream', label: 'WS Stream', status: stream.active_streams ? 'ok' : 'warn' },
+    { key: 'stt', label: 'STT Engine', status: readiness.stt },
+    { key: 'tts', label: 'TTS Engine', status: readiness.tts },
+    { key: 'ai', label: 'AI Model', status: readiness.ai },
+    { key: 'recording', label: 'Recording', status: 'ok' },
+    { key: 'transcript', label: 'Transcript', status: readiness.stt },
+    { key: 'conference', label: 'Conf Bridge', status: readiness.twilio },
+    { key: 'artifacts', label: 'Artifacts', status: 'ok' },
+    { key: 'suiteEngine', label: 'Suite Engine', status: 'ok' },
+    { key: 'templates', label: 'Templates', status: AppState.savedMaps.length ? 'ok' : 'gray' }
   ];
 
-  root.innerHTML = `<div class="status-card-compact">` + items.map(item => `
-    <div class="status-card-item">
-      <div class="status-card-label">${item.label}</div>
-      <div class="status-pill tone-${item.status} btn-compact" style="min-height: 22px; font-size: 9px; padding: 0 8px;">
-        ${item.status === 'ok' ? 'Ready' : (item.status === 'error' ? 'Broken' : (item.status === 'warn' ? 'Warning' : 'N/A'))}
+  const legend = [
+    { tone: 'ok', label: 'Ready' },
+    { tone: 'warn', label: 'Needs attention' },
+    { tone: 'error', label: 'Broken' },
+    { tone: 'gray', label: 'Not configured' }
+  ];
+
+  root.innerHTML = `<div class="status-strip-shell"><div class="status-card-compact">` + items.map((item) => {
+    const detail = buildReadinessDetail(item, diagnostics, metrics);
+    return `
+    <div class="status-card-item status-card-hover" tabindex="0" aria-label="${escapeHtml(item.label)} status details">
+      <div class="status-card-label">${escapeHtml(item.label)}</div>
+      <div class="status-pill tone-${escapeHtml(item.status)} btn-compact" style="min-height: 22px; font-size: 9px; padding: 0 8px;">
+        ${escapeHtml(statusLabel(item.status))}
       </div>
+      ${renderReadinessBubble(item, detail)}
     </div>
-  `).join('') + `</div>`;
+  `;
+  }).join('') + `</div>
+    <div class="status-legend" aria-label="Status legend">
+      ${legend.map((item) => `
+        <div class="status-legend-item">
+          <span class="status-legend-dot tone-${escapeHtml(item.tone)}"></span>
+          <span>${escapeHtml(item.label)}</span>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+
+function statusLabel(status) {
+  if (status === 'ok') return 'Ready';
+  if (status === 'error') return 'Broken';
+  if (status === 'warn') return 'Warning';
+  return 'N/A';
+}
+
+function renderReadinessBubble(item, detail) {
+  const steps = detail.steps || [];
+  return `
+    <div class="status-detail-bubble tone-${escapeHtml(item.status)}" role="tooltip">
+      <div class="status-detail-title">
+        <span>${escapeHtml(item.label)}</span>
+        <span class="status-detail-state">${escapeHtml(statusLabel(item.status))}</span>
+      </div>
+      <div class="status-detail-body">${escapeHtml(detail.message)}</div>
+      ${detail.meta ? `<div class="status-detail-meta">${escapeHtml(detail.meta)}</div>` : ''}
+      ${steps.length ? `
+        <div class="status-detail-steps-title">${item.status === 'error' ? 'Fix' : 'Next steps'}</div>
+        <ol class="status-detail-steps">
+          ${steps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}
+        </ol>
+      ` : ''}
+    </div>
+  `;
+}
+
+function buildReadinessDetail(item, diagnostics, metrics) {
+  const stream = metrics.stream_server || {};
+  const twilio = diagnostics.twilio || {};
+  const stt = diagnostics.stt || {};
+  const tts = diagnostics.tts || {};
+  const tunnel = diagnostics.tunnel || {};
+  const issues = diagnostics.issues || [];
+  const issueText = issues.length ? issues.join(' ') : '';
+
+  if (item.key === 'backend') {
+    if (item.status === 'ok') {
+      return { message: 'The local GUI and runtime diagnostics endpoint are responding.', meta: 'GUI: 8080, stream server: 8081' };
+    }
+    return {
+      message: 'The GUI server is not reporting a healthy runtime.',
+      steps: ['Restart the GUI with ./run_ivr_assessor.sh live-map-gui.', 'Check the terminal for startup errors.', 'Verify ports 8080 and 8081 are free.'],
+    };
+  }
+
+  if (item.key === 'tunnel') {
+    if (item.status === 'ok') {
+      return {
+        message: tunnel.configured_url ? 'A public stream URL is configured for Twilio media streaming.' : 'A tunnel is reachable for Twilio media streaming.',
+        meta: diagnostics.suggested_stream_url || tunnel.configured_url || '',
+      };
+    }
+    if (item.status === 'gray') {
+      return { message: 'Tunnel checks are disabled for local-only mode.', meta: 'Use this only for local demos without Twilio callbacks.' };
+    }
+    return {
+      message: issueText || 'No reachable public tunnel is detected for the stream server.',
+      steps: ['Run ngrok http 8081, or launch with TUNNEL_BACKEND=cloudflare.', 'Set IVR_STREAM_URL to wss://<public-host>/stream.', 'Refresh readiness after the tunnel is live.'],
+    };
+  }
+
+  if (item.key === 'twilio') {
+    if (item.status === 'ok') {
+      return { message: 'Twilio credentials authenticated successfully.', meta: twilio.account ? `Account: ${twilio.account}` : 'Account fetch succeeded.' };
+    }
+    return {
+      message: twilio.error || 'Twilio credentials are missing or failed authentication.',
+      steps: ['Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in .env.', 'Set TWILIO_PHONE_NUMBER to an owned Twilio number.', 'Rotate and update credentials if Twilio rejects the token.'],
+    };
+  }
+
+  if (item.key === 'mediaStream') {
+    if (item.status === 'ok') {
+      return { message: 'The local media stream server is listening and ready for Twilio WebSocket audio.', meta: 'Expected port: 8081' };
+    }
+    return {
+      message: 'The stream server is not reachable locally.',
+      steps: ['Restart the GUI so it starts the stream server.', 'Confirm nothing else is using port 8081.', 'Check /api/diagnose after restart.'],
+    };
+  }
+
+  if (item.key === 'wsStream') {
+    if (item.status === 'ok') {
+      return { message: 'A WebSocket media stream is currently connected.', meta: `Active streams: ${stream.active_streams || 0}` };
+    }
+    return {
+      message: 'No active Twilio WebSocket stream is connected right now. This is expected before a live call starts.',
+      steps: ['Start a live run to create a stream.', 'Confirm Twilio uses the suggested wss:// stream URL with the token.', 'If a call is active, verify the tunnel points to local port 8081.'],
+    };
+  }
+
+  if (item.key === 'stt' || item.key === 'transcript') {
+    if (item.status === 'ok') {
+      return { message: 'Speech-to-text is ready for transcript generation.', meta: `Backend: ${stt.backend || 'faster-whisper'}` };
+    }
+    return {
+      message: stt.error || 'Speech-to-text is not ready.',
+      steps: ['Install backend dependencies in backend/python/.venv.', 'Use STT_BACKEND=simulated for local demos, or STT_BACKEND=deepgram with DEEPGRAM_API_KEY.', 'For local STT, keep webrtcvad-wheels and faster-whisper installed.'],
+    };
+  }
+
+  if (item.key === 'tts' || item.key === 'ai') {
+    if (item.status === 'ok') {
+      return { message: 'Response audio generation is configured.', meta: `Backend: ${tts.backend || 'openai/piper'}` };
+    }
+    return {
+      message: tts.error || 'Text-to-speech is not ready.',
+      steps: ['For OpenAI TTS, set OPENAI_API_KEY and TTS_BACKEND=openai.', 'For Piper, set TTS_BACKEND=piper plus PIPER_BINARY and PIPER_VOICE.', 'Refresh readiness after updating .env.'],
+    };
+  }
+
+  if (item.key === 'recording') {
+    return { message: 'Call recording support is ready when Twilio can reach the recording callback.', meta: 'Callback: TWILIO_RECORDING_STATUS_CALLBACK' };
+  }
+
+  if (item.key === 'conference') {
+    if (item.status === 'ok') {
+      return { message: 'Conference bridge controls are available through the authenticated Twilio client.' };
+    }
+    return {
+      message: 'Conference bridge controls depend on valid Twilio credentials.',
+      steps: ['Fix Twilio credential readiness first.', 'Confirm USER_PHONE_NUMBER is set for bridged operator calls.'],
+    };
+  }
+
+  if (item.key === 'templates') {
+    if (item.status === 'ok') {
+      return { message: 'Saved IVR maps/templates are available for planning and review.', meta: `${AppState.savedMaps.length} saved map${AppState.savedMaps.length === 1 ? '' : 's'}` };
+    }
+    return {
+      message: 'No saved maps/templates are loaded yet.',
+      steps: ['Run a route discovery session.', 'Save or import a route suite.', 'Refresh maps from the prep workspace.'],
+    };
+  }
+
+  if (item.key === 'artifacts') {
+    return { message: 'Local artifact storage is available for reports, recordings, events, and replay evidence.' };
+  }
+
+  if (item.key === 'suiteEngine') {
+    return { message: 'The suite runner UI and local suite storage are ready.' };
+  }
+
+  return { message: 'Status detail is available from the current readiness snapshot.' };
+}
+
+function getPrepReadiness() {
+  const diagnostics = AppState.diagnose || {};
+  const streamReady = !!((diagnostics.stream_server || {}).listening || diagnostics.media_stream_ready);
+  const tunnel = diagnostics.tunnel || {};
+  const tunnelBackend = tunnel.backend || 'ngrok';
+  const localOnly = !!tunnel.local_only || tunnelBackend === 'none';
+  const tunnelActive = localOnly || !!diagnostics.tunnel_active || !!(diagnostics.ngrok || {}).running || !!diagnostics.suggested_stream_url;
+  const sttBackend = (diagnostics.stt || {}).backend || '';
+  return {
+    backend: diagnostics.server_active === false ? 'error' : 'ok',
+    tunnelLabel: localOnly ? 'Local Only' : (tunnelBackend === 'cloudflare' ? 'Cloudflare' : 'Ngrok'),
+    tunnel: tunnelActive ? (localOnly ? 'gray' : 'ok') : 'warn',
+    twilio: diagnostics.twilio_ready || (diagnostics.twilio || {}).ok ? 'ok' : 'warn',
+    mediaStream: streamReady ? 'ok' : 'warn',
+    stt: diagnostics.stt_ready || (diagnostics.stt || {}).ok ? 'ok' : 'warn',
+    tts: diagnostics.tts_ready || (diagnostics.tts || {}).ok ? 'ok' : 'warn',
+    ai: diagnostics.ai_ready || sttBackend === 'simulated' ? 'ok' : 'warn',
+  };
 }
 
 function renderPrepConfig() {
@@ -731,20 +922,20 @@ function renderPrepChecklist() {
   const root = $('prep-checklist');
   if (!root) return;
 
-  const diagnostics = AppState.diagnose || {};
+  const readiness = getPrepReadiness();
   const items = [
-    { label: 'Twilio Connected', status: diagnostics.twilio_ready ? 'ok' : 'error' },
-    { label: 'Media Stream Active', status: diagnostics.media_stream_ready ? 'ok' : 'warn' },
+    { label: 'Twilio Connected', status: readiness.twilio },
+    { label: 'Media Stream Active', status: readiness.mediaStream },
     { label: 'Recording Webhook', status: 'ok' },
-    { label: 'STT Ready', status: diagnostics.stt_ready ? 'ok' : 'error' },
-    { label: 'TTS Ready', status: diagnostics.tts_ready ? 'ok' : 'error' },
+    { label: 'STT Ready', status: readiness.stt },
+    { label: 'TTS Ready', status: readiness.tts },
     { label: 'DTMF Injection', status: 'ok' },
-    { label: 'AI Model Loaded', status: diagnostics.ai_ready ? 'ok' : 'warn' },
+    { label: 'AI Model Loaded', status: readiness.ai },
     { label: 'Call Logging Active', status: 'ok' },
     { label: 'Template Library', status: AppState.savedMaps.length ? 'ok' : 'gray' },
     { label: 'Suite Engine Ready', status: 'ok' },
     { label: 'Conf Bridge Ready', status: 'ok' },
-    { label: 'Tunnel Reachable', status: diagnostics.tunnel_active ? 'ok' : 'error' }
+    { label: 'Tunnel Reachable', status: readiness.tunnel }
   ];
 
   root.innerHTML = items.map(item => `
@@ -1330,7 +1521,7 @@ async function startCall() {
 
   addLog('[system] Starting call to ' + target + '...');
 
-  const btn = $('btn-start');
+  const btn = $('btn-live-call');
   const originalText = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Calling…';
@@ -1365,7 +1556,13 @@ async function startCall() {
 }
 
 async function endCall() {
+  const btn = $('btn-hangup-call');
+  const originalText = btn ? btn.textContent : '';
   try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Hanging Up…';
+    }
     await api.endCall();
     addLog('[system] End-session requested');
     fetchStatus();
@@ -1373,6 +1570,13 @@ async function endCall() {
     fetchRuntimeDiagnostics();
   } catch (error) {
     addLog('[error] Failed to end session: ' + error.message);
+  } finally {
+    if (btn) {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }, 1200);
+    }
   }
 }
 
@@ -1629,8 +1833,9 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
   });
 });
 
-$('btn-start').addEventListener('click', startCall);
-$('btn-end').addEventListener('click', endCall);
+$('btn-interactive-call').addEventListener('click', () => switchWorkspace('live'));
+$('btn-live-call').addEventListener('click', startCall);
+$('btn-hangup-call').addEventListener('click', endCall);
 $('btn-settings').addEventListener('click', () => openDrawer('runtime'));
 $('btn-open-runtime').addEventListener('click', () => openDrawer('runtime'));
 $('btn-open-artifacts').addEventListener('click', () => openDrawer('artifacts'));
