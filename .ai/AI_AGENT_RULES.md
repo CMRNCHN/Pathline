@@ -1,4 +1,4 @@
-# IVRSuite AI Agent Rules
+# Pathline AI Agent Rules
 
 Planning artifacts are not implementation authorization.
 

@@ -1,4 +1,4 @@
-# AIR_RULES — IVRSuite AI-Assisted Development
+# AIR_RULES — Pathline AI-Assisted Development
 
 Operational rules for AI-assisted development inside Air (or any AI coding assistant).
 Read this file before any engineering session.
