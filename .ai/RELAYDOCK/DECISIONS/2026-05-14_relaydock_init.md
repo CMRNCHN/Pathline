@@ -1,3 +1,0 @@
-# DECISION
-
-- RelayDock initialization: ACCEPTED

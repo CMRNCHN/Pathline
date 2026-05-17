@@ -646,6 +646,13 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/status":
             self._json(mapper_routes.build_status_payload()); return
+        if self.path == "/api/runtime/health":
+            self._json(mapper_routes.get_runtime_health()); return
+        if self.path == "/api/runtime/sessions":
+            self._json(mapper_routes.get_runtime_sessions()); return
+        if self.path.startswith("/api/runtime/sessions/"):
+            session_id = self.path[len("/api/runtime/sessions/"):]
+            self._json(mapper_routes.get_runtime_session(session_id)); return
         if self.path == "/api/config":
             self._json(mapper_routes.get_config(
                 _default_stream_url, _persistent_stream, _to_wss, default_stream_auth_token
@@ -686,6 +693,46 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
                     from_off = int(parts[2]) if len(parts) > 2 else 0
                     to_off = int(parts[3]) if len(parts) > 3 else 0
                     self._json(replay_routes.get_replay_diff(session_id, from_off, to_off)); return
+                if sub_route == "bookmarks":
+                    self._json(replay_routes.get_replay_bookmarks(session_id)); return
+                if sub_route == "annotations":
+                    self._json(replay_routes.get_replay_annotations(session_id)); return
+                if sub_route == "search":
+                    self._json(replay_routes.search_replay(session_id, parse_qs(parsed.query))); return
+                if sub_route == "media":
+                    self._json(replay_routes.get_replay_media_metadata(session_id)); return
+                if sub_route == "waveform":
+                    self._json(replay_routes.get_waveform_metadata(session_id)); return
+                if sub_route == "align":
+                    self._json(replay_routes.get_alignment_lookup(session_id)); return
+                if sub_route == "cursor":
+                    offset = int(parts[2]) if len(parts) > 2 else 0
+                    self._json(replay_routes.get_replay_cursor(session_id, offset)); return
+                if sub_route == "seek":
+                    params = parse_qs(parsed.query)
+                    time_ms = int(params.get("t", [0])[0])
+                    self._json(replay_routes.seek_replay(session_id, time_ms)); return
+                if sub_route == "event":
+                    index = int(parts[2]) if len(parts) > 2 else 0
+                    self._json(replay_routes.get_event_at_index(session_id, index)); return
+                if sub_route == "audio":
+                    # For audio streaming, we need to bypass _json and use the route's response
+                    res = replay_routes.stream_media(session_id)
+                    from fastapi.responses import FileResponse
+                    if isinstance(res, FileResponse):
+                        with open(res.path, "rb") as f:
+                            body = f.read()
+                        self._raw(200, res.media_type, body)
+                    return
+            
+            if session_id == "compare":
+                params = parse_qs(parsed.query)
+                left = params.get("left", [None])[0]
+                right = params.get("right", [None])[0]
+                if left and right:
+                    self._json(replay_routes.compare_replays(left, right)); return
+                else:
+                    self._json_error(400, "Missing left or right session_id"); return
             
             # Default: full reconstruction
             params = parse_qs(parsed.query)
@@ -713,6 +760,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/telecom-tests":
             self._json(telecom_test_routes.get_telecom_tests()); return
+        if self.path == "/api/evidence-bundles":
+            self._json(telecom_test_routes.get_evidence_bundles()); return
         if self.path.startswith("/api/telecom-tests/"):
             from urllib.parse import unquote
             parts = self.path[len("/api/telecom-tests/"):].split("/")
@@ -720,6 +769,17 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             if len(parts) > 1 and parts[1] == "evidence":
                  self._json(telecom_test_routes.get_telecom_test_evidence(test_id)); return
             self._json(telecom_test_routes.get_telecom_test_status(test_id)); return
+        if self.path.startswith("/api/evidence-bundles/"):
+            from urllib.parse import unquote
+            parts = self.path[len("/api/evidence-bundles/"):].split("/")
+            bundle_id = unquote(parts[0])
+            if len(parts) > 1:
+                sub = parts[1]
+                if sub == "manifest":
+                    self._json(telecom_test_routes.get_bundle_manifest(bundle_id)); return
+                if sub == "report":
+                    self._json(telecom_test_routes.get_bundle_report(bundle_id)); return
+            self._json(telecom_test_routes.get_bundle_manifest(bundle_id)); return
         if self.path.startswith("/api/export/"):
             self._handle_export(); return
         self.send_response(404); self.end_headers()
@@ -735,6 +795,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
         try:
             if self.path == "/api/telecom-tests/run":
                 self._json(telecom_test_routes.handle_run_telecom_test(data, _run_session_thread)); return
+            if self.path == "/api/evidence-bundles/export":
+                self._json(telecom_test_routes.handle_export_evidence_bundle(data)); return
             if self.path.startswith("/api/telecom-tests/") and self.path.endswith("/abort"):
                 from urllib.parse import unquote
                 test_id = unquote(self.path.split("/")[3])
@@ -743,6 +805,17 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
                 self._json(mapper_routes.handle_start(data, _run_session_thread)); return
             if self.path == "/api/prompt":
                 self._json(mapper_routes.handle_prompt(data)); return
+            if self.path.startswith("/api/replays/"):
+                from urllib.parse import unquote
+                parts = self.path[len("/api/replays/"):].split("/")
+                session_id = unquote(parts[0])
+                if len(parts) > 1:
+                    sub_route = parts[1]
+                    if sub_route == "bookmarks":
+                        self._json(replay_routes.create_replay_bookmark(session_id, data)); return
+                    if sub_route == "annotations":
+                        self._json(replay_routes.create_replay_annotation(session_id, data)); return
+                self._json_error(404, "Sub-route not found"); return
             if self.path == "/api/inject-dtmf":
                 self._json(mapper_routes.handle_inject_dtmf(data)); return
             if self.path == "/api/inject-voice":

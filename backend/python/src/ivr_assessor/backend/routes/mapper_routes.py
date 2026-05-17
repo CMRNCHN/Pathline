@@ -17,6 +17,54 @@ from ..ui.ui_state import STATE
 
 # ── GET handlers ──────────────────────────────────────────────────────────────
 
+def get_runtime_health() -> dict:
+    from ...runtime.runtime_supervisor import supervisor
+    return supervisor.get_health_snapshot()
+
+
+def get_runtime_sessions() -> dict:
+    from ...runtime.runtime_supervisor import supervisor
+    sessions = supervisor.registry.list_all()
+    return {
+        "sessions": [
+            {
+                "session_id": s.session_id,
+                "call_sid": s.call_sid,
+                "runtime_state": s.runtime_state.value,
+                "websocket_state": s.websocket_state.value,
+                "started_at": s.started_at,
+                "updated_at": s.updated_at,
+                "failure_reason": s.failure_reason,
+                "recovery_attempts": s.recovery_attempts,
+                "cleanup_state": s.cleanup_state,
+            }
+            for s in sessions
+        ]
+    }
+
+
+def get_runtime_session(session_id: str) -> dict:
+    from ...runtime.runtime_supervisor import supervisor
+    s = supervisor.get_session_info(session_id)
+    if not s:
+        return {"error": "session_not_found", "session_id": session_id}
+    return {
+        "session_id": s.session_id,
+        "call_sid": s.call_sid,
+        "runtime_state": s.runtime_state.value,
+        "websocket_state": s.websocket_state.value,
+        "started_at": s.started_at,
+        "updated_at": s.updated_at,
+        "last_activity_at": s.last_activity_at,
+        "last_heartbeat_at": s.last_heartbeat_at,
+        "failure_reason": s.failure_reason,
+        "recovery_attempts": s.recovery_attempts,
+        "cleanup_attempts": s.cleanup_attempts,
+        "cleanup_state": s.cleanup_state,
+        "metadata": s.metadata
+    }
+
+
 def build_status_payload() -> dict:
     new_logs = STATE.drain_logs()
     session = STATE.session

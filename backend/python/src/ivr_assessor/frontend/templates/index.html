@@ -3,9 +3,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IVR Suite — IVR Operations Console</title>
-<link rel="stylesheet" href="/static/css/main.css">
+<title>Pathline — IVR Operations Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/static/css/main.css">
 <link rel="stylesheet" href="/static/css/run_suites.css">
+  <style>
+    .report-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+    }
+    .report-content {
+      background: var(--panel-raised);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      width: 600px; max-width: 90%;
+      max-height: 80vh; overflow-y: auto;
+      padding: 24px;
+    }
+    .report-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 12px;
+    }
+    .score-circle {
+      width: 60px; height: 60px; border-radius: 30px;
+      background: var(--accent); color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: bold; margin-bottom: 8px;
+    }
+    .report-score {
+      display: flex; flex-direction: column; align-items: center;
+      margin-bottom: 20px;
+    }
+    .report-body h4 { margin: 16px 0 8px 0; color: var(--text-2); }
+    .report-body ul { padding-left: 20px; }
+    .report-body li { margin-bottom: 4px; }
+  </style>
 </head>
 <body>
 
@@ -14,7 +51,7 @@
     <div class="logo-icon">☎</div>
     <div>
       <div class="shell-kicker">IVR Operations Console</div>
-      <div class="logo-text">IVR Suite</div>
+      <div class="logo-text">Pathline</div>
     </div>
   </div>
 
@@ -25,17 +62,17 @@
 
   <div class="shell-actions">
     <nav class="shell-nav">
-      <button class="nav-btn" data-workspace="prep">Prep</button>
-      <button class="nav-btn" data-workspace="discover">Discover</button>
-      <button class="nav-btn is-active" data-workspace="live">Live</button>
-      <button class="nav-btn" data-workspace="review">Review</button>
-      <button class="nav-btn" data-workspace="run">Run</button>
+      <button class="nav-btn" data-workspace="prep">Setup</button>
+      <button class="nav-btn" data-workspace="discover">Mapping</button>
+      <button class="nav-btn is-active" data-workspace="live">Console</button>
+      <button class="nav-btn" data-workspace="review">Replay</button>
+      <button class="nav-btn" data-workspace="run">Supervision</button>
     </nav>
     <span class="status-pill tone-warn" id="hdr-status">Idle</span>
     <span class="status-pill tone-info is-hidden" id="hdr-runtime-state">ACTIVE</span>
-    <button class="btn-secondary" id="btn-test-suite" type="button">Suite Planning</button>
-    <button class="btn-secondary" id="btn-run-suites" type="button">Suite Execution</button>
-    <button class="btn-secondary" id="btn-settings" type="button">Review / Replay</button>
+    <button class="btn-secondary" id="btn-test-suite" type="button">Plan Suite</button>
+    <button class="btn-secondary" id="btn-run-suites" type="button">Run Suite</button>
+    <button class="btn-secondary" id="btn-settings" type="button">Operational Monitor</button>
     <button class="btn-secondary" id="btn-end" type="button">End Run</button>
     <button class="btn-primary" id="btn-start" type="button">Start Run</button>
   </div>
@@ -52,7 +89,7 @@
         <div class="panel-header">
           <div>
             <div class="panel-kicker">Mission Configuration</div>
-            <h2 class="panel-title">Setup Parameters</h2>
+            <h2 class="panel-title">Mission Setup</h2>
           </div>
         </div>
         <div class="prep-config-body">
@@ -181,6 +218,7 @@
             <div class="mt-12">
                <button class="btn-primary" id="btn-run-validation-test">Run Validation Test</button>
                <button class="btn-secondary is-hidden" id="btn-abort-validation-test">Abort Test</button>
+               <button class="btn-secondary is-hidden ml-8" id="btn-export-bundle">Export Evidence Bundle</button>
             </div>
             <div id="test-result-summary" class="mt-12 is-hidden">
                <div class="panel-kicker">Latest Result</div>
@@ -217,7 +255,7 @@
         <div class="panel-header panel-header-spread">
           <div>
             <div class="panel-kicker">Reconnaissance Intelligence</div>
-            <h2 class="panel-title">Discovery Map</h2>
+            <h2 class="panel-title">Traversal Map</h2>
           </div>
           <div class="panel-actions">
             <button class="btn-tertiary btn-compact" id="btn-discover-refresh-map">Refresh Map</button>
@@ -359,8 +397,8 @@
   <section class="panel drawer-panel" id="drawer-panel">
     <div class="panel-header panel-header-spread">
       <div>
-        <div class="panel-kicker">Bounded Review Visibility</div>
-        <h2 class="panel-title">Review / Replay / Analysis</h2>
+        <div class="panel-kicker">Bounded System Visibility</div>
+        <h2 class="panel-title">Runtime Diagnostics & Analysis</h2>
       </div>
       <div class="drawer-actions">
         <button class="btn-tertiary btn-compact" id="btn-refresh-diagnostics" type="button">Refresh</button>
@@ -421,13 +459,17 @@
             <h2 class="panel-title">Waveform & Timeline Intelligence</h2>
           </div>
           <div class="panel-actions">
+            <div class="filter-group mr-4">
+              <input type="text" id="review-search-input" placeholder="Search transcript..." class="input-text btn-compact">
+              <button id="btn-review-search" class="btn-secondary btn-compact">Search</button>
+            </div>
             <span class="status-pill tone-accent">Forensic View</span>
           </div>
         </div>
         <div class="review-hero-content">
           <div class="waveform-container" id="review-waveform">
             <!-- Waveform Visualization -->
-            <div class="empty-state">Audio Waveform Loading...</div>
+            <canvas id="waveform-canvas" class="w-full h-full"></canvas>
           </div>
           <div class="timeline-hero-surface" id="review-timeline-hero">
             <!-- Timeline Hero Visualization -->
@@ -443,7 +485,7 @@
           <div class="panel-header panel-header-spread">
             <div>
               <div class="panel-kicker">Human-Supervised Review</div>
-              <h2 class="panel-title">Transcript & Evidence</h2>
+              <h2 class="panel-title">Operational Evidence</h2>
             </div>
             <button class="btn-tertiary btn-compact" id="btn-review-verify-all">Verify All</button>
           </div>
@@ -462,6 +504,45 @@
           </div>
           <div class="review-template-body" id="review-template-builder">
             <!-- Template Builder Shell -->
+          </div>
+        </section>
+
+        <section class="panel review-bookmarks-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Operational Highlights</div>
+              <h2 class="panel-title">Bookmarks</h2>
+            </div>
+            <button class="btn-primary btn-compact" id="btn-add-bookmark">Add Bookmark</button>
+          </div>
+          <div class="review-panel-body scrollable-panel" id="review-bookmarks-list">
+            <!-- Bookmarks List -->
+          </div>
+        </section>
+
+        <section class="panel review-annotations-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Analyst Observations</div>
+              <h2 class="panel-title">Annotations</h2>
+            </div>
+            <button class="btn-primary btn-compact" id="btn-add-annotation">Add Annotation</button>
+          </div>
+          <div class="review-panel-body scrollable-panel" id="review-annotations-list">
+            <!-- Annotations List -->
+          </div>
+        </section>
+
+        <section class="panel review-compare-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Regression Analysis</div>
+              <h2 class="panel-title">Compare Sessions</h2>
+            </div>
+            <button class="btn-secondary btn-compact" id="btn-compare-sessions">Compare</button>
+          </div>
+          <div class="review-panel-body" id="review-compare-summary">
+             <div class="p-4 text-muted">Select another session to compare with current.</div>
           </div>
         </section>
       </div>
@@ -666,6 +747,9 @@
 </div>
 
 <script src="/static/js/run_suites.js"></script>
+<script type="module" src="/static/js/modules/replay_audio.js"></script>
+<script type="module" src="/static/js/modules/replay_waveform.js"></script>
+<script type="module" src="/static/js/modules/replay_timeline.js"></script>
 <script type="module" src="/static/js/modules/replay.js"></script>
 
 </body>

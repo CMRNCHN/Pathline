@@ -54,11 +54,21 @@ class ReplayCursor:
     event_id: str
     media_time_ms: int
     snapshot_anchor_offset: int = 0
+    
+    # Playback State
+    playback_state: str = "stopped"  # stopped, paused, playing
+    playback_rate: float = 1.0
+    buffered_until_ms: int = 0
+    active_event_index: Optional[int] = None
 
     def as_dict(self) -> Dict[str, Any]:
         return {
             "event_index": self.event_index,
             "event_id": self.event_id,
             "media_time_ms": self.media_time_ms,
-            "snapshot_anchor_offset": self.snapshot_anchor_offset
+            "snapshot_anchor_offset": self.snapshot_anchor_offset,
+            "playback_state": self.playback_state,
+            "playback_rate": self.playback_rate,
+            "buffered_until_ms": self.buffered_until_ms,
+            "active_event_index": self.active_event_index
         }

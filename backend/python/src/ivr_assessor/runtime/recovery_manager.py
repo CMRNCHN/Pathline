@@ -34,6 +34,9 @@ class RecoveryManager:
                 meta=EventMetadata(session_id=session_id, source_component="recovery_manager")
             ))
             supervisor.report_failure(session_id, "Recovery failed: max attempts reached")
+            
+            from .session_cleanup import cleanup_manager
+            cleanup_manager.cleanup_session(session_id, reason="recovery_failed_max_attempts")
             return False
 
         info.recovery_attempts += 1
@@ -48,10 +51,8 @@ class RecoveryManager:
             meta=EventMetadata(session_id=session_id, source_component="recovery_manager")
         ))
         
-        # We don't transition to ACTIVE yet; we transition to RECOVERING 
-        # to see if it actually recovers.
-        # supervisor._transition_state is internal, but supervisor.update_activity 
-        # will handle the transition back to ACTIVE if it gets a signal.
+        # Transition to RECOVERING 
+        supervisor._transition_state(info, RuntimeState.RECOVERING)
         
         return True
 

@@ -1,6 +1,6 @@
 # cspell:ignore assemblyai dolby mulaw
 
-"""Audio quality add-ons for IVRSuite.
+"""Audio quality add-ons for Pathline.
 
 Tiers:
   FREE (implemented now)  — LocalWhisperTranscriber: post-call transcription

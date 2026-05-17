@@ -33,6 +33,7 @@ class SessionRuntimeInfo:
     session_id: str
     call_sid: Optional[str] = None
     started_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=time.time)
     last_activity_at: float = field(default_factory=time.time)
     last_heartbeat_at: float = field(default_factory=time.time)
     runtime_state: RuntimeState = RuntimeState.INITIALIZING
@@ -40,6 +41,7 @@ class SessionRuntimeInfo:
     cleanup_state: bool = False
     failure_reason: Optional[str] = None
     recovery_attempts: int = 0
+    cleanup_attempts: int = 0
     metadata: Dict[str, Any] = field(default_factory=dict)
     thread_id: Optional[int] = None
 
@@ -86,6 +88,7 @@ class RuntimeSupervisor:
         self.registry = RuntimeRegistry()
         self._stop_event = threading.Event()
         self._watchdog_thread: Optional[threading.Thread] = None
+        self._start_time = time.time()
 
     def start(self) -> None:
         """Start the supervisor and subscribe to relevant events."""
@@ -106,6 +109,7 @@ class RuntimeSupervisor:
             if info:
                 info.last_heartbeat_at = time.time()
                 info.last_activity_at = time.time()
+                info.updated_at = time.time()
 
     def register_session(self, session_id: str, call_sid: Optional[str] = None) -> None:
         info = SessionRuntimeInfo(
@@ -143,6 +147,20 @@ class RuntimeSupervisor:
             return task(*args, **kwargs)
         except Exception as e:
             logger.error(f"Supervised session {session_id} failed: {e}")
+            import traceback
+            stack_summary = traceback.format_exc().splitlines()[-3:]
+            
+            bus.publish(OperationalEvent(
+                type=EventType.RUNTIME_FAILURE_CAPTURED,
+                payload={
+                    "exception_type": type(e).__name__,
+                    "message": str(e),
+                    "stack_summary": stack_summary,
+                    "call_sid": call_sid
+                },
+                meta=EventMetadata(session_id=session_id, source_component="supervisor")
+            ))
+            
             self.report_failure(session_id, reason=str(e))
             raise
         finally:
@@ -160,6 +178,7 @@ class RuntimeSupervisor:
         info = self.registry.get(session_id)
         if info:
             info.last_activity_at = time.time()
+            info.updated_at = time.time()
             
             prev_ws_state = info.websocket_state
             info.websocket_state = WebSocketState.CONNECTED if websocket_connected else WebSocketState.DISCONNECTED
@@ -207,6 +226,7 @@ class RuntimeSupervisor:
             return
             
         info.runtime_state = new_state
+        info.updated_at = time.time()
         # Emit state transition event for deterministic lineage
         bus.publish(OperationalEvent(
             type="RUNTIME_STATE_TRANSITION",
@@ -227,25 +247,38 @@ class RuntimeSupervisor:
         for state in RuntimeState:
             state_counts[state.value] = 0
         
-        stalled_sessions = 0
-        recovery_attempts = 0
-        websocket_disconnects = 0
-        
         sessions = self.registry.list_all()
         for info in sessions:
             state_counts[info.runtime_state.value] += 1
-            if info.runtime_state == RuntimeState.STALLING:
-                stalled_sessions += 1
-            recovery_attempts += info.recovery_attempts
-            if info.websocket_state == WebSocketState.DISCONNECTED:
-                websocket_disconnects += 1
 
+        from ..events.event_sink import sink as event_sink
+        sink_metrics = event_sink.metrics()
+
+        # Track global counters (could be moved to a persistent store if needed, 
+        # but for now we aggregate from registry and sink)
+        
         return {
-            "active_sessions": len([s for s in sessions if s.runtime_state == RuntimeState.ACTIVE]),
-            "stalled_sessions": stalled_sessions,
-            "recovery_attempts": recovery_attempts,
-            "websocket_disconnects": websocket_disconnects,
-            "cleanup_operations": len([s for s in sessions if s.cleanup_state]),
+            "active_session_count": len([s for s in sessions if s.runtime_state == RuntimeState.ACTIVE]),
+            "initializing_session_count": len([s for s in sessions if s.runtime_state == RuntimeState.INITIALIZING]),
+            "active_runtime_count": len(sessions),
+            "stalled_session_count": len([s for s in sessions if s.runtime_state == RuntimeState.STALLING]),
+            "recovering_session_count": len([s for s in sessions if s.runtime_state == RuntimeState.RECOVERING]),
+            "failed_session_count": len([s for s in sessions if s.runtime_state == RuntimeState.FAILED]),
+            "cleaned_session_count": len([s for s in sessions if s.runtime_state == RuntimeState.CLEANED]),
+            "terminated_session_count": len([s for s in sessions if s.runtime_state == RuntimeState.TERMINATED]),
+            "websocket_disconnect_count": sum(1 for s in sessions if s.websocket_state == WebSocketState.DISCONNECTED),
+            "websocket_reconnect_count": 0,  # Would need a global counter
+            "recovery_attempt_count": sum(s.recovery_attempts for s in sessions),
+            "cleanup_attempt_count": sum(s.cleanup_attempts for s in sessions),
+            "cleanup_success_count": 0, # Would need a global counter
+            "cleanup_failure_count": 0, # Would need a global counter
+            "latest_failure_reason": next((s.failure_reason for s in reversed(sessions) if s.failure_reason), None),
+            "latest_failed_session_id": next((s.session_id for s in reversed(sessions) if s.runtime_state == RuntimeState.FAILED), None),
+            "latest_cleanup_status": "idle",
+            "event_sink_status": "healthy" if sink_metrics.get("sink_errors", 0) == 0 else "error",
+            "event_sink_flush_supported": hasattr(event_sink, "flush"),
+            "uptime_seconds": int(time.time() - getattr(self, "_start_time", time.time())),
+            "last_activity_at": max([s.last_activity_at for s in sessions]) if sessions else time.time(),
             "runtime_state_counts": state_counts
         }
 
@@ -288,6 +321,10 @@ class RuntimeSupervisor:
                         payload={"reason": "activity_timeout", "call_sid": info.call_sid},
                         meta=EventMetadata(session_id=info.session_id, source_component="supervisor")
                     ))
+                    
+                    # Trigger recovery attempt
+                    from .recovery_manager import recovery_manager
+                    recovery_manager.attempt_recovery(info.session_id)
                 elif now - info.last_heartbeat_at > self.HEARTBEAT_TIMEOUT_SECONDS:
                     # Missing heartbeats but maybe still some activity? 
                     # Usually heartbeat is the most frequent.

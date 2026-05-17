@@ -47,8 +47,10 @@ function showTestRunning(isRunning) {
   if (isRunning) {
     $('test-outcome-badge').textContent = 'RUNNING';
     $('test-outcome-badge').className = 'status-pill tone-accent';
-    $('test-evidence-link').classList.add('is-hidden');
-  }
+    } else {
+      $('btn-run-validation-test').classList.remove('is-hidden');
+      $('btn-abort-validation-test').classList.add('is-hidden');
+    }
 }
 
 function startTestPolling() {
@@ -76,6 +78,7 @@ function applyTestResult(result) {
   
   if (result.outcome === 'PASSED') badge.className = 'status-pill tone-ok';
   else if (result.outcome === 'ABORTED' || result.outcome === 'TIMED_OUT') badge.className = 'status-pill tone-warn';
+  else if (result.outcome === 'RUNNING') badge.className = 'status-pill tone-accent';
   else badge.className = 'status-pill tone-error';
 
   $('test-result-details').textContent = `
@@ -86,7 +89,86 @@ function applyTestResult(result) {
   `;
   
   $('test-evidence-link').classList.remove('is-hidden');
-  // In a real implementation, this would link to the manifest or review workspace
+  
+  // Show export button after test completion
+  const exportBtn = $('btn-export-bundle');
+  if (exportBtn) {
+    exportBtn.classList.remove('is-hidden');
+    exportBtn.onclick = () => exportBundle(result.session_id, activeTestId);
+  }
+}
+
+async function exportBundle(sessionId, testId) {
+  const btn = $('btn-export-bundle');
+  const originalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Exporting...';
+  }
+  
+  try {
+    addLog('[test] Exporting evidence bundle for ' + sessionId + '...');
+    const data = await api.exportEvidenceBundle({
+      session_id: sessionId,
+      test_id: testId,
+      copy_recording: false
+    });
+    if (data.status === 'success') {
+      addLog('[test] Bundle exported: ' + data.bundle_id);
+      showBundleReport(data.bundle_id);
+    }
+  } catch (error) {
+    addLog('[error] Export failed: ' + error.message);
+    alert('Export failed: ' + error.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+}
+
+async function showBundleReport(bundleId) {
+  try {
+    const report = await api.getBundleReport(bundleId);
+    const manifest = await api.getBundleManifest(bundleId);
+    
+    // Create a simple modal or overlay for the report
+    const reportOverlay = document.createElement('div');
+    reportOverlay.id = 'report-overlay';
+    reportOverlay.className = 'report-overlay';
+    reportOverlay.innerHTML = `
+      <div class="report-content">
+        <div class="report-header">
+          <h3>Validation Report: ${bundleId}</h3>
+          <button onclick="this.parentElement.parentElement.parentElement.remove()">Close</button>
+        </div>
+        <div class="report-body">
+          <div class="report-score">
+            <div class="score-circle">${report.qa_score.session_score}</div>
+            <div>QA Score</div>
+          </div>
+          <div class="report-summary">
+            <p><strong>Result:</strong> ${report.failure_classification.primary_category}</p>
+            <p><strong>Explanation:</strong> ${report.failure_classification.explanation}</p>
+          </div>
+          <h4>Recommendations</h4>
+          <ul>
+            ${report.recommendations.map(r => `<li>${r}</li>`).join('')}
+          </ul>
+          <h4>Benchmarks</h4>
+          <ul>
+            ${Object.entries(report.benchmarks).map(([k, v]) => `<li>${k}: ${v}</li>`).join('')}
+          </ul>
+          <h4>Integrity</h4>
+          <p>SHA-256: <code>${report.integrity.manifest_sha256}</code></p>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(reportOverlay);
+  } catch (error) {
+    addLog('[error] Failed to load report: ' + error.message);
+  }
 }
 
 // ... existing code ...
@@ -471,6 +553,7 @@ function renderStatusCard() {
   const status = AppState.latestStatus || {};
   const runtime = metrics.runtime || {};
   const sink = runtime.prompt_queue || {};
+  const health = status.runtime_health || {};
 
   const target = session.target || normalizeTarget($('f-target').value) || 'Unset';
   const duration = AppState.sessionElapsedMs ? formatDuration(AppState.sessionElapsedMs) : '00:00';
@@ -479,7 +562,7 @@ function renderStatusCard() {
     { label: 'Target', value: target },
     { label: 'Timer', value: duration },
     { label: 'Status', value: AppState.callRunning ? 'Active Run' : 'Idle', tone: AppState.callRunning ? 'ok' : 'warn' },
-    { label: 'Current State', value: status.active_prompt ? (status.active_prompt.slice(0, 20) + '…') : '—' },
+    { label: 'Health', value: health.active_session_count !== undefined ? `${health.active_session_count} Act / ${health.failed_session_count || 0} Fail` : 'Healthy', tone: (health.failed_session_count > 0 || health.stalled_session_count > 0) ? 'warn' : 'ok' },
     { label: 'Coverage', value: (runtime.checkpoint_count || 0) + ' nodes' },
     { label: 'Confidence', value: status.active_confidence != null ? Math.round(status.active_confidence * 100) + '%' : '—' },
     { label: 'Stream', value: stream.active_streams ? 'Connected' : 'Offline', tone: stream.active_streams ? 'ok' : 'error' },
@@ -1205,6 +1288,13 @@ function initPrepEvents() {
 }
 
 function renderOperatorConsole() {
+  if (AppState.callRunning) {
+    $('hdr-status').textContent = 'Live Session';
+    $('hdr-status').className = 'status-pill tone-accent';
+  } else {
+    $('hdr-status').textContent = 'Idle';
+    $('hdr-status').className = 'status-pill tone-warn';
+  }
   renderHeaderStatus();
   renderStatusCard();
   renderTimeline();
@@ -1270,6 +1360,11 @@ async function fetchStatus() {
     renderOperatorConsole();
   } catch (error) {
     console.error('Status fetch error:', error);
+    if (error.status === 401 || error.status === 403) {
+        addLog('[error] Authentication failed. Please refresh.');
+    } else if (error.message.includes('Failed to fetch')) {
+        // Silent connection loss handling
+    }
   }
 }
 
@@ -1466,7 +1561,9 @@ function switchWorkspace(workspaceId) {
     renderRunWorkspace();
   }
 
+  EventBus.emit('WORKSPACE_CHANGED', { workspaceId });
   console.log('[system] Switched to workspace:', workspaceId);
+  renderOperatorConsole();
 }
 
 function renderRunWorkspace() {
@@ -1502,6 +1599,10 @@ function renderAutomationHealthStrip() {
 function renderSuiteLibrary() {
   const root = $('suite-library-list');
   if (!root) return;
+  if (!AppState.run.suiteLibrary || AppState.run.suiteLibrary.length === 0) {
+    root.innerHTML = '<div class="p-4 text-muted-sm-centered">No suites in library.</div>';
+    return;
+  }
   root.innerHTML = AppState.run.suiteLibrary.map(s => `
     <div class="suite-card">
       <div class="suite-card-header">

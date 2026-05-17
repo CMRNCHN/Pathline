@@ -2,7 +2,7 @@
 
 ## Project Purpose
 
-IVRSuite is a local-first, permissioned IVR assessment tool. It maps phone-tree IVRs, runs scripted regression suites, supports live GUI mapping, and performs audio QA benchmarking.
+Pathline is a local-first, permissioned IVR assessment tool. It maps phone-tree IVRs, runs scripted regression suites, supports live GUI mapping, and performs audio QA benchmarking.
 
 ## Session Protocol
 

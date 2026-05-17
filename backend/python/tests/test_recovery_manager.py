@@ -27,7 +27,8 @@ def test_recovery_attempts_bounded():
         assert supervisor.get_session_info(session_id).recovery_attempts == 2
         
         assert recovery.attempt_recovery(session_id) is False
-        assert supervisor.get_session_info(session_id).runtime_state == RuntimeState.FAILED
+        # Registry entry is removed on max attempts fail (cleanup)
+        assert supervisor.get_session_info(session_id) is None
     finally:
         runtime_supervisor.supervisor = original_supervisor
 

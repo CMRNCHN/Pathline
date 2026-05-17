@@ -1,6 +1,7 @@
+from __future__ import annotations
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 from .replay_loader import ReplayLoader
 from .replay_state import ReplayState
 from .replay_reducer import apply_event
@@ -18,7 +19,7 @@ class ReplayService:
         self.events_dir = events_dir
         self.snapshot_service = SnapshotService()
 
-    def list_replays(self) -> List[Dict[str, Any]]:
+    def list_replays(self) -> list[dict[str, Any]]:
         """List all available replays by scanning the events directory."""
         replays = []
         if not self.events_dir.exists():
@@ -41,8 +42,8 @@ class ReplayService:
                         replays.append({
                             "session_id": session_id,
                             "event_count": len(events),
-                            "created_at": first_event.get("meta", {}).get("timestamp"),
-                            "updated_at": last_event.get("meta", {}).get("timestamp"),
+                            "created_at": first_event.get("meta", {}).get("timestamp") or first_event.get("ts"),
+                            "updated_at": last_event.get("meta", {}).get("timestamp") or last_event.get("ts"),
                             "date": date_dir.name
                         })
         return replays
@@ -149,7 +150,7 @@ class ReplayService:
             logger.exception(f"Failed to load snapshot from {best_snapshot_path}")
             return None
 
-    def get_raw_events(self, session_id: str) -> List[Dict[str, Any]]:
+    def get_raw_events(self, session_id: str) -> list[dict[str, Any]]:
         """Return ordered raw event stream for a session."""
         session_file = self._find_session_file(session_id)
         if not session_file:
@@ -169,3 +170,56 @@ class ReplayService:
                 if potential_file.exists():
                     return potential_file
         return None
+
+    def get_nearest_event_for_timestamp(self, session_id: str, media_time_ms: int) -> dict[str, Any] | None:
+        """
+        Returns the event that is active at the given media time.
+        Uses deterministic media_offset_ms if available in the event stream.
+        """
+        # We need a fully reconstructed state to see media offsets, 
+        # or we can look at the timeline if events were decorated.
+        # Loader's get_timeline() returns raw events.
+        # ReplayState contains decorated events after apply_event.
+        
+        state = self.load_replay(session_id)
+        if not state or not state.events:
+            return None
+            
+        # Find the last event whose media_offset_ms <= media_time_ms
+        best_event = None
+        best_index = -1
+        
+        for i, event in enumerate(state.events):
+            offset = event.get("media_offset_ms")
+            if offset is not None and offset <= media_time_ms:
+                best_event = event
+                best_index = i
+            elif offset is not None and offset > media_time_ms:
+                break
+                
+        if best_event:
+            return {
+                "event": best_event,
+                "index": best_index
+            }
+        return None
+
+    def get_cursor_for_time(self, session_id: str, media_time_ms: int) -> dict[str, Any] | None:
+        """
+        Returns a ReplayCursor for a specific media time.
+        """
+        nearest = self.get_nearest_event_for_timestamp(session_id, media_time_ms)
+        if not nearest:
+            return None
+            
+        from .replay_state import ReplayCursor
+        event = nearest["event"]
+        index = nearest["index"]
+        
+        cursor = ReplayCursor(
+            event_index=index,
+            event_id=event.get("event_id", f"idx_{index}"),
+            media_time_ms=media_time_ms,
+            active_event_index=index
+        )
+        return cursor.as_dict()

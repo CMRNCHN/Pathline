@@ -1,19 +1,19 @@
-# Task: RepoDock Consolidation
+# Task: PATHLINE Consolidation
 
 Date: 2026-05-14
 
 ## Objective
-Replace RelayDock with RepoDock as the single living operational continuity bundle and restructure the .ai directory.
+Replace RelayDock with PATHLINE as the single living operational continuity bundle and restructure the .ai directory.
 
 ## Changes
 - Created .ai/GOVERNANCE/ and moved rule files.
-- Created .ai/REPODOCK/ slim structure.
-- Consolidated all RelayDock and root .ai files into RepoDock.
-- Created REPODOCK/README.md and REPODOCK/DESIGN_SYSTEM_HANDBOOK.md.
+- Created .ai/PATHLINE/ slim structure.
+- Consolidated all RelayDock and root .ai files into PATHLINE.
+- Created PATHLINE/README.md and PATHLINE/DESIGN_SYSTEM_HANDBOOK.md.
 
 ## Files Touched
 - .ai/GOVERNANCE/*
-- .ai/REPODOCK/*
+- .ai/PATHLINE/*
 - .ai/ (restructured)
 
 ## Validation

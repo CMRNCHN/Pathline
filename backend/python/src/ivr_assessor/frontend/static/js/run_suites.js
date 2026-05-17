@@ -309,8 +309,19 @@
 
   // ── Open / Close ──────────────────────────────────────────────────────────
 
-  $('rs-close').onclick = rsClose;
-  $('rs-modal').onclick = (e) => { if (e.target === $('rs-modal')) rsClose(); };
-
-  $('btn-run-suites').onclick = rsOpen;
+  const runSelected = runSuite;
+  const exportSelected = () => {}; // Placeholder
+  const deleteSelected = () => {}; // Placeholder
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btn-run-suites');
+    if (btn) btn.addEventListener('click', rsOpen);
+    const closeBtn = document.getElementById('rs-close');
+    if (closeBtn) closeBtn.addEventListener('click', rsClose);
+    const runBtn = document.getElementById('rs-run-btn');
+    if (runBtn) runBtn.addEventListener('click', runSelected);
+    const exportBtn = document.getElementById('rs-export-btn');
+    if (exportBtn) exportBtn.addEventListener('click', exportSelected);
+    const modal = document.getElementById('rs-modal');
+    if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) rsClose(); });
+  });
 })();

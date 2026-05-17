@@ -1,6 +1,7 @@
-# IVRSuite — Project State
+# Pathline — RepoDock Project State
 
 Last Updated: 2026-05-14
+Completion: 45% (Operational Polish + Integration Sweep Phase)
 
 ---
 

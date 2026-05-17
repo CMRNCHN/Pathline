@@ -1,3 +1,0 @@
-# HANDOFF
-
-- Initialized RelayDock bundle

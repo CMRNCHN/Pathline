@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IVR Suite — IVR Operations Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/static/css/main.css">
+<link rel="stylesheet" href="/static/css/run_suites.css">
+  <style>
+    .report-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+    }
+    .report-content {
+      background: var(--panel-raised);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      width: 600px; max-width: 90%;
+      max-height: 80vh; overflow-y: auto;
+      padding: 24px;
+    }
+    .report-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 12px;
+    }
+    .score-circle {
+      width: 60px; height: 60px; border-radius: 30px;
+      background: var(--accent); color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: bold; margin-bottom: 8px;
+    }
+    .report-score {
+      display: flex; flex-direction: column; align-items: center;
+      margin-bottom: 20px;
+    }
+    .report-body h4 { margin: 16px 0 8px 0; color: var(--text-2); }
+    .report-body ul { padding-left: 20px; }
+    .report-body li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+<header class="shell-header">
+  <div class="shell-brand">
+    <div class="logo-icon">☎</div>
+    <div>
+      <div class="shell-kicker">IVR Operations Console</div>
+      <div class="logo-text">IVR Suite</div>
+    </div>
+  </div>
+
+  <div class="shell-target">
+    <label for="f-target">Target IVR</label>
+    <input id="f-target" type="tel" placeholder="(800) 555-0114" value="">
+  </div>
+
+  <div class="shell-actions">
+    <nav class="shell-nav">
+      <button class="nav-btn" data-workspace="prep">Configuration</button>
+      <button class="nav-btn" data-workspace="discover">Discover</button>
+      <button class="nav-btn is-active" data-workspace="live">Live Console</button>
+      <button class="nav-btn" data-workspace="review">Replay</button>
+      <button class="nav-btn" data-workspace="run">Supervision</button>
+    </nav>
+    <span class="status-pill tone-warn" id="hdr-status">Idle</span>
+    <span class="status-pill tone-info is-hidden" id="hdr-runtime-state">ACTIVE</span>
+    <button class="btn-secondary" id="btn-test-suite" type="button">Plan Suite</button>
+    <button class="btn-secondary" id="btn-run-suites" type="button">Run Suite</button>
+    <button class="btn-secondary" id="btn-settings" type="button">Diagnostics</button>
+    <button class="btn-secondary" id="btn-end" type="button">End Run</button>
+    <button class="btn-primary" id="btn-start" type="button">Start Run</button>
+  </div>
+</header>
+
+<main class="console-root">
+  <div id="ws-prep" class="workspace is-hidden">
+    <section class="prep-readiness-strip" id="prep-readiness-strip">
+      <!-- Readiness Status Strip (Pre-flight) -->
+    </section>
+
+    <div class="prep-main-area">
+      <aside class="prep-config-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-kicker">Mission Configuration</div>
+            <h2 class="panel-title">Setup Parameters</h2>
+          </div>
+        </div>
+        <div class="prep-config-body">
+          <div class="config-group">
+            <div class="section-title">Call Configuration</div>
+            <div class="config-field">
+              <label>Target Number</label>
+              <input type="tel" id="prep-target" placeholder="+18005550199">
+            </div>
+            <div class="config-field">
+              <label>Caller ID</label>
+              <input type="tel" id="prep-caller-id" placeholder="+18005550000">
+            </div>
+            <div class="config-field">
+              <label>IVR Profile</label>
+              <select id="prep-profile">
+                <option value="default">Default Profile</option>
+                <option value="fast">Fast Traversal</option>
+                <option value="thorough">Thorough Discovery</option>
+              </select>
+            </div>
+            <div class="config-field-row">
+              <label class="config-toggle">
+                <input type="checkbox" id="prep-record" checked>
+                <span>Record Audio</span>
+              </label>
+              <label class="config-toggle">
+                <input type="checkbox" id="prep-transcript" checked>
+                <span>Capture Transcript</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <div class="section-title">Runtime Configuration</div>
+            <div class="config-field">
+              <label>Injection Mode</label>
+              <select id="prep-injection-mode">
+                <option value="auto">Auto-detect</option>
+                <option value="dtmf">DTMF Priority</option>
+                <option value="speech">Speech Priority</option>
+              </select>
+            </div>
+            <div class="config-field">
+              <label>Silence Timeout (ms)</label>
+              <input type="number" id="prep-silence-timeout" value="3000">
+            </div>
+            <div class="config-field">
+              <label>Retry Limit</label>
+              <input type="number" id="prep-retry-limit" value="3">
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="prep-workspace-center">
+        <section class="panel prep-checklist-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-kicker">Pre-flight Verification</div>
+              <h2 class="panel-title">System Checklist</h2>
+            </div>
+          </div>
+          <div class="prep-checklist-body" id="prep-checklist">
+            <!-- System Checklist Items -->
+          </div>
+        </section>
+
+        <section class="panel prep-triggers-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Response Preparation</div>
+              <h2 class="panel-title">Trigger Phrase Setup</h2>
+            </div>
+            <button class="btn-tertiary btn-compact" id="btn-add-trigger">Add Trigger</button>
+          </div>
+          <div class="prep-triggers-body" id="prep-triggers-list">
+            <!-- Trigger Phrase Rows -->
+          </div>
+        </section>
+
+        <section class="panel prep-responses-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-kicker">Tactical Macros</div>
+              <h2 class="panel-title">Ready Responses</h2>
+            </div>
+          </div>
+          <div class="prep-responses-body" id="prep-ready-responses-list">
+            <!-- Ready Response Chips -->
+          </div>
+        </section>
+
+        <section class="panel telecom-validation-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Controlled Operational Validation</div>
+              <h2 class="panel-title">Telecom Test Harness</h2>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="config-grid">
+               <div class="config-field">
+                 <label>Max Duration (sec)</label>
+                 <input type="number" id="test-max-duration" value="300">
+               </div>
+               <div class="config-field">
+                 <label>Max Depth</label>
+                 <input type="number" id="test-max-depth" value="10">
+               </div>
+               <div class="config-field">
+                 <label>Max DTMF Actions</label>
+                 <input type="number" id="test-max-dtmf" value="20">
+               </div>
+            </div>
+            <div class="config-field-row mt-12">
+              <label class="config-toggle">
+                <input type="checkbox" id="test-stop-on-transfer" checked>
+                <span>Stop on Transfer</span>
+              </label>
+              <label class="config-toggle">
+                <input type="checkbox" id="test-stop-on-low-confidence" checked>
+                <span>Stop on Low Confidence</span>
+              </label>
+            </div>
+            <div class="mt-12">
+               <button class="btn-primary" id="btn-run-validation-test">Run Validation Test</button>
+               <button class="btn-secondary is-hidden" id="btn-abort-validation-test">Abort Test</button>
+               <button class="btn-secondary is-hidden ml-8" id="btn-export-bundle">Export Evidence Bundle</button>
+            </div>
+            <div id="test-result-summary" class="mt-12 is-hidden">
+               <div class="panel-kicker">Latest Result</div>
+               <div id="test-outcome-badge" class="status-pill">UNKNOWN</div>
+               <div id="test-result-details" class="text-muted-xs mt-4"></div>
+               <div id="test-evidence-link" class="mt-4 is-hidden">
+                 <a href="#" class="btn-tertiary btn-compact">View Evidence Manifest</a>
+               </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <section class="prep-action-bar">
+      <div class="prep-action-left">
+        <button class="btn-secondary" id="prep-btn-validate">Validate Setup</button>
+        <button class="btn-secondary" id="prep-btn-dry-run">Dry Run</button>
+      </div>
+      <div class="prep-action-right">
+        <button class="btn-secondary" id="prep-btn-discovery">Start Discovery</button>
+        <button class="btn-primary" id="prep-btn-start">Start Live Call</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="ws-discover" class="workspace is-hidden">
+    <section class="discovery-status-strip" id="discovery-status-strip">
+      <!-- Discovery Status Strip -->
+    </section>
+
+    <div class="discover-main-area">
+      <section class="discover-map-container">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Reconnaissance Intelligence</div>
+            <h2 class="panel-title">Discovery Map</h2>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-tertiary btn-compact" id="btn-discover-refresh-map">Refresh Map</button>
+          </div>
+        </div>
+        <div class="discover-map-surface" id="discover-map-surface">
+          <!-- Discovery Map Visualization -->
+          <div class="empty-state">Loading discovery map...</div>
+        </div>
+      </section>
+
+      <aside class="discover-sidebar">
+        <section class="panel probe-control-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-kicker">Controlled Exploration</div>
+              <h2 class="panel-title">Probe Control</h2>
+            </div>
+          </div>
+          <div class="panel-body" id="probe-control-panel">
+            <!-- Probe Control UI -->
+          </div>
+        </section>
+
+        <section class="panel exploration-queue-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Exploration Queue</h2>
+          </div>
+          <div class="panel-body scrollable-panel" id="exploration-queue">
+            <!-- Exploration Queue UI -->
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="discover-bottom-area">
+      <section class="panel discover-events-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Discovery Events</h2>
+        </div>
+        <div class="panel-body scrollable-panel" id="discovery-events">
+          <!-- Discovery Events -->
+        </div>
+      </section>
+
+      <section class="panel unknown-prompts-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Unknown Prompts</h2>
+        </div>
+        <div class="panel-body scrollable-panel" id="unknown-prompts">
+          <!-- Unknown Prompts -->
+        </div>
+      </section>
+
+      <section class="panel state-details-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">State Details</h2>
+        </div>
+        <div class="panel-body scrollable-panel" id="state-details">
+          <!-- State Details -->
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="ws-live" class="workspace">
+    <section class="live-status-bar" id="live-status-bar">
+      <!-- Active Call Status Card -->
+      <div class="empty-state">Loading status…</div>
+    </section>
+
+    <div class="live-main-area">
+      <section class="live-map-container">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">IVR Operational Surface</div>
+            <h2 class="panel-title">Graph Intelligence</h2>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-tertiary btn-compact" id="btn-refresh-maps" type="button">Refresh Map</button>
+          </div>
+        </div>
+        <div class="live-map-surface" id="graph-box">
+          <div class="empty-state">
+            <div class="empty-icon">⋯</div>
+            <p>No IVR state mapping yet</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="live-ops-container">
+        <div class="live-transcript-area">
+          <div class="panel-header panel-header-spread">
+            <h2 class="panel-title">Live Transcript</h2>
+            <div class="timer-badge" id="timer">00:00</div>
+          </div>
+          <div class="live-transcript-stream" id="transcript">
+            <div class="empty-state">Awaiting events…</div>
+          </div>
+        </div>
+
+        <div class="live-controls-area">
+          <div class="injection-bar-container" id="injection-bar-root">
+            <!-- Unified Injection Bar -->
+          </div>
+          <div class="ready-responses-container" id="ready-responses-root">
+            <!-- Ready Responses -->
+          </div>
+          <div class="prompt-markers-container" id="prompt-markers-root">
+            <!-- Prompt Marker Tools -->
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="live-bottom-area">
+      <section class="panel bottom-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Recent Events</h2>
+        </div>
+        <div class="bottom-list" id="recent-events">
+          <div class="empty-state">No recent events</div>
+        </div>
+      </section>
+      <section class="panel bottom-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Unresolved States</h2>
+        </div>
+        <div class="bottom-list" id="unresolved-states">
+          <div class="empty-state">No unresolved states</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- State Inspector - Contextual -->
+    <div id="state-inspector" class="state-inspector is-hidden"></div>
+  </div>
+
+  <section class="panel drawer-panel" id="drawer-panel">
+    <div class="panel-header panel-header-spread">
+      <div>
+        <div class="panel-kicker">Bounded System Visibility</div>
+        <h2 class="panel-title">Runtime Diagnostics & Analysis</h2>
+      </div>
+      <div class="drawer-actions">
+        <button class="btn-tertiary btn-compact" id="btn-refresh-diagnostics" type="button">Refresh</button>
+        <button class="btn-secondary btn-compact" id="drawer-toggle" type="button">Collapse</button>
+      </div>
+    </div>
+
+    <div class="drawer-tabs" id="drawer-tabs">
+      <button class="drawer-tab is-active" type="button" data-drawer-tab="runtime">Run Health</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="queue">Checkpoint Verification</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="artifacts">Evidence &amp; Artifacts</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="session">Call-Path Replay</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="websocket">Technical Diagnostics</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="telemetry">Operational Telemetry</button>
+      <button class="drawer-tab" type="button" data-drawer-tab="smoke">Run Readiness</button>
+    </div>
+
+    <div class="drawer-body" id="drawer-body">
+      <div class="empty-state">
+        <div class="empty-icon">⋯</div>
+        <p>Review data loading</p>
+        <span>Read-only run health, checkpoint verification, evidence, and call-path replay appear here without steering the active run.</span>
+      </div>
+    </div>
+  </section>
+  <!-- </div> REMOVED UNMATCHED TAG -->
+
+  <div id="ws-review" class="workspace is-hidden">
+    <section class="review-header" id="review-header">
+      <!-- Replay Header / Call Selector -->
+      <div class="panel-header">
+        <div>
+          <div class="panel-kicker">Session Replay</div>
+          <h2 class="panel-title">Operational History</h2>
+        </div>
+        <div class="panel-actions">
+          <div id="replay-metadata-badge" class="metadata-badge is-hidden">
+            <span class="badge-label">Mode:</span>
+            <span id="replay-source-type" class="badge-value">-</span>
+            <span class="badge-label">Offset:</span>
+            <span id="replay-snapshot-offset" class="badge-value">0</span>
+            <span class="badge-label ml-4">Media:</span>
+            <span id="replay-media-reference" class="badge-value">None</span>
+          </div>
+          <select id="replay-session-selector" class="input-select">
+            <option value="">Select a session to replay...</option>
+          </select>
+          <button id="btn-refresh-replays" class="btn-secondary">Refresh</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="review-main-area">
+      <section class="panel review-timeline-hero">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Operational Chronology</div>
+            <h2 class="panel-title">Waveform & Timeline Intelligence</h2>
+          </div>
+          <div class="panel-actions">
+            <div class="filter-group mr-4">
+              <input type="text" id="review-search-input" placeholder="Search transcript..." class="input-text btn-compact">
+              <button id="btn-review-search" class="btn-secondary btn-compact">Search</button>
+            </div>
+            <span class="status-pill tone-accent">Forensic View</span>
+          </div>
+        </div>
+        <div class="review-hero-content">
+          <div class="waveform-container" id="review-waveform">
+            <!-- Waveform Visualization -->
+            <canvas id="waveform-canvas" class="w-full h-full"></canvas>
+          </div>
+          <div class="timeline-hero-surface" id="review-timeline-hero">
+            <!-- Timeline Hero Visualization -->
+          </div>
+          <div id="replay-controls" class="mt-4">
+            <!-- Temporal Replay Controller (Slice 6) -->
+          </div>
+        </div>
+      </section>
+
+      <div class="review-bottom-grid">
+        <section class="panel review-transcript-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Human-Supervised Review</div>
+              <h2 class="panel-title">Transcript & Evidence</h2>
+            </div>
+            <button class="btn-tertiary btn-compact" id="btn-review-verify-all">Verify All</button>
+          </div>
+          <div class="review-transcript-body" id="review-transcript-list">
+            <!-- Transcript Review Rows -->
+          </div>
+        </section>
+
+        <section class="panel review-template-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Operational Extraction</div>
+              <h2 class="panel-title">Template Builder</h2>
+            </div>
+            <button class="btn-primary btn-compact" id="btn-save-template">Save Template</button>
+          </div>
+          <div class="review-template-body" id="review-template-builder">
+            <!-- Template Builder Shell -->
+          </div>
+        </section>
+
+        <section class="panel review-bookmarks-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Operational Highlights</div>
+              <h2 class="panel-title">Bookmarks</h2>
+            </div>
+            <button class="btn-primary btn-compact" id="btn-add-bookmark">Add Bookmark</button>
+          </div>
+          <div class="review-panel-body scrollable-panel" id="review-bookmarks-list">
+            <!-- Bookmarks List -->
+          </div>
+        </section>
+
+        <section class="panel review-annotations-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Analyst Observations</div>
+              <h2 class="panel-title">Annotations</h2>
+            </div>
+            <button class="btn-primary btn-compact" id="btn-add-annotation">Add Annotation</button>
+          </div>
+          <div class="review-panel-body scrollable-panel" id="review-annotations-list">
+            <!-- Annotations List -->
+          </div>
+        </section>
+
+        <section class="panel review-compare-panel">
+          <div class="panel-header panel-header-spread">
+            <div>
+              <div class="panel-kicker">Regression Analysis</div>
+              <h2 class="panel-title">Compare Sessions</h2>
+            </div>
+            <button class="btn-secondary btn-compact" id="btn-compare-sessions">Compare</button>
+          </div>
+          <div class="review-panel-body" id="review-compare-summary">
+             <div class="p-4 text-muted">Select another session to compare with current.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="ws-run" class="workspace is-hidden">
+    <section class="automation-health-strip" id="automation-health-strip">
+      <!-- Automation Health Strip -->
+    </section>
+
+    <div class="run-main-area">
+      <aside class="suite-library-panel">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Operational Inventory</div>
+            <h2 class="panel-title">Suite Library</h2>
+          </div>
+          <button class="btn-tertiary btn-compact" id="btn-run-refresh-suites">Refresh</button>
+        </div>
+        <div class="panel-body scrollable-panel" id="suite-library-list">
+          <!-- Suite Cards -->
+        </div>
+      </aside>
+
+      <section class="active-runs-panel">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Operational Supervision</div>
+            <h2 class="panel-title">Active Runs</h2>
+          </div>
+          <div class="timer-badge" id="run-total-timer">00:00:00</div>
+        </div>
+        <div class="panel-body scrollable-panel" id="active-runs-list">
+          <!-- Active Run Cards -->
+        </div>
+      </section>
+
+      <aside class="run-intelligence-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-kicker">Automation Transparency</div>
+            <h2 class="panel-title">Run Intelligence</h2>
+          </div>
+        </div>
+        <div class="panel-body scrollable-panel" id="run-intelligence-content">
+          <!-- Run Intelligence Details -->
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<!-- Suite Planning Modal -->
+<div class="modal is-hidden" id="ts-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Suite Planning / Configuration</h2>
+      <button class="modal-close" id="ts-close" type="button">✕</button>
+    </div>
+    <div class="modal-body modal-body-layout">
+      <div class="modal-sidebar">
+        <div class="modal-sidebar-top">
+          <button class="btn-primary btn-full-sm" id="ts-new-btn" type="button">New Planned Suite</button>
+        </div>
+        <div id="ts-list" class="modal-scroll-list"></div>
+      </div>
+      <div id="ts-editor" class="modal-editor">
+        <div class="modal-editor-header">
+          <input type="text" id="ts-filename" placeholder="suite_name" class="input-suite-name">
+          <div class="modal-btn-row">
+            <button class="btn-primary btn-compact btn-primary-alt" id="ts-run-btn" type="button">Start Suite Execution</button>
+            <button class="btn-primary btn-compact" id="ts-save-btn" type="button">Save Reusable Suite</button>
+          </div>
+        </div>
+        <div class="control-section mb-20 plan-group">
+          <div class="section-title">Run Scope</div>
+          <div class="plan-group-copy">Choose the target IVR, note the intended run type, and optionally seed a starting DTMF path for the next bounded run.</div>
+          <input type="text" id="ts-target" class="smart-input" placeholder="+18005550199">
+          <div class="plan-inline-fields">
+            <div class="plan-inline-field">
+              <span class="var-col-head">Operating Intent</span>
+              <input type="text" id="ts-intent" class="smart-input" value="Route discovery or suite execution" readonly>
+            </div>
+            <div class="plan-inline-field">
+              <span class="var-col-head">Prior Evidence</span>
+              <div id="ts-map-summary" class="planning-evidence">Saved IVR state mapping appears here for the entered target.</div>
+            </div>
+          </div>
+        </div>
+        <div class="control-section var-section mb-20 plan-group">
+          <div class="title-row-between">
+            <div class="section-title">Reusable Inputs</div>
+            <button id="ts-add-var" class="btn-ghost-xs" type="button">Add</button>
+          </div>
+          <div class="plan-group-copy">Reference reusable inputs in a response anchor as <code>$json_key</code>; the saved suite schema remains unchanged.</div>
+          <div class="var-col-heads">
+            <span class="var-col-head">Input Label</span>
+            <span class="var-col-head">JSON Key</span>
+            <span class="var-col-head">Value</span>
+            <span></span>
+          </div>
+          <div id="ts-vars-container"></div>
+          <div class="data-loader">
+            <div class="data-loader-title">Input Row Import</div>
+            <textarea id="ts-schema" class="data-loader-input" rows="2" placeholder="Paste header row: account_number|phone_number|zip_code|case_id|..."></textarea>
+            <div class="data-loader-row">
+              <textarea id="ts-datarow" class="data-loader-input grow-1" rows="2" placeholder="Paste data row: 123456789|8005550114|90210|CASE-001|..."></textarea>
+              <button class="parse-btn" id="ts-parse-btn" type="button">Fill</button>
+            </div>
+            <div id="ts-parse-status" class="parse-status"></div>
+          </div>
+        </div>
+        <div class="title-row-between mb-12">
+          <div class="section-title">Route Checks</div>
+          <button id="ts-add-case" class="btn-ghost-xs" type="button">Add Route Check</button>
+        </div>
+        <div id="ts-cases-container" class="col-gap-16"></div>
+        <div class="control-section plan-group plan-group-secondary">
+          <div class="section-title">Evidence for Reuse</div>
+          <div class="plan-group-copy">Use saved IVR state mapping and prior route checks to refine the next run without changing the suite payload shape.</div>
+          <div id="ts-reuse-summary" class="planning-evidence">Saved suite and map evidence appears here when available.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/common/time.js"></script>
+<script src="/static/js/common/dom.js"></script>
+<script src="/static/js/common/events.js"></script>
+<script src="/static/js/common/state.js"></script>
+<script src="/static/js/common/api.js"></script>
+<script src="/static/js/common/websocket.js"></script>
+<script src="/static/js/main.js"></script>
+<script src="/static/js/modules/test_suites.js"></script>
+
+<!-- Suite Execution Modal -->
+<div class="rs-modal is-hidden" id="rs-modal">
+  <div class="rs-content">
+    <div class="rs-header">
+      <h2>Suite Execution</h2>
+      <button class="rs-run-btn" id="rs-run-btn" disabled type="button">Start Execution</button>
+      <button class="rs-abort-btn is-hidden" id="rs-abort-btn" type="button">Abort</button>
+      <button class="modal-close ml-8" id="rs-close" type="button">✕</button>
+    </div>
+    <div class="rs-body">
+      <div class="rs-left">
+        <div class="rs-left-title">Reusable Suites</div>
+        <div class="rs-suite-list" id="rs-suite-list">
+          <div class="text-muted-xs-padded">No reusable suites saved</div>
+        </div>
+        <div class="rs-left-actions">
+          <button class="rs-small-btn" id="rs-import-toggle" type="button">Import JSON</button>
+          <div class="rs-import-area" id="rs-import-area">
+            <textarea class="rs-import-ta" id="rs-import-ta" placeholder="Paste reusable suite JSON here…"></textarea>
+            <button class="rs-small-btn rs-import-btn-accent" id="rs-import-btn" type="button">Import</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="rs-center">
+        <div class="rs-center-top" id="rs-suite-header">
+          <div class="rs-suite-name" id="rs-suite-name">Select a reusable suite →</div>
+          <div class="rs-suite-desc" id="rs-suite-desc"></div>
+        </div>
+        <div class="rs-progress-bar is-hidden" id="rs-progress-bar">
+          <div class="rs-progress-fill" id="rs-progress-fill"></div>
+        </div>
+        <div class="rs-summary-chips" id="rs-summary-chips"></div>
+        <div class="rs-scenario-tabs" id="rs-scenario-tabs"></div>
+        <div class="rs-step-list" id="rs-step-list">
+          <div class="text-muted-sm-centered">Select a reusable suite to review checkpoint verification</div>
+        </div>
+        <div class="rs-bottom">
+          <div class="rs-bottom-title">Execution Timeline</div>
+          <div class="rs-live-feed" id="rs-live-feed"></div>
+        </div>
+      </div>
+
+      <div class="rs-right">
+        <div class="rs-detail-section">
+          <div class="rs-detail-title">Checkpoint Verification Detail</div>
+          <div id="rs-step-detail">
+            <div class="text-muted-xs">Click a checkpoint to inspect</div>
+          </div>
+        </div>
+        <div class="rs-detail-section is-hidden" id="rs-secure-card-section">
+          <div class="rs-detail-title">Secure Card</div>
+          <div id="rs-secure-card-detail"></div>
+        </div>
+        <div class="rs-detail-section">
+          <div class="rs-detail-title">Suite Management</div>
+          <div class="col-gap-6">
+            <button class="rs-small-btn" id="rs-export-btn" disabled type="button">Export Suite JSON</button>
+            <button class="rs-small-btn danger" id="rs-delete-btn" disabled type="button">Delete Suite</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/run_suites.js"></script>
+<script type="module" src="/static/js/modules/replay_audio.js"></script>
+<script type="module" src="/static/js/modules/replay_waveform.js"></script>
+<script type="module" src="/static/js/modules/replay_timeline.js"></script>
+<script type="module" src="/static/js/modules/replay.js"></script>
+
+</body>
+</html>

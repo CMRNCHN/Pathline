@@ -1,5 +1,6 @@
+from __future__ import annotations
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from .replay_state import ReplayState
 
 class ReplayTimeline:
@@ -7,7 +8,7 @@ class ReplayTimeline:
     Deterministic timeline controller for operational replay.
     Maintains a cursor and handles navigation through the event stream.
     """
-    def __init__(self, session_id: str, events: List[Dict[str, Any]]):
+    def __init__(self, session_id: str, events: list[dict[str, Any]]):
         self.session_id = session_id
         self.events = events
         self.cursor_position = 0
@@ -40,7 +41,7 @@ class ReplayTimeline:
         """Seek to the event closest to but not exceeding the given timestamp."""
         # Events are assumed to be sorted by timestamp
         for i, event in enumerate(self.events):
-            event_ts = event.get("meta", {}).get("timestamp")
+            event_ts = event.get("meta", {}).get("timestamp") or event.get("ts")
             if event_ts and event_ts > ts:
                 self.cursor_position = i
                 return self.cursor_position
@@ -48,13 +49,13 @@ class ReplayTimeline:
         self.cursor_position = self.total_events
         return self.cursor_position
 
-    def current_event(self) -> Optional[Dict[str, Any]]:
+    def current_event(self) -> dict[str, Any] | None:
         """Return the event at the current cursor position."""
         if 0 < self.cursor_position <= self.total_events:
             return self.events[self.cursor_position - 1]
         return None
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Return a summary of the timeline state."""
         return {
             "session_id": self.session_id,

@@ -1,4 +1,4 @@
-# IVRSuite — Active Handoff
+# Pathline — Active Handoff
 Last Updated: 2026-05-14 (Slice 12: Frontend Refinement & Theme Update)
 
 ---
@@ -31,10 +31,10 @@ Completed implementation of the "Claude edit frontend" assets, which refined the
 
 ---
 
-## AI Governance Files (load at session start)
-
+## AI Governance & RepoDock Files (load at session start)
 ```
 .ai/
+├── REPODOCK/              — operational continuity & project memory
 ├── HANDOFF.md             — this file; session-to-session state
 ├── PROJECT_STATE.md       — current architecture, test count, storage paths, commands
 ├── ARCHITECTURE_RULES.md  — hard constraints on what is never allowed

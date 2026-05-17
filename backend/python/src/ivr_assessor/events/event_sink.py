@@ -113,5 +113,14 @@ class EventSink:
                 "current_event_log_path": str(self._current_path) if self._current_path else None,
             }
 
+    def flush(self):
+        """
+        Ensures all buffered writes are flushed to disk.
+        Since we use 'with open(path, "a") as f' for every write, 
+        this is currently a no-op as the OS handles the close/flush.
+        Added for future compatibility with buffered sinks.
+        """
+        pass
+
 # Global singleton
 sink = EventSink()

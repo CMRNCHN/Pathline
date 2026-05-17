@@ -26,6 +26,9 @@ REPLAYS_DIR        = _DATA / "replays"
 SNAPSHOTS_DIR      = _DATA / "snapshots"
 BENCHMARKS_DIR     = _DATA / "benchmarks"
 EVENTS_DIR         = _DATA / "events"
+WAVEFORMS_DIR      = _DATA / "waveforms"
+ANNOTATIONS_DIR    = _DATA / "review_annotations"
+EVIDENCE_BUNDLES_DIR = _DATA / "evidence_bundles"
 
 SNAPSHOT_INTERVAL = 100
 

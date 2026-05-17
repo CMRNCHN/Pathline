@@ -1,6 +1,6 @@
-# IVRSuite (IVR Assessor)
+# Pathline (IVR Assessor)
 
-IVRSuite is a local-first, permissioned IVR route discovery, call-path mapping,
+Pathline is a local-first, permissioned IVR route discovery, call-path mapping,
 and suite execution system.
 
 It is built for authorized testing of business-owned IVRs: operators can explore
@@ -26,8 +26,8 @@ mapping, suite execution, and replay/review language.
 3. **Review / Replay / Analysis** — inspect the resulting map, checkpoint verification, recordings, and bounded diagnostics.
 
 See `backend/python/docs/OPERATIONS.md` for the operator workflow and terminology.
-The canonical planning/governance anchor for product language is
-`.ai/plans/ivr-phase-operations-anchor.md`.
+The canonical planning/governance anchor for product language and operational continuity is
+`.ai/REPODOCK/README.md`.
 
 ---
 
@@ -105,4 +105,4 @@ Generate high-quality TTS audio clips to use as injected speech responses.
 - `sms-serve`: Run a local webhook server to bridge SMS replies into mapping jobs.
 
 ---
-*For safety, the IVR Suite relies on an explicit allowlist architecture to prevent dialing unauthorized numbers.*
+*For safety, Pathline relies on an explicit allowlist architecture to prevent dialing unauthorized numbers.*

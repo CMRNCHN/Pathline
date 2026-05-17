@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/python
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package
+        run: pip install -e ".[interactive]"
+
+      - name: Install test deps
+        run: pip install pytest
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check src/ tests/

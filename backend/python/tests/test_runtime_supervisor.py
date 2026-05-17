@@ -64,8 +64,8 @@ def test_supervisor_health_snapshot():
     supervisor.update_activity("s2", websocket_connected=False)
     
     snapshot = supervisor.get_health_snapshot()
-    assert snapshot["active_sessions"] == 1
-    assert snapshot["websocket_disconnects"] == 1
+    assert snapshot["active_session_count"] == 1
+    assert snapshot["websocket_disconnect_count"] == 1
     assert snapshot["runtime_state_counts"][RuntimeState.ACTIVE] == 1
     assert snapshot["runtime_state_counts"][RuntimeState.DISCONNECTED] == 1
 

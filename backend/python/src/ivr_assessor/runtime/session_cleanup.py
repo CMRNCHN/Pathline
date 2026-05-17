@@ -26,6 +26,8 @@ class SessionCleanup:
         if not info:
             return False
 
+        info.cleanup_attempts += 1
+
         if info.cleanup_state:
             # Even if marked cleaned, ensure it's removed from registry if reason is final
             if reason != "stale_cleanup":
@@ -43,8 +45,8 @@ class SessionCleanup:
             # 2. Perform actual cleanup
             # Flush EventSink state before registry removal
             from ..events.event_sink import sink as event_sink
-            # EventSink is currently sync, but we want to ensure any buffered writes 
-            # (OS level) are encouraged.
+            if hasattr(event_sink, "flush"):
+                event_sink.flush()
             
             # 3. Mark as cleaned in supervisor
             info.cleanup_state = True

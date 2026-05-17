@@ -72,7 +72,13 @@ def apply_event(state: ReplayState, event: Dict[str, Any]) -> ReplayState:
     if event_type == EventType.TRANSCRIPT_FINAL:
         speech_start = payload.get("speech_start_offset")
         if speech_start is not None:
-            media_offset_ms = int(speech_start * 1000)
+            # If speech_start is in seconds (it often is in Deepgram/Twilio), convert to ms
+            # If it's already large, assume it's ms. 
+            # Slice 10 implementation used seconds from deepgram.
+            if speech_start < 3600: # Heuristic: if < 1 hour, assume seconds
+                 media_offset_ms = int(speech_start * 1000)
+            else:
+                 media_offset_ms = int(speech_start)
             alignment_source = "STT_SPEECH_START"
         elif media_offset_ms is None:
             # Fallback to estimated if no anchor but we have order

@@ -3,7 +3,8 @@ import uuid
 import os
 from typing import Callable, Dict, Any
 from ...testing.evidence_manifest import EvidenceManifest
-from ...backend.ui.ui_state import STATE
+from ...testing.evidence_exporter import EvidenceExporter
+from ...backend.ui.ui_state import STATE, EVIDENCE_BUNDLES_DIR
 from ...testing.telecom_test_plan import TelecomTestPlan
 from ...testing.telecom_test_runner import TelecomTestRunner
 
@@ -84,3 +85,68 @@ def get_telecom_test_evidence(test_id: str) -> dict:
     """Returns the evidence manifest for a telecom test."""
     manifest = EvidenceManifest.get_latest_manifest(test_id)
     return {"test_id": test_id, "evidence": manifest}
+
+def handle_export_evidence_bundle(data: dict) -> dict:
+    """Exports an evidence bundle for a session/test."""
+    session_id = data.get("session_id")
+    test_id = data.get("test_id")
+    if not session_id:
+        raise ValueError("Missing session_id")
+    
+    exporter = EvidenceExporter()
+    bundle = exporter.export(
+        session_id=session_id, 
+        test_id=test_id, 
+        copy_recording=data.get("copy_recording", False)
+    )
+    
+    return {
+        "status": "success", 
+        "bundle_id": bundle.metadata.bundle_id,
+        "root_path": str(bundle.root_path)
+    }
+
+def get_evidence_bundles() -> dict:
+    """Lists all exported evidence bundles."""
+    bundles = []
+    if not EVIDENCE_BUNDLES_DIR.exists():
+        return {"bundles": []}
+    
+    for date_dir in sorted(EVIDENCE_BUNDLES_DIR.iterdir(), reverse=True):
+        if date_dir.is_dir():
+            for bundle_dir in sorted(date_dir.iterdir(), reverse=True):
+                 if bundle_dir.is_dir():
+                    manifest_path = bundle_dir / "manifest.json"
+                    if manifest_path.exists():
+                        try:
+                            import json
+                            with open(manifest_path, "r") as f:
+                                bundles.append(json.load(f))
+                        except Exception:
+                            continue
+    return {"bundles": bundles}
+
+def get_bundle_manifest(bundle_id: str) -> dict:
+    """Returns the manifest for a specific bundle."""
+    # Search for bundle_id in date dirs
+    for date_dir in EVIDENCE_BUNDLES_DIR.iterdir():
+        if date_dir.is_dir():
+            bundle_dir = date_dir / bundle_id
+            manifest_path = bundle_dir / "manifest.json"
+            if manifest_path.exists():
+                import json
+                with open(manifest_path, "r") as f:
+                    return json.load(f)
+    return {"status": "not_found"}
+
+def get_bundle_report(bundle_id: str) -> dict:
+    """Returns the report data for a specific bundle."""
+    for date_dir in EVIDENCE_BUNDLES_DIR.iterdir():
+        if date_dir.is_dir():
+            bundle_dir = date_dir / bundle_id
+            report_path = bundle_dir / "report.json"
+            if report_path.exists():
+                import json
+                with open(report_path, "r") as f:
+                    return json.load(f)
+    return {"status": "not_found"}

@@ -1,8 +1,8 @@
-# IVRSuite Operations Runbook
+# Pathline Operations Runbook
 
 ## Purpose
 
-IVRSuite is a local-first, permissioned IVR route discovery, call-path mapping,
+Pathline is a local-first, permissioned IVR route discovery, call-path mapping,
 and suite execution system. Operators use it to:
 
 - discover unknown IVR routes within explicit bounds
