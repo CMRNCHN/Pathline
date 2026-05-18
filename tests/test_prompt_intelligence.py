@@ -1,4 +1,4 @@
-from agents.prompt_intelligence import (
+from runtime.prompt_intelligence import (
     ConversationKind,
     PromptIntent,
     classify_prompt,

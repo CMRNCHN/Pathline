@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 
 from runtime.state.models import CallEvent
-from agents.prompt_intelligence import classify_prompt, extract_branch_hint
+from runtime.prompt_intelligence import classify_prompt, extract_branch_hint
 
 
 _PUNCT_TAIL = re.compile(r"[\s\.\,\!\?\;\:\-—–]+$")

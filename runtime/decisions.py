@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from agents.prompt_intelligence import PromptClassification, PromptIntent
+from runtime.prompt_intelligence import PromptClassification, PromptIntent
 
 
 class NextActionKind(StrEnum):

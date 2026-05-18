@@ -13,7 +13,7 @@ from runtime.state.event_ledger import EventLedger
 from runtime.exploration import choose_candidate
 from runtime.ivr_mapper import IvrMapper
 from runtime.state.models import CallEvent
-from agents.prompt_intelligence import classify_prompt
+from runtime.prompt_intelligence import classify_prompt
 from runtime.state.response_library import ResponseClip, ResponseLibrary
 from runtime.decisions import NextActionKind, choose_next_action
 from runtime.telephony import TelephonyClient
