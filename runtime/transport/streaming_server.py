@@ -26,7 +26,6 @@ from fastapi.responses import Response
 
 from runtime.media.audio_pipeline import VoiceActivityDetector, process_audio_frame
 from runtime.media.transcript_filter import TranscriptFilter
-from runtime.media.transcription import DeepgramTranscriber
 
 logger = logging.getLogger(__name__)
 

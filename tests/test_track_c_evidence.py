@@ -1,9 +1,6 @@
 import os
 import json
-import pytest
-from pathlib import Path
 from tests.evidence_exporter import EvidenceExporter
-from analyst.backend.ui.ui_state import EVIDENCE_BUNDLES_DIR, EVENTS_DIR
 
 def test_evidence_exporter_basic(tmp_path):
     # Setup mock environment

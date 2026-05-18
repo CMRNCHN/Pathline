@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime
 
 class ReportGenerator:
@@ -61,12 +61,12 @@ class ReportGenerator:
         return recs
 
     def _generate_markdown(self, data: Dict[str, Any]) -> str:
-        m = f"# Telecom Validation Report\n\n"
+        m = "# Telecom Validation Report\n\n"
         m += f"**Bundle ID:** `{data['metadata']['bundle_id']}`  \n"
         m += f"**Session ID:** `{data['metadata']['session_id']}`  \n"
         m += f"**Created At:** {data['metadata']['created_at']}\n\n"
         
-        m += f"## QA Summary\n"
+        m += "## QA Summary\n"
         m += f"**Overall Score:** {data['qa_score']['session_score']}/100\n"
         m += f"**Classification:** {data['failure_classification']['primary_category']}\n"
         m += f"**Explanation:** {data['failure_classification']['explanation']}\n\n"
@@ -75,15 +75,15 @@ class ReportGenerator:
         for factor, details in data['qa_score']['factors'].items():
             m += f"- **{factor.replace('_', ' ').title()}:** {details['score']}/100\n"
         
-        m += f"\n## Benchmark Metrics\n"
+        m += "\n## Benchmark Metrics\n"
         for k, v in data['benchmarks'].items():
             m += f"- {k.replace('_', ' ').title()}: {v}\n"
             
-        m += f"\n## Recommendations\n"
+        m += "\n## Recommendations\n"
         for rec in data['recommendations']:
             m += f"- {rec}\n"
             
-        m += f"\n## Integrity\n"
+        m += "\n## Integrity\n"
         m += f"**SHA-256:** `{data['integrity']['manifest_sha256']}`\n"
         
         return m

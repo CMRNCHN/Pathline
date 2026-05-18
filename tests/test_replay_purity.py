@@ -1,10 +1,8 @@
 import pytest
-from pathlib import Path
 from runtime.state.replay_state import ReplayState
 from replay.reducers.replay_reducer import apply_event
 from replay.snapshots.snapshot_service import SnapshotService
 from replay.timelines.replay_service import ReplayService
-from infrastructure.config.paths import EVENTS_DIR, SNAPSHOTS_DIR
 
 @pytest.fixture
 def sample_events():

@@ -1,9 +1,7 @@
-import pytest
 import wave
 import struct
-import os
 from pathlib import Path
-from replay.media_sync.waveform_metadata import WaveformService, WaveformMetadata
+from replay.media_sync.waveform_metadata import WaveformService
 
 def create_mock_wav(path: Path, duration_sec: float = 1.0):
     with wave.open(str(path), 'wb') as w:

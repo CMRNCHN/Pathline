@@ -1,8 +1,6 @@
-import pytest
 import json
 from pathlib import Path
 from replay.timelines.replay_service import ReplayService
-from runtime.state.replay_state import ReplayState
 
 def create_event_log(path: Path, session_id: str):
     events = [

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import logging
 from runtime.state.replay_state import ReplayState
 from replay.verification.replay_diff import diff_states

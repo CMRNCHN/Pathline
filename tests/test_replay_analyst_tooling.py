@@ -1,6 +1,3 @@
-import pytest
-import json
-from pathlib import Path
 from runtime.events.replay_bookmark import ReplayBookmark, BookmarkCategory
 from runtime.events.bookmark_service import BookmarkService
 from runtime.events.replay_annotation import ReplayAnnotation, AnnotationSeverity

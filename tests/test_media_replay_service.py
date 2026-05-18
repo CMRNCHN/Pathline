@@ -1,8 +1,4 @@
-import pytest
-from pathlib import Path
 from replay.media_sync.media_replay_service import MediaReplayService
-from replay.media_sync.waveform_metadata import WaveformService
-from analyst.backend.ui.ui_state import RECORDINGS_DIR
 
 def test_resolve_recording_path(tmp_path, monkeypatch):
     # Setup mock recordings dir

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from runtime.state.replay_state import ReplayState
 
 class ReplayTimeline:

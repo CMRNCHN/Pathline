@@ -1,4 +1,3 @@
-import pytest
 import json
 from pathlib import Path
 from replay.timelines.replay_service import ReplayService
