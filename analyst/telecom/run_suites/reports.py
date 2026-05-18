@@ -5,8 +5,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tests.run_suites.models import RunResult
-from tests.run_suites.status import StepStatus
+from analyst.telecom.run_suites.models import RunResult
+from analyst.telecom.run_suites.status import StepStatus
 from analyst.backend.ui.ui_state import RUN_SUITE_REPORTS_DIR as _REPORTS_DIR
 
 

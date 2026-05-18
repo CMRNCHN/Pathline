@@ -5,7 +5,7 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Any
 
-from tests.run_suites.status import StepStatus, SuiteRunStatus
+from analyst.telecom.run_suites.status import StepStatus, SuiteRunStatus
 
 
 class StepAction(str, Enum):

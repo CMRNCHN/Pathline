@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from runtime.state.live_map import LiveMappingSession
-    from tests.run_suites.runner import SuiteRunner
+    from analyst.telecom.run_suites.runner import SuiteRunner
     from runtime.transport.streaming_server import StreamingServer
 
 from infrastructure.config.paths import (
