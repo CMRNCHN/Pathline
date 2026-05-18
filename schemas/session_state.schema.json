@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SessionState",
+  "description": "Deterministic operational continuity object.",
+  "type": "object",
+  "required": ["session_id", "runtime_version", "active_focus", "next_actions"],
+  "properties": {
+    "session_id": { "type": "string" },
+    "runtime_version": { "type": "string" },
+    "active_focus": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blocked_by": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "decisions": {
+      "type": "array",
+      "items": { "type": "string", "description": "Reference to DEC-XXXX" }
+    },
+    "known_regressions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "active_agents": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "handoff_summary": { "type": "string" },
+    "next_actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

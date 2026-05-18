@@ -1,0 +1,11 @@
+{
+  "session_id": "current-session-id",
+  "runtime_version": "0.1.0",
+  "active_focus": [],
+  "blocked_by": [],
+  "decisions": [],
+  "known_regressions": [],
+  "active_agents": [],
+  "handoff_summary": "...",
+  "next_actions": []
+}

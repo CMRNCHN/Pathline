@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OperationalEvent",
+  "description": "Base model for all operational telemetry in Pathline.",
+  "type": "object",
+  "required": ["type", "payload", "meta"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "The type of operational event (e.g., call_started, prompt_detected)."
+    },
+    "payload": {
+      "type": "object",
+      "description": "The event-specific data payload."
+    },
+    "meta": {
+      "type": "object",
+      "description": "Lineage and context for the event.",
+      "properties": {
+        "session_id": { "type": ["string", "null"] },
+        "workspace_origin": { "type": ["string", "null"] },
+        "state_id": { "type": ["string", "null"] },
+        "path_id": { "type": ["string", "null"] },
+        "timestamp": { "type": "number" },
+        "event_id": { "type": "string" },
+        "source_component": { "type": ["string", "null"] },
+        "replay_reference": { "type": ["string", "null"] },
+        "unresolved_reference": { "type": ["string", "null"] },
+        "escalation_reference": { "type": ["string", "null"] },
+        "confidence": { "type": ["number", "null"] }
+      },
+      "required": ["timestamp", "event_id"]
+    }
+  }
+}

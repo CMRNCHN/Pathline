@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DecisionRecord",
+  "description": "Immutable record of an architectural or operational decision.",
+  "type": "object",
+  "required": ["id", "title", "status", "date", "context", "decision"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^DEC-[0-9]{4}$" },
+    "title": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["accepted", "rejected", "superseded", "draft"]
+    },
+    "date": { "type": "string", "format": "date" },
+    "supersedes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^DEC-[0-9]{4}$" }
+    },
+    "context": { "type": "string" },
+    "decision": { "type": "string" },
+    "consequences": { "type": "string" },
+    "invariants": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "rollback_strategy": { "type": "string" }
+  }
+}

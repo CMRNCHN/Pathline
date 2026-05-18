@@ -34,9 +34,9 @@ DO NOT:
 - break the singleton pattern for STATE / RS_STATE without a full plan
 
 DO:
-- keep route handlers thin — business logic belongs in backend/routes/
-- keep state objects in backend/ui/ui_state.py
-- keep streaming WebSocket logic in streaming_server.py only
+- keep route handlers thin — business logic belongs in analyst/backend/routes/
+- keep state objects in analyst/backend/ui/ui_state.py
+- keep streaming WebSocket logic in runtime/transport/ only
 
 ---
 
@@ -55,7 +55,7 @@ Frontend must remain:
 - deterministic — no hidden state machines
 - debuggable — any engineer can read the JS cold
 
-Common layer (frontend/static/js/common/) is the only approved abstraction.
+Common layer (analyst/frontend/static/js/common/) is the only approved abstraction.
 
 ---
 
