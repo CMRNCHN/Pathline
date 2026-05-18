@@ -15,7 +15,7 @@ from runtime.ivr_mapper import IvrMapper
 from runtime.state.models import CallEvent
 from agents.prompt_intelligence import classify_prompt
 from runtime.state.response_library import ResponseClip, ResponseLibrary
-from tests.scenario_runner import NextActionKind, choose_next_action
+from runtime.decisions import NextActionKind, choose_next_action
 from runtime.telephony import TelephonyClient
 
 
