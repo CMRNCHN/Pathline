@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import time
-from typing import Any, Dict, Optional
-
-from .runtime_supervisor import supervisor, RuntimeState
+from .runtime_supervisor import RuntimeState
 from ..events.event_types import EventType
 from ..events.event_bus import bus
 from ..events.event_models import OperationalEvent, EventMetadata
@@ -21,6 +18,7 @@ class RecoveryManager:
         """
         Attempts to recover a stalled or disconnected session.
         Returns True if recovery was initiated, False if max attempts reached.
+        Bounded at MAX_RECOVERY_ATTEMPTS (3).
         """
         from .runtime_supervisor import supervisor
         info = supervisor.get_session_info(session_id)
@@ -28,32 +26,34 @@ class RecoveryManager:
             return False
 
         if info.recovery_attempts >= self.max_attempts:
+            action_message = "Operator: Session recovery exhausted. Manual restart required."
             bus.publish(OperationalEvent(
                 type=EventType.RECOVERY_FAILED,
-                payload={"reason": "max_attempts_exceeded", "call_sid": info.call_sid},
+                payload={
+                    "reason": "max_attempts_exceeded",
+                    "attempt_count": info.recovery_attempts,
+                    "max_attempts": self.max_attempts,
+                    "call_sid": info.call_sid,
+                    "action_expected": action_message
+                },
                 meta=EventMetadata(session_id=session_id, source_component="recovery_manager")
             ))
-            supervisor.report_failure(session_id, "Recovery failed: max attempts reached")
-            
-            from .session_cleanup import cleanup_manager
-            cleanup_manager.cleanup_session(session_id, reason="recovery_failed_max_attempts")
+            supervisor.report_failure(session_id, action_message)
             return False
 
         info.recovery_attempts += 1
-        
+
         bus.publish(OperationalEvent(
             type="RECOVERY_ATTEMPTED",
             payload={
                 "attempt": info.recovery_attempts,
                 "max_attempts": self.max_attempts,
-                "call_sid": info.call_sid
+                "call_sid": info.call_sid,
+                "action_expected": f"Waiting for activity (attempt {info.recovery_attempts}/{self.max_attempts})"
             },
             meta=EventMetadata(session_id=session_id, source_component="recovery_manager")
         ))
-        
-        # Transition to RECOVERING 
-        supervisor._transition_state(info, RuntimeState.RECOVERING)
-        
+
         return True
 
     def mark_recovered(self, session_id: str) -> None:

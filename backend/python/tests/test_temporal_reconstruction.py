@@ -1,9 +1,7 @@
 import pytest
 import json
-from pathlib import Path
 from ivr_assessor.events.replay_service import ReplayService
 from ivr_assessor.events.event_types import EventType
-from ivr_assessor.backend.ui.ui_state import EVENTS_DIR
 
 @pytest.fixture
 def temp_events_dir(tmp_path):

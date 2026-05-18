@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-from datetime import datetime
-import json
 
 @dataclass(frozen=True)
 class ReplaySnapshot:

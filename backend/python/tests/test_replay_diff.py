@@ -1,6 +1,5 @@
-import pytest
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from ivr_assessor.events.replay_diff import diff_states
 
 @dataclass

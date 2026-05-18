@@ -55,26 +55,30 @@
     </div>
   </div>
 
-  <div class="shell-target">
-    <label for="f-target">Target IVR</label>
-    <input id="f-target" type="tel" placeholder="(800) 555-0114" value="">
+  <div class="shell-center">
+    <div class="shell-target">
+      <label for="f-target">Target IVR</label>
+      <input id="f-target" type="tel" placeholder="(800) 555-0114" value="">
+    </div>
+
+    <div class="call-dock" aria-label="Interactive call controls">
+      <button class="call-dock-btn is-active" id="btn-interactive-call" type="button">Interactive Call</button>
+      <button class="call-dock-btn call-dock-btn-primary" id="btn-live-call" type="button">Live</button>
+      <button class="call-dock-btn" id="btn-hangup-call" type="button">Hang Up</button>
+      <span class="status-pill tone-info is-hidden" id="hdr-runtime-state">ACTIVE</span>
+    </div>
   </div>
 
   <div class="shell-actions">
     <nav class="shell-nav">
-      <button class="nav-btn" data-workspace="prep">Setup</button>
-      <button class="nav-btn" data-workspace="discover">Mapping</button>
-      <button class="nav-btn is-active" data-workspace="live">Console</button>
-      <button class="nav-btn" data-workspace="review">Replay</button>
-      <button class="nav-btn" data-workspace="run">Supervision</button>
+      <button class="nav-btn" data-workspace="prep">Prep</button>
+      <button class="nav-btn" data-workspace="discover">Discover</button>
+      <button class="nav-btn" data-workspace="review">Review</button>
+      <button class="nav-btn" data-workspace="run">Run</button>
     </nav>
-    <span class="status-pill tone-warn" id="hdr-status">Idle</span>
-    <span class="status-pill tone-info is-hidden" id="hdr-runtime-state">ACTIVE</span>
-    <button class="btn-secondary" id="btn-test-suite" type="button">Plan Suite</button>
-    <button class="btn-secondary" id="btn-run-suites" type="button">Run Suite</button>
-    <button class="btn-secondary" id="btn-settings" type="button">Operational Monitor</button>
-    <button class="btn-secondary" id="btn-end" type="button">End Run</button>
-    <button class="btn-primary" id="btn-start" type="button">Start Run</button>
+    <button class="btn-secondary" id="btn-test-suite" type="button">Suite Planning</button>
+    <button class="btn-secondary" id="btn-run-suites" type="button">Suite Execution</button>
+    <button class="btn-secondary" id="btn-settings" type="button">Review / Replay</button>
   </div>
 </header>
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Any, Callable, Dict, List
+from typing import Callable, Dict, List
 from .event_models import OperationalEvent
 
 logger = logging.getLogger(__name__)

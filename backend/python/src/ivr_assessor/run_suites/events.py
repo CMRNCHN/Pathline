@@ -18,7 +18,6 @@ from typing import Any
 
 from .status import StepStatus
 from ..events.event_models import OperationalEvent, EventMetadata
-from ..events.event_types import EventType
 
 
 # ─── IVR Runtime Event Types (string constants) ───────────────────────────────

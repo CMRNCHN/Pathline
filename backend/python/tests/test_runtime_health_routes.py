@@ -1,4 +1,3 @@
-import pytest
 from ivr_assessor.backend.routes.mapper_routes import build_status_payload
 from ivr_assessor.runtime.runtime_supervisor import supervisor
 

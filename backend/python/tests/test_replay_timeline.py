@@ -1,4 +1,3 @@
-import pytest
 from ivr_assessor.events.replay_timeline import ReplayTimeline
 
 def test_timeline_navigation():

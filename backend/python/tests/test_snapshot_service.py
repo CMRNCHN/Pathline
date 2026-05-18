@@ -1,11 +1,6 @@
 import pytest
-import shutil
-import json
-from pathlib import Path
-from datetime import datetime
 from ivr_assessor.events.replay_state import ReplayState
 from ivr_assessor.events.snapshot_service import SnapshotService
-from ivr_assessor.events.replay_snapshot import ReplaySnapshot
 
 @pytest.fixture
 def temp_snapshots_dir(tmp_path):

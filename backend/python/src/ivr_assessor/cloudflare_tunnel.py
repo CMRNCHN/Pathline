@@ -27,7 +27,6 @@ import os
 import re
 import shutil
 from types import TracebackType
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

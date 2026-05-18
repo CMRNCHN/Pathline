@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Optional
 
 from .replay_snapshot import ReplaySnapshot
 from .replay_state import ReplayState

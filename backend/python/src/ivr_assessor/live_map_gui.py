@@ -7,13 +7,12 @@ import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlsplit, urlunsplit
 
 from . import map_store
 from .inspection import build_runtime_diagnostics, build_session_snapshot
 from .live_map import LiveMappingSession
-from .models import CallEvent
 from .response_library import ResponseLibrary
 from .startup_runtime import bootstrap_runtime
 from .streaming_server import (
@@ -28,12 +27,11 @@ from .backend.ui.ui_state import (
     REPORTS_DIR,
     SNAPSHOTS_DIR,
     STATE,
-    RS_STATE,
     AppState,
     QueuePromptSource,
 )
 from .events.event_sink import sink as EventSink
-from .backend.ui.template_loader import render_index, TEMPLATE_INDEX
+from .backend.ui.template_loader import render_index
 from .backend.ui.frontend_assets import load_static
 from .backend.routes import mapper_routes, run_suite_routes, replay_routes, telecom_test_routes
 from .backend.routes.run_suite_routes import normalize_suite_filename as _normalize_suite_filename  # noqa: F401 (public re-export for tests)
@@ -62,7 +60,9 @@ def _wait_for_port(host: str, port: int, timeout: float = 8.0) -> bool:
 
 
 def _free_port(port: int) -> None:
-    import subprocess, os as _os, signal
+    import subprocess
+    import os as _os
+    import signal
     try:
         out = subprocess.check_output(["lsof", "-t", f"-i:{port}"], stderr=subprocess.DEVNULL)
         for pid in out.decode().splitlines():
@@ -367,7 +367,8 @@ def _runtime_diagnostics_payload() -> dict[str, Any]:
 
 
 def _start_ngrok_subprocess() -> dict:
-    import shutil, subprocess
+    import shutil
+    import subprocess
     binary = shutil.which("ngrok") or "/opt/homebrew/bin/ngrok"
     if not binary or not os.path.exists(binary):
         return {"ok": False, "error": "ngrok binary not found in PATH"}
@@ -419,7 +420,6 @@ def _run_session_thread(
     stream_url: str | None,
     manual_mode: bool = False,
 ) -> None:
-    import threading
     STATE.logs.append(f"[debug] Starting session thread for target: {target}")
     STATE.record_runtime_checkpoint(
         "session.thread_start",
@@ -642,38 +642,42 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             if status == 200:
                 self._raw(200, ctype, body)
             else:
-                self.send_response(status); self.end_headers()
+                self.send_response(status)
+                self.end_headers()
             return
         if self.path == "/api/status":
-            self._json(mapper_routes.build_status_payload()); return
-        if self.path == "/api/runtime/health":
-            self._json(mapper_routes.get_runtime_health()); return
-        if self.path == "/api/runtime/sessions":
-            self._json(mapper_routes.get_runtime_sessions()); return
-        if self.path.startswith("/api/runtime/sessions/"):
-            session_id = self.path[len("/api/runtime/sessions/"):]
-            self._json(mapper_routes.get_runtime_session(session_id)); return
+            self._json(mapper_routes.build_status_payload())
+            return
         if self.path == "/api/config":
             self._json(mapper_routes.get_config(
                 _default_stream_url, _persistent_stream, _to_wss, default_stream_auth_token
-            )); return
+            ))
+            return
         if self.path == "/api/maps":
-            self._json(mapper_routes.get_maps()); return
+            self._json(mapper_routes.get_maps())
+            return
         if self.path == "/api/diagnose":
-            self._json(_diagnose()); return
+            self._json(_diagnose())
+            return
         if self.path == "/api/runtime-metrics":
-            self._json(_runtime_metrics_payload()); return
+            self._json(_runtime_metrics_payload())
+            return
         if self.path == "/api/runtime-diagnostics":
-            self._json(_runtime_diagnostics_payload()); return
+            self._json(_runtime_diagnostics_payload())
+            return
         if self.path == "/api/suites":
-            self._json(run_suite_routes.list_suites()); return
+            self._json(run_suite_routes.list_suites())
+            return
         if self.path.startswith("/api/maps/"):
             from urllib.parse import unquote
-            self._json(mapper_routes.get_map(unquote(self.path[len("/api/maps/"):]))); return
+            self._json(mapper_routes.get_map(unquote(self.path[len("/api/maps/"):])))
+            return
         if self.path == "/api/run-suites":
-            self._json(run_suite_routes.list_run_suites()); return
+            self._json(run_suite_routes.list_run_suites())
+            return
         if self.path == "/api/replays":
-            self._json(replay_routes.get_replays()); return
+            self._json(replay_routes.get_replays())
+            return
         if self.path.startswith("/api/replays/"):
             from urllib.parse import unquote, urlparse, parse_qs
             parsed = urlparse(self.path)
@@ -683,65 +687,31 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             if len(parts) > 1:
                 sub_route = parts[1]
                 if sub_route == "events":
-                    self._json(replay_routes.get_replay_events(session_id)); return
+                    self._json(replay_routes.get_replay_events(session_id))
+                    return
                 if sub_route == "timeline":
-                    self._json(replay_routes.get_replay_timeline(session_id)); return
+                    self._json(replay_routes.get_replay_timeline(session_id))
+                    return
                 if sub_route == "state":
                     offset = int(parts[2]) if len(parts) > 2 else None
-                    self._json(replay_routes.get_replay(session_id, offset=offset)); return
+                    self._json(replay_routes.get_replay(session_id, offset=offset))
+                    return
                 if sub_route == "diff":
                     from_off = int(parts[2]) if len(parts) > 2 else 0
                     to_off = int(parts[3]) if len(parts) > 3 else 0
-                    self._json(replay_routes.get_replay_diff(session_id, from_off, to_off)); return
-                if sub_route == "bookmarks":
-                    self._json(replay_routes.get_replay_bookmarks(session_id)); return
-                if sub_route == "annotations":
-                    self._json(replay_routes.get_replay_annotations(session_id)); return
-                if sub_route == "search":
-                    self._json(replay_routes.search_replay(session_id, parse_qs(parsed.query))); return
-                if sub_route == "media":
-                    self._json(replay_routes.get_replay_media_metadata(session_id)); return
-                if sub_route == "waveform":
-                    self._json(replay_routes.get_waveform_metadata(session_id)); return
-                if sub_route == "align":
-                    self._json(replay_routes.get_alignment_lookup(session_id)); return
-                if sub_route == "cursor":
-                    offset = int(parts[2]) if len(parts) > 2 else 0
-                    self._json(replay_routes.get_replay_cursor(session_id, offset)); return
-                if sub_route == "seek":
-                    params = parse_qs(parsed.query)
-                    time_ms = int(params.get("t", [0])[0])
-                    self._json(replay_routes.seek_replay(session_id, time_ms)); return
-                if sub_route == "event":
-                    index = int(parts[2]) if len(parts) > 2 else 0
-                    self._json(replay_routes.get_event_at_index(session_id, index)); return
-                if sub_route == "audio":
-                    # For audio streaming, we need to bypass _json and use the route's response
-                    res = replay_routes.stream_media(session_id)
-                    from fastapi.responses import FileResponse
-                    if isinstance(res, FileResponse):
-                        with open(res.path, "rb") as f:
-                            body = f.read()
-                        self._raw(200, res.media_type, body)
+                    self._json(replay_routes.get_replay_diff(session_id, from_off, to_off))
                     return
-            
-            if session_id == "compare":
-                params = parse_qs(parsed.query)
-                left = params.get("left", [None])[0]
-                right = params.get("right", [None])[0]
-                if left and right:
-                    self._json(replay_routes.compare_replays(left, right)); return
-                else:
-                    self._json_error(400, "Missing left or right session_id"); return
             
             # Default: full reconstruction
             params = parse_qs(parsed.query)
             offset = int(params.get("offset", [0])[0]) if "offset" in params else None
-            self._json(replay_routes.get_replay(session_id, offset=offset)); return
+            self._json(replay_routes.get_replay(session_id, offset=offset))
+            return
         if self.path.startswith("/api/run-suites/") and self.path.endswith("/poll"):
             from urllib.parse import unquote
             suite_id = unquote(self.path[len("/api/run-suites/"):-len("/poll")])
-            self._json(run_suite_routes.poll_run_suite(suite_id)); return
+            self._json(run_suite_routes.poll_run_suite(suite_id))
+            return
         if self.path.startswith("/api/run-suites/") and "/export" in self.path:
             from urllib.parse import unquote
             from .run_suites.loader import load_suite, export_suite_json
@@ -756,33 +726,26 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
             except FileNotFoundError:
-                self.send_response(404); self.end_headers()
+                self.send_response(404)
+                self.end_headers()
             return
         if self.path == "/api/telecom-tests":
-            self._json(telecom_test_routes.get_telecom_tests()); return
-        if self.path == "/api/evidence-bundles":
-            self._json(telecom_test_routes.get_evidence_bundles()); return
+            self._json(telecom_test_routes.get_telecom_tests())
+            return
         if self.path.startswith("/api/telecom-tests/"):
             from urllib.parse import unquote
             parts = self.path[len("/api/telecom-tests/"):].split("/")
             test_id = unquote(parts[0])
             if len(parts) > 1 and parts[1] == "evidence":
-                 self._json(telecom_test_routes.get_telecom_test_evidence(test_id)); return
-            self._json(telecom_test_routes.get_telecom_test_status(test_id)); return
-        if self.path.startswith("/api/evidence-bundles/"):
-            from urllib.parse import unquote
-            parts = self.path[len("/api/evidence-bundles/"):].split("/")
-            bundle_id = unquote(parts[0])
-            if len(parts) > 1:
-                sub = parts[1]
-                if sub == "manifest":
-                    self._json(telecom_test_routes.get_bundle_manifest(bundle_id)); return
-                if sub == "report":
-                    self._json(telecom_test_routes.get_bundle_report(bundle_id)); return
-            self._json(telecom_test_routes.get_bundle_manifest(bundle_id)); return
+                 self._json(telecom_test_routes.get_telecom_test_evidence(test_id))
+                 return
+            self._json(telecom_test_routes.get_telecom_test_status(test_id))
+            return
         if self.path.startswith("/api/export/"):
-            self._handle_export(); return
-        self.send_response(404); self.end_headers()
+            self._handle_export()
+            return
+        self.send_response(404)
+        self.end_headers()
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", 0))
@@ -794,75 +757,86 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if self.path == "/api/telecom-tests/run":
-                self._json(telecom_test_routes.handle_run_telecom_test(data, _run_session_thread)); return
-            if self.path == "/api/evidence-bundles/export":
-                self._json(telecom_test_routes.handle_export_evidence_bundle(data)); return
+                self._json(telecom_test_routes.handle_run_telecom_test(data, _run_session_thread))
+                return
             if self.path.startswith("/api/telecom-tests/") and self.path.endswith("/abort"):
                 from urllib.parse import unquote
                 test_id = unquote(self.path.split("/")[3])
-                self._json(telecom_test_routes.handle_abort_telecom_test(test_id)); return
+                self._json(telecom_test_routes.handle_abort_telecom_test(test_id))
+                return
             if self.path == "/api/start":
-                self._json(mapper_routes.handle_start(data, _run_session_thread)); return
+                self._json(mapper_routes.handle_start(data, _run_session_thread))
+                return
             if self.path == "/api/prompt":
-                self._json(mapper_routes.handle_prompt(data)); return
-            if self.path.startswith("/api/replays/"):
-                from urllib.parse import unquote
-                parts = self.path[len("/api/replays/"):].split("/")
-                session_id = unquote(parts[0])
-                if len(parts) > 1:
-                    sub_route = parts[1]
-                    if sub_route == "bookmarks":
-                        self._json(replay_routes.create_replay_bookmark(session_id, data)); return
-                    if sub_route == "annotations":
-                        self._json(replay_routes.create_replay_annotation(session_id, data)); return
-                self._json_error(404, "Sub-route not found"); return
+                self._json(mapper_routes.handle_prompt(data))
+                return
             if self.path == "/api/inject-dtmf":
-                self._json(mapper_routes.handle_inject_dtmf(data)); return
+                self._json(mapper_routes.handle_inject_dtmf(data))
+                return
             if self.path == "/api/inject-voice":
-                self._json(mapper_routes.handle_inject_voice(data)); return
+                self._json(mapper_routes.handle_inject_voice(data))
+                return
             if self.path == "/api/end":
-                self._json(mapper_routes.handle_end()); return
+                self._json(mapper_routes.handle_end())
+                return
             if self.path == "/api/set-mode":
-                self._json(mapper_routes.handle_set_mode(data)); return
+                self._json(mapper_routes.handle_set_mode(data))
+                return
             if self.path == "/api/edit-node":
-                self._json(mapper_routes.handle_edit_node(data)); return
+                self._json(mapper_routes.handle_edit_node(data))
+                return
             if self.path == "/api/node-notes":
-                self._json(mapper_routes.handle_node_notes(data)); return
+                self._json(mapper_routes.handle_node_notes(data))
+                return
             if self.path.startswith("/api/maps/"):
                 from urllib.parse import unquote
                 target = unquote(self.path[len("/api/maps/"):])
-                self._json(mapper_routes.handle_maps_save(target, data)); return
+                self._json(mapper_routes.handle_maps_save(target, data))
+                return
             if self.path == "/api/auto-fix":
-                self._handle_auto_fix(); return
+                self._handle_auto_fix()
+                return
             if self.path == "/api/test-twilio":
-                self._handle_test_twilio(data); return
+                self._handle_test_twilio(data)
+                return
             if self.path == "/api/suites":
-                self._json(run_suite_routes.save_suite(data)); return
+                self._json(run_suite_routes.save_suite(data))
+                return
             if self.path == "/api/suites/run":
-                stream_url_fn = lambda: _to_wss(_detect_ngrok_url() or _default_stream_url)
-                self._json(run_suite_routes.run_test_suite(data, stream_url_fn)); return
+                def stream_url_fn():
+                    return _to_wss(_detect_ngrok_url() or _default_stream_url)
+                self._json(run_suite_routes.run_test_suite(data, stream_url_fn))
+                return
             if self.path == "/api/run-suites/import":
-                self._json(run_suite_routes.import_run_suite(data)); return
+                self._json(run_suite_routes.import_run_suite(data))
+                return
             if self.path == "/api/run-suites/save":
-                self._json(run_suite_routes.save_run_suite_json(data)); return
+                self._json(run_suite_routes.save_run_suite_json(data))
+                return
             if self.path == "/api/run-suites/abort":
-                self._json(run_suite_routes.abort_run_suite()); return
+                self._json(run_suite_routes.abort_run_suite())
+                return
             if self.path.startswith("/api/run-suites/") and self.path.endswith("/run"):
                 from urllib.parse import unquote
                 suite_id = unquote(self.path[len("/api/run-suites/"):-len("/run")])
-                self._json(run_suite_routes.start_run_suite(suite_id, _persistent_stream)); return
+                self._json(run_suite_routes.start_run_suite(suite_id, _persistent_stream))
+                return
         except ValueError as exc:
-            self._json_error(400, str(exc)); return
+            self._json_error(400, str(exc))
+            return
         except FileNotFoundError as exc:
-            self._json_error(404, str(exc)); return
+            self._json_error(404, str(exc))
+            return
 
-        self.send_response(404); self.end_headers()
+        self.send_response(404)
+        self.end_headers()
 
     def do_DELETE(self) -> None:
         if self.path.startswith("/api/maps/"):
             from urllib.parse import unquote
             target = unquote(self.path[len("/api/maps/"):])
-            self._json(mapper_routes.handle_maps_delete(target)); return
+            self._json(mapper_routes.handle_maps_delete(target))
+            return
         if self.path.startswith("/api/run-suites/"):
             from urllib.parse import unquote
             suite_id = unquote(self.path[len("/api/run-suites/"):])
@@ -871,7 +845,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._json_error(500, str(exc))
             return
-        self.send_response(404); self.end_headers()
+        self.send_response(404)
+        self.end_headers()
 
     # ── Inline handlers for routes with custom response shapes ────────────────
 
@@ -896,7 +871,9 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             body = map_store.export_markdown(graph, target).encode("utf-8")
             ctype, fname = "text/markdown; charset=utf-8", f"ivr_{target or 'map'}.md"
         else:
-            self.send_response(400); self.end_headers(); return
+            self.send_response(400)
+            self.end_headers()
+            return
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
@@ -970,25 +947,36 @@ def launch(default_stream_url: str | None = None) -> None:
     STATE.begin_startup_trace()
     STATE.record_runtime_checkpoint("launch.begin", "launching live map GUI", category="startup")
     _default_stream_url = default_stream_url
-    bootstrap = bootstrap_runtime()
-    STATE.record_startup_event(
-        "bootstrap.ready",
-        "runtime bootstrap complete",
-        env_method=bootstrap.get("env_method"),
-        env_keys_loaded=bootstrap.get("env_keys_loaded"),
-        log_level=bootstrap.get("log_level"),
-    )
-    STATE.record_runtime_checkpoint(
-        "bootstrap.ready",
-        "runtime bootstrap complete",
-        category="startup",
-        env_method=bootstrap.get("env_method"),
-        env_keys_loaded=bootstrap.get("env_keys_loaded"),
-        log_level=bootstrap.get("log_level"),
-    )
-    logger.info("Launching live map GUI")
+
+    # Stage 1: Bootstrap runtime environment
+    try:
+        bootstrap = bootstrap_runtime()
+        STATE.record_startup_event(
+            "bootstrap.ready",
+            "runtime bootstrap complete",
+            env_method=bootstrap.get("env_method"),
+            env_keys_loaded=bootstrap.get("env_keys_loaded"),
+            log_level=bootstrap.get("log_level"),
+        )
+        STATE.record_runtime_checkpoint(
+            "bootstrap.ready",
+            "runtime bootstrap complete",
+            category="startup",
+            env_method=bootstrap.get("env_method"),
+            env_keys_loaded=bootstrap.get("env_keys_loaded"),
+            log_level=bootstrap.get("log_level"),
+        )
+        logger.info("Launching live map GUI")
+        print("✓ Bootstrap complete")
+    except Exception as exc:
+        STATE.record_startup_event("bootstrap.error", str(exc))
+        print(f"✗ Bootstrap failed: {exc}")
+        import typer
+        raise typer.Exit(code=1)
+
     print(f"[DEBUG] Expected stream auth token: {default_stream_auth_token()}")
 
+    # Stage 2: Check credentials
     _REQUIRED = {
         "TWILIO_ACCOUNT_SID": "place calls",
         "TWILIO_AUTH_TOKEN":  "place calls",
@@ -1004,31 +992,72 @@ def launch(default_stream_url: str | None = None) -> None:
         print("   See .env.example at the repo root for all options.\n")
     else:
         STATE.record_startup_event("credentials.ready", "all required credentials present")
-        print("✓  All required credentials present")
+        print("✓ All required credentials present")
 
+    # Stage 3: Start stream server
     print(f"Stream server → starting on port {_STREAM_PORT}…")
-    if _ensure_stream_server() is not None:
-        print(f"Stream server → ✓ ready on :{_STREAM_PORT}")
-        EventSink.start()
-        from .runtime.runtime_supervisor import supervisor
-        supervisor.start()
-    else:
-        print(f"Stream server → ✗ failed to start on :{_STREAM_PORT}")
+    stream_ready = False
+    try:
+        if _ensure_stream_server() is not None:
+            print(f"✓ Stream server ready on :{_STREAM_PORT}")
+            STATE.record_startup_event("stream_server.success", f"listening on {_STREAM_PORT}")
+            stream_ready = True
+        else:
+            STATE.record_startup_event("stream_server.failed", f"could not bind to :{_STREAM_PORT}")
+            print(f"✗ Stream server failed to start on :{_STREAM_PORT}")
+            print(f"  Try: fuser -k -9 {_STREAM_PORT}/tcp")
+    except Exception as exc:
+        STATE.record_startup_event("stream_server.exception", str(exc))
+        print(f"✗ Stream server error: {exc}")
+        print(f"  Try: fuser -k -9 {_STREAM_PORT}/tcp")
 
-    server = HTTPServer(("127.0.0.1", _GUI_PORT), LiveMapRequestHandler)
-    STATE.record_startup_event("gui.ready", f"listening on {_GUI_PORT}")
-    STATE.record_runtime_checkpoint(
-        "gui.ready",
-        f"listening on {_GUI_PORT}",
-        category="startup",
-        port=_GUI_PORT,
-    )
-    print(f"Live Map GUI  →  http://127.0.0.1:{_GUI_PORT}/")
+    # Stage 4: Start event sink and supervisor (only if stream server is ready)
+    if stream_ready:
+        try:
+            EventSink.start()
+            STATE.record_startup_event("event_sink.ready", "started")
+            print("✓ Event sink started")
+        except Exception as exc:
+            STATE.record_startup_event("event_sink.error", str(exc))
+            print(f"✗ Event sink failed: {exc}")
+            logger.exception("Event sink startup failed")
+
+        try:
+            from .runtime.runtime_supervisor import supervisor
+            supervisor.start()
+            STATE.record_startup_event("supervisor.ready", "started")
+            print("✓ Supervisor started")
+        except Exception as exc:
+            STATE.record_startup_event("supervisor.error", str(exc))
+            print(f"✗ Supervisor failed: {exc}")
+            logger.exception("Supervisor startup failed")
+    else:
+        STATE.record_startup_event("startup.degraded", "stream server unavailable; skipping event sink and supervisor")
+        print("⚠  Stream server unavailable; operating in limited mode (no live recording)")
+
+    # Stage 5: Start GUI server
+    try:
+        server = HTTPServer(("127.0.0.1", _GUI_PORT), LiveMapRequestHandler)
+        STATE.record_startup_event("gui.ready", f"listening on {_GUI_PORT}")
+        STATE.record_runtime_checkpoint(
+            "gui.ready",
+            f"listening on {_GUI_PORT}",
+            category="startup",
+            port=_GUI_PORT,
+        )
+        print(f"✓ Live Map GUI → http://127.0.0.1:{_GUI_PORT}/")
+    except Exception as exc:
+        STATE.record_startup_event("gui.error", str(exc))
+        print(f"✗ GUI server failed: {exc}")
+        import typer
+        raise typer.Exit(code=1)
+
+    # Stage 6: Configure stream URL
     if default_stream_url:
         wss = _to_wss(default_stream_url) or ""
         STATE.record_startup_event("stream_url.ready", wss)
         STATE.record_runtime_checkpoint("stream_url.ready", wss, category="startup")
-        print(f"Stream URL    →  {wss}  (pre-wired)")
+        print(f"✓ Stream URL → {wss}  (pre-wired)")
     else:
         STATE.record_startup_event("stream_url.pending", f"expose port {_STREAM_PORT}")
         STATE.record_runtime_checkpoint(
@@ -1036,9 +1065,14 @@ def launch(default_stream_url: str | None = None) -> None:
             f"expose port {_STREAM_PORT}",
             category="startup",
         )
-        print(f"Stream URL    →  expose port {_STREAM_PORT} with: ngrok http {_STREAM_PORT}")
+        print(f"⚠  Stream URL → expose port {_STREAM_PORT} with: ngrok http {_STREAM_PORT}")
+
     print("Press Ctrl+C to stop.")
-    webbrowser.open(f"http://127.0.0.1:{_GUI_PORT}/")
+    try:
+        webbrowser.open(f"http://127.0.0.1:{_GUI_PORT}/")
+    except Exception:
+        pass
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:

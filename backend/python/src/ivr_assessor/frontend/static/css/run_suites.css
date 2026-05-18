@@ -302,40 +302,56 @@
   .rs-right{max-height:220px;border-top:1px solid var(--border)}
 }
 
-/* ── Refined theme additions ── */
-.rs-suite-item.active {
-  background: var(--accent-soft);
-  border-color: rgba(196,162,90,.28);
-  color: var(--accent-strong);
-}
-.rs-tab.active {
-  background: var(--accent-soft);
-  border-color: rgba(196,162,90,.28);
-  color: var(--accent-strong);
-}
+/* Claude GUI redesign layer: visual-only suite runner alignment. */
+.rs-suite-item.active,
+.rs-tab.active,
 .rs-step.active-step {
   background: var(--accent-soft);
   border-color: rgba(196,162,90,.28);
+  color: var(--accent-strong);
 }
-.rs-step-action { color: var(--accent-strong); }
-.rs-event-line.info { color: var(--accent-strong); }
-.rs-header {
-  background: var(--panel-raised);
-  border-bottom: 1px solid rgba(255,255,255,.1);
+
+.rs-step.active-step {
+  box-shadow: inset 0 0 0 1px rgba(196,162,90,.08);
 }
-.rs-center-top {
-  background: var(--panel-raised);
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
-.rs-content {
-  border-color: rgba(255,255,255,.1);
-  background: var(--panel);
-}
-.rs-left, .rs-right {
-  background: var(--panel-raised);
-}
+
 .rs-step-status.running {
   background: var(--accent-soft);
   color: var(--accent-strong);
   border-color: rgba(196,162,90,.28);
+}
+
+.rs-step-action,
+.rs-event-line.info {
+  color: var(--accent-strong);
+}
+
+.rs-header,
+.rs-center-top {
+  background: var(--panel-raised);
+  border-bottom: 1px solid rgba(255,255,255,.1);
+}
+
+.rs-center-top {
+  border-bottom-color: rgba(255,255,255,.08);
+}
+
+.rs-content {
+  border-color: rgba(255,255,255,.1);
+  background: var(--panel);
+}
+
+.rs-left,
+.rs-right {
+  background: var(--panel-raised);
+}
+
+.rs-run-btn {
+  border-color: rgba(196,162,90,.25);
+  background: var(--accent);
+  color: #0C0D0F;
+}
+
+.rs-progress-fill {
+  background: var(--accent);
 }

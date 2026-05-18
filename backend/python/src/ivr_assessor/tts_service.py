@@ -28,7 +28,6 @@ import shutil
 import struct
 import wave
 from collections import OrderedDict
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +214,9 @@ class OpenAITTS:
     async def synthesize(self, text: str) -> bytes:
         """Return mulaw 8kHz bytes for text. Runs ai_voice in thread pool."""
         from .ai_voice import VoiceGenerationSpec, generate_voice_file  # type: ignore[attr-defined]
-        import asyncio, pathlib, tempfile
+        import asyncio
+        import pathlib
+        import tempfile
         spec = VoiceGenerationSpec(text=text)
         loop = asyncio.get_running_loop()
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:

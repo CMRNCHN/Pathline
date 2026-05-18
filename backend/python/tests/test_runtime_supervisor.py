@@ -1,8 +1,6 @@
 import time
 import pytest
 from ivr_assessor.runtime.runtime_supervisor import RuntimeSupervisor, RuntimeState, WebSocketState
-from ivr_assessor.events.event_types import EventType
-from ivr_assessor.events.event_sink import sink
 
 def test_supervisor_registration():
     supervisor = RuntimeSupervisor()
