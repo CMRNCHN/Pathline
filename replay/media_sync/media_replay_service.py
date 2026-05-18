@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-from analyst.backend.ui.ui_state import RECORDINGS_DIR, WAVEFORMS_DIR
+from infrastructure.config.paths import RECORDINGS_DIR, WAVEFORMS_DIR
 from replay.media_sync.waveform_metadata import WaveformService, WaveformMetadata
 from runtime.state.replay_state import ReplayCursor
 

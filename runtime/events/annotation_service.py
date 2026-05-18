@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict
 
-from analyst.backend.ui.ui_state import ANNOTATIONS_DIR
+from infrastructure.config.paths import ANNOTATIONS_DIR
 from runtime.events.replay_annotation import ReplayAnnotation
 
 logger = logging.getLogger(__name__)

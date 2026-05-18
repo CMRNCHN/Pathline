@@ -24,10 +24,10 @@ from infrastructure.config.paths import (
     BENCHMARKS_DIR,
     EVENTS_DIR,
     ANNOTATIONS_DIR,
-    SNAPSHOT_INTERVAL
+    SNAPSHOT_INTERVAL,
+    WAVEFORMS_DIR,
+    EVIDENCE_BUNDLES_DIR,
 )
-WAVEFORMS_DIR      = _DATA / "waveforms"
-EVIDENCE_BUNDLES_DIR = _DATA / "evidence_bundles"
 
 
 class ObservableQueue(queue.Queue):

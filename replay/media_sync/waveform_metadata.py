@@ -3,7 +3,7 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-from analyst.backend.ui.ui_state import WAVEFORMS_DIR, RECORDINGS_DIR
+from infrastructure.config.paths import WAVEFORMS_DIR, RECORDINGS_DIR
 
 @dataclass
 class WaveformMetadata:

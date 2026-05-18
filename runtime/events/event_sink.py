@@ -11,7 +11,7 @@ from runtime.events.event_types import EventType
 from runtime.state.replay_state import ReplayState
 from replay.reducers.replay_reducer import apply_event
 from replay.snapshots.snapshot_service import SnapshotService
-from analyst.backend.ui.ui_state import EVENTS_DIR, SNAPSHOT_INTERVAL
+from infrastructure.config.paths import EVENTS_DIR, SNAPSHOT_INTERVAL
 
 logger = logging.getLogger(__name__)
 

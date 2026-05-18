@@ -7,7 +7,7 @@ from runtime.state.replay_state import ReplayState
 from replay.reducers.replay_reducer import apply_event
 from replay.snapshots.snapshot_service import SnapshotService
 from replay.snapshots.snapshot_validator import SnapshotValidator
-from analyst.backend.ui.ui_state import EVENTS_DIR
+from infrastructure.config.paths import EVENTS_DIR
 
 logger = logging.getLogger(__name__)
 

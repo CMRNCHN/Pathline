@@ -6,7 +6,7 @@ from typing import Optional
 
 from replay.snapshots.replay_snapshot import ReplaySnapshot
 from runtime.state.replay_state import ReplayState
-from analyst.backend.ui.ui_state import SNAPSHOTS_DIR
+from infrastructure.config.paths import SNAPSHOTS_DIR
 
 logger = logging.getLogger(__name__)
 
