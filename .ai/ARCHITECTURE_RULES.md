@@ -37,3 +37,9 @@ tests/
 `.ai/` is the only repository-managed AI/session continuity area.
 Do not introduce or regenerate `.air/`.
 Any tool or assistant operating in this repository must treat `AGENTS.md` and `.ai/*` continuity files as authoritative.
+
+## Workspace bootstrap policy
+
+`.ai/` is the only repository-managed AI/session continuity area.
+Do not introduce or regenerate `.air/`.
+Any tool or assistant operating in this repository must treat `AGENTS.md` and `.ai/*` continuity files as authoritative.
