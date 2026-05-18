@@ -23,15 +23,6 @@ logger = logging.getLogger(__name__)
 # audioop was deprecated in Python 3.12 and removed in 3.13.
 # audioop-lts provides the identical C extension API for 3.13+.
 def _load_audioop():
-    if sys.version_info >= (3, 13):
-        try:
-            return importlib.import_module("audioop_lts")
-        except ModuleNotFoundError as exc:
-            raise ModuleNotFoundError(
-                "Python 3.13+ requires 'audioop-lts' because stdlib 'audioop' was removed. "
-                "Install with: pip install audioop-lts"
-            ) from exc
-
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -40,14 +31,13 @@ def _load_audioop():
         )
         try:
             return importlib.import_module("audioop")
-        except ModuleNotFoundError:
-            try:
-                return importlib.import_module("audioop_lts")
-            except ModuleNotFoundError as exc:
+        except ModuleNotFoundError as exc:
+            if sys.version_info >= (3, 13):
                 raise ModuleNotFoundError(
-                    "Unable to import 'audioop' on Python <3.13 and fallback "
-                    "'audioop-lts' is also unavailable. Install with: pip install audioop-lts"
+                    "Python 3.13+ requires the 'audioop-lts' package, which provides "
+                    "the 'audioop' module. Install with: pip install audioop-lts"
                 ) from exc
+            raise
 
 audioop = _load_audioop()
 
