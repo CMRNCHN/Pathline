@@ -16,13 +16,10 @@ dependencies = [
     "deepgram-sdk>=3.0.0",
     "python-multipart>=0.0.9",
     "httpx>=0.27.0",
-    # Phase 1 — audio pipeline + VAD
-    "audioop-lts>=0.2.1; python_version >= '3.13'",
+    "audioop-lts>=0.2.2; python_version >= '3.13'",
     "webrtcvad-wheels>=2.0.10",
-    # Phase 2 — local STT
     "faster-whisper>=1.0.3",
     "numpy>=1.26",
-    # Phase 5 — structured logging
     "structlog>=24.1",
     "python-dotenv>=1.0.0",
 ]
@@ -31,6 +28,7 @@ dependencies = [
 interactive = ["twilio>=8.0"]
 dev = [
     "pytest>=8.0",
+    "ruff>=0.6.0",
     "pre-commit>=3.0",
     "detect-secrets>=1.4",
 ]
@@ -39,14 +37,14 @@ gpu = ["ctranslate2[cuda]>=4.0"]
 benchmarks = ["jiwer>=3.0"]
 
 [project.scripts]
-pathline = "runtime.kernel.cli:main"
+pathline = "tools.pathline_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["runtime*", "replay*", "analyst*", "agents*", "tests*"]
+include = ["runtime*", "replay*", "analyst*", "agents*", "infrastructure*", "tools*", "tests*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

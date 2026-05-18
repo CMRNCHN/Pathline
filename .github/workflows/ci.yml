@@ -9,28 +9,56 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend/python
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: pip
+          cache-dependency-path: pyproject.toml
 
-      - name: Install package
-        run: pip install -e ".[interactive]"
+      - name: Show environment
+        run: |
+          set -euo pipefail
+          python --version
+          pwd
+          ls -la
 
-      - name: Install test deps
-        run: pip install pytest
+      - name: Install package and tooling
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -e ".[interactive,dev]"
 
       - name: Run tests
-        run: python -m pytest -q
+        run: |
+          set -euo pipefail
+          python -m pytest -q
 
       - name: Lint
         run: |
-          pip install ruff
-          ruff check src/ tests/
+          set -euo pipefail
+
+          lint_targets=()
+          [[ -d runtime ]] && lint_targets+=(runtime)
+          [[ -d replay ]] && lint_targets+=(replay)
+          [[ -d analyst ]] && lint_targets+=(analyst)
+          [[ -d agents ]] && lint_targets+=(agents)
+          [[ -d infrastructure ]] && lint_targets+=(infrastructure)
+          [[ -d tests ]] && lint_targets+=(tests)
+
+          if [[ ${#lint_targets[@]} -eq 0 ]]; then
+            echo "No lint targets found"
+            find . -maxdepth 3 -type d | sort
+            exit 1
+          fi
+
+          python -m ruff check "${lint_targets[@]}"

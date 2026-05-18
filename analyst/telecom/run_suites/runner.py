@@ -20,7 +20,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from tests.run_suites.events import (
+from analyst.telecom.run_suites.events import (
     IVREventType,
     IVRRuntimeEvent,
     RunSuiteEvent,
@@ -34,7 +34,7 @@ from tests.run_suites.events import (
     StepFailedEvent,
     StepTimedOutEvent,
 )
-from tests.run_suites.models import (
+from analyst.telecom.run_suites.models import (
     RunSuite,
     TestScenario,
     TestStep,
@@ -44,8 +44,8 @@ from tests.run_suites.models import (
     RunResult,
     SuiteRunStatus,
 )
-from tests.run_suites.status import StepStatus, FailureReason, is_terminal
-from tests.run_suites.validators import (
+from analyst.telecom.run_suites.status import StepStatus, FailureReason, is_terminal
+from analyst.telecom.run_suites.validators import (
     validate_text_contains,
     validate_intent,
     validate_node,

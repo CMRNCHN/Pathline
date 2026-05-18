@@ -52,3 +52,9 @@ voices/
 
 # Generated archives
 *.zip
+
+# Do not version AIR workspace files
+.air/
+
+# Do not version AIR workspace files
+.air/

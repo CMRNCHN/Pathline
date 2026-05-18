@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from typing import Any
 
-from tests.run_suites.status import StepStatus
+from analyst.telecom.run_suites.status import StepStatus
 from runtime.events.event_models import OperationalEvent, EventMetadata
 
 

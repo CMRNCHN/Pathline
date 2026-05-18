@@ -14,14 +14,14 @@ import threading
 
 import pytest
 
-from tests.run_suites.events import (
+from analyst.telecom.run_suites.events import (
     IVREventType,
     IVRRuntimeEvent,
     RunSuiteStartedEvent,
     StepPassedEvent,
     StepTimedOutEvent,
 )
-from tests.run_suites.loader import (
+from analyst.telecom.run_suites.loader import (
     import_suite_json,
     export_suite_json,
     load_suite,
@@ -29,7 +29,7 @@ from tests.run_suites.loader import (
     delete_suite,
     list_suites,
 )
-from tests.run_suites.models import (
+from analyst.telecom.run_suites.models import (
     RunSuite,
     TestScenario,
     TestStep,
@@ -39,14 +39,14 @@ from tests.run_suites.models import (
     RunResult,
     SuiteRunStatus,
 )
-from tests.run_suites.reports import RunReport
-from tests.run_suites.runner import SuiteRunner
-from tests.run_suites.status import (
+from analyst.telecom.run_suites.reports import RunReport
+from analyst.telecom.run_suites.runner import SuiteRunner
+from analyst.telecom.run_suites.status import (
     StepStatus,
     is_valid_transition,
     is_terminal,
 )
-from tests.run_suites.validators import (
+from analyst.telecom.run_suites.validators import (
     contains_raw_pan,
     validate_text_contains,
     validate_expected_event,

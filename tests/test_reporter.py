@@ -1,6 +1,6 @@
 from runtime.state.event_ledger import EventLedger
 from runtime.state.models import CallEvent
-from analyst.reporter import build_report
+from replay.reporting import build_report
 
 
 def test_report_contains_timeline_and_findings() -> None:

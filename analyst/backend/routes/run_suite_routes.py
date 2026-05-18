@@ -58,7 +58,7 @@ def save_suite(data: dict) -> dict:
     suite_data = data.get("data")
     if not isinstance(suite_data, dict):
         raise ValueError("Missing or invalid suite data")
-    from tests.test_suite import validate_suite_payload
+    from analyst.telecom.test_suite import validate_suite_payload
     normalized = validate_suite_payload(suite_data)
     with (SUITES_DIR / filename).open("w") as f:
         json.dump(normalized, f, indent=2)
@@ -72,7 +72,7 @@ def run_test_suite(data: dict, stream_url_fn: Callable) -> dict:
         raise FileNotFoundError(f"Suite not found: {filename}")
 
     def _run():
-        from tests.test_suite import run_test_suite_from_file, save_suite_result
+        from analyst.telecom.test_suite import run_test_suite_from_file, save_suite_result
         from runtime.twilio_client import TwilioTelephonyClient
         sid   = os.environ.get("TWILIO_ACCOUNT_SID", "")
         token = os.environ.get("TWILIO_AUTH_TOKEN", "")
@@ -135,7 +135,7 @@ def save_run_suite_json(data: dict) -> dict:
 
 def start_run_suite(suite_id: str, persistent_stream: object) -> dict:
     from ...run_suites.loader import load_suite
-    from tests.run_suites.runner import SuiteRunner
+    from analyst.telecom.run_suites.runner import SuiteRunner
     try:
         suite = load_suite(suite_id, suites_dir=RUN_SUITES_DIR)
     except FileNotFoundError:

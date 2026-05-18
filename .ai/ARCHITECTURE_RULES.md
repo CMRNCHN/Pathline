@@ -1,68 +1,45 @@
-# Hard Architectural Constraints
+# ARCHITECTURE RULES
 
-Last Updated: 2026-05-07
+## Domain Ownership
 
----
+runtime/
+- execution
+- state transitions
+- event processing
 
-## Runtime Rules
+replay/
+- temporal reconstruction
+- replay reducers
+- replay verification
 
-The HOT PATH must remain:
-- deterministic
-- bounded
-- replayable
-- low-latency
-- queue-driven
-- observable
-- testable
+analyst/
+- operator UX
+- reporting
+- visualization
 
-Realtime runtime must NOT contain:
-- recursive AI agents
-- LangChain orchestration
-- autonomous LLM routing
-- giant context windows
-- uncontrolled async reasoning
-- hidden side effects
+agents/
+- constrained AI helpers only
 
----
+tests/
+- validation only
+- never imported by production
 
-## Backend Rules
+## Hard Constraints
 
-DO NOT:
-- add FastAPI yet (stdlib http.server is fine for current scale)
-- add async frameworks to the GUI server
-- add LLMs to any hot path
-- break the singleton pattern for STATE / RS_STATE without a full plan
+- no production imports from tests
+- deterministic replay required
+- append-only event model preserved
+- topology enforcement tests authoritative
+- incremental migration only
 
-DO:
-- keep route handlers thin — business logic belongs in analyst/backend/routes/
-- keep state objects in analyst/backend/ui/ui_state.py
-- keep streaming WebSocket logic in runtime/transport/ only
+## Workspace bootstrap policy
 
----
+`.ai/` is the only repository-managed AI/session continuity area.
+Do not introduce or regenerate `.air/`.
+Any tool or assistant operating in this repository must treat `AGENTS.md` and `.ai/*` continuity files as authoritative.
 
-## Frontend Rules
+## Workspace bootstrap policy
 
-DO NOT:
-- add React, Next.js, Vue, Svelte
-- add Redux, MobX, Zustand
-- add Vite, webpack, or any build step
-- add websocket abstraction frameworks
-
-Frontend must remain:
-- lightweight vanilla JS
-- explicit — no hidden reactivity
-- server-rendered (index.html served from Python)
-- deterministic — no hidden state machines
-- debuggable — any engineer can read the JS cold
-
-Common layer (analyst/frontend/static/js/common/) is the only approved abstraction.
-
----
-
-## Most Important Principle
-
-**Improve structure WITHOUT increasing conceptual complexity.**
-
-A future engineer reading this code should find it *simpler*, not more abstract,
-than before each refactor session. If a change adds a new mental model to understand,
-it needs strong justification.
+`.ai/` is the only repository-managed AI/session continuity area.
+Do not introduce or regenerate `.air/`.
+Any tool or assistant operating in this repository must treat `AGENTS.md` and `.ai/*` continuity files as authoritative.

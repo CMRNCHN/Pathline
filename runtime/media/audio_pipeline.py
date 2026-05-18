@@ -10,8 +10,11 @@ One Twilio packet = exactly one 20ms VAD frame. No partial-frame buffering neede
 """
 from __future__ import annotations
 
+import importlib
 import logging
+import sys
 import time
+import warnings
 from typing import Callable
 
 logger = logging.getLogger(__name__)
@@ -19,16 +22,24 @@ logger = logging.getLogger(__name__)
 # ─── audioop shim ────────────────────────────────────────────────────────────
 # audioop was deprecated in Python 3.12 and removed in 3.13.
 # audioop-lts provides the identical C extension API for 3.13+.
-try:
-    import audioop  # type: ignore[import]
-except ModuleNotFoundError:
-    try:
-        import audioop_lts as audioop  # type: ignore[import,no-redef]
-    except ModuleNotFoundError as exc:
-        raise ModuleNotFoundError(
-            "Neither 'audioop' (stdlib ≤3.12) nor 'audioop-lts' (PyPI) found. "
-            "Install with: pip install audioop-lts"
-        ) from exc
+def _load_audioop():
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=DeprecationWarning,
+            message=r"'audioop' is deprecated",
+        )
+        try:
+            return importlib.import_module("audioop")
+        except ModuleNotFoundError as exc:
+            if sys.version_info >= (3, 13):
+                raise ModuleNotFoundError(
+                    "Python 3.13+ requires the 'audioop-lts' package, which provides "
+                    "the 'audioop' module. Install with: pip install audioop-lts"
+                ) from exc
+            raise
+
+audioop = _load_audioop()
 
 
 # ─── webrtcvad shim ──────────────────────────────────────────────────────────

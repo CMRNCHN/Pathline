@@ -1,4 +1,4 @@
-from agents.prompt_intelligence import PromptClassification, PromptIntent
+from runtime.prompt_intelligence import PromptClassification, PromptIntent
 from tests.scenario_runner import NextActionKind, choose_next_action
 
 

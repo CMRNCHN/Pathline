@@ -8,7 +8,7 @@ from pathlib import Path
 from runtime.state.event_ledger import EventLedger
 from runtime.ivr_mapper import IvrMapper
 from runtime.state.models import CallEvent
-from analyst.reporter import Report, build_report
+from replay.reporting import Report, build_report
 
 
 @dataclass(frozen=True)

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from runtime.state.live_map import RecordingTelephonyClient
-from tests.test_suite import (
+from analyst.telecom.test_suite import (
     TestCase,
     TestCaseResult,
     TestSuiteResult,
