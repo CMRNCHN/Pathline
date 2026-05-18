@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from runtime.kernel.cli import app
+from tools.pathline_cli import app
 
 
 runner = CliRunner()

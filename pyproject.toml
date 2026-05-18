@@ -37,14 +37,14 @@ gpu = ["ctranslate2[cuda]>=4.0"]
 benchmarks = ["jiwer>=3.0"]
 
 [project.scripts]
-pathline = "runtime.kernel.cli:main"
+pathline = "tools.pathline_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["runtime*", "replay*", "analyst*", "agents*", "infrastructure*", "tests*"]
+include = ["runtime*", "replay*", "analyst*", "agents*", "infrastructure*", "tools*", "tests*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
