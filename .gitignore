@@ -21,6 +21,11 @@ generated-answer-sheet.txt
 
 # AI session artifacts
 .ai_sessions/
+.ai/
+.agent.md
+
+# Claude Code local settings
+.claude/settings.local.json
 
 # Runtime storage — binary artifacts and large outputs
 /storage/*.wav
