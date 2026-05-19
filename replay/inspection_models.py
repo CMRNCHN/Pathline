@@ -45,6 +45,10 @@ class Anomaly:
     explanation: str
     references: list[Reference] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if self.severity not in {"info", "warn", "error"}:
+            raise ValueError("Anomaly.severity must be one of: info, warn, error")
+
 
 @dataclass(frozen=True)
 class NextStep:
