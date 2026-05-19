@@ -1,6 +1,6 @@
 # Agent 1 — schema + service
 
-Status: deliverable-1-merged, deliverable-2-merged, deliverable-3-running
+Status: Status: deliverable-1-merged, deliverable-2-merged, deliverable-3-merged, deliverable-4-running
 Branch (D1): merged via squash to next/replay-and-runtime-usability
 Branch (D2): next/replay-and-runtime-usability--agent-1-d2 (when started)
 Worktree (D2): ../pathline-agent-1
