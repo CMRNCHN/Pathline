@@ -17,6 +17,75 @@ from replay.replay_mode import replay_trace
 app = typer.Typer(help="Replay and diagnostics commands")
 
 
+# ── inspect-session text formatter ───────────────────────────────────────────
+
+def _format_inspection_text(report: "ReplayInspectionReport") -> str:  # noqa: F821
+    """Render a ReplayInspectionReport as operator-friendly text."""
+    lines: list[str] = []
+
+    # Header
+    lines.append("Replay inspection report")
+    lines.append(f"  schema_version: {report.schema_version}")
+    lines.append("")
+
+    # Identity
+    id_ = report.identity
+    lines.append("Identity")
+    lines.append(f"  session_id: {id_.session_id or '(none)'}")
+    lines.append(f"  call_sid:   {id_.call_sid or '(none)'}")
+    lines.append(f"  source:     {id_.source_kind or '(none)'}")
+    if id_.source_path:
+        lines.append(f"  source_path: {id_.source_path}")
+    lines.append("")
+
+    # Artifact availability
+    avail = report.artifact_availability
+    if avail.missing:
+        lines.append(f"Missing artifacts: {', '.join(avail.missing)}")
+    else:
+        lines.append("All artifacts available")
+    lines.append("")
+
+    # Summary
+    s = report.summary
+    lines.append("Summary")
+    lines.append(f"  event_count:   {s.event_count}")
+    lines.append(f"  prompt_count:  {s.prompt_count}")
+    lines.append(f"  action_count:  {s.action_count}")
+    if s.first_prompt:
+        lines.append(f"  first_prompt:  {s.first_prompt}")
+    if s.last_action:
+        lines.append(f"  last_action:   {s.last_action}")
+    if s.largest_gap_ms is not None:
+        lines.append(f"  largest_gap_ms: {s.largest_gap_ms}")
+    lines.append("")
+
+    # Path
+    p = report.path
+    if p.dtmf_path:
+        lines.append(f"  dtmf_path: {' → '.join(p.dtmf_path)}")
+    if p.visited_nodes:
+        lines.append(f"  visited_nodes: {len(p.visited_nodes)}")
+    lines.append("")
+
+    # Anomalies
+    if report.anomalies:
+        lines.append(f"Anomalies ({len(report.anomalies)})")
+        for a in report.anomalies:
+            lines.append(f"  [{a.severity.upper()}] {a.code}: {a.explanation}")
+        lines.append("")
+
+    # Next steps
+    if report.next_steps:
+        lines.append(f"Next steps ({len(report.next_steps)})")
+        for ns in report.next_steps:
+            lines.append(f"  - {ns.action}")
+            lines.append(f"    rationale: {ns.rationale}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 @app.command()
 def replay(
     trace_path: Path = typer.Option(..., "--trace-path"),
@@ -44,6 +113,27 @@ def inspect_replay(
         typer.echo(f"Unsupported format: {output_format}")
         raise typer.Exit(code=2)
     typer.echo(format_replay_inspection_text(payload))
+
+
+@app.command("inspect-session")
+def inspect_session(
+    session_id: str = typer.Option(..., "--session-id"),
+    output_format: str = typer.Option("text", "--format"),
+) -> None:
+    """Inspect a replay session by session ID using the canonical inspection report."""
+    from replay.inspection_service import build_inspection_report
+
+    if output_format not in ("text", "json"):
+        typer.echo(f"Unsupported format: {output_format}")
+        raise typer.Exit(code=2)
+
+    report = build_inspection_report(session_id)
+
+    if output_format == "json":
+        typer.echo(report.to_json(), nl=False)
+        return
+
+    typer.echo(_format_inspection_text(report))
 
 
 @app.command("inspect-runtime")

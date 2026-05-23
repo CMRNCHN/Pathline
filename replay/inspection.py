@@ -458,3 +458,25 @@ def _mapping(value: object) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
     return {}
+
+
+# New service API — also importable directly from replay.inspection_service.
+# Legacy functions above remain unchanged for backwards compatibility.
+from replay.inspection_service import (  # noqa: E402
+    InspectionService,
+    build_inspection_report,
+)
+
+__all__ = [
+    # legacy
+    "build_event_chronology",
+    "build_runtime_diagnostics",
+    "build_session_snapshot",
+    "format_replay_inspection_text",
+    "format_runtime_diagnostics_text",
+    "inspect_replay_artifact",
+    "load_runtime_payload",
+    # new service API
+    "InspectionService",
+    "build_inspection_report",
+]

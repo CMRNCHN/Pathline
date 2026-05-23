@@ -729,6 +729,14 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
                 self.send_response(404)
                 self.end_headers()
             return
+        if self.path.startswith("/api/replay-inspection/"):
+            from urllib.parse import unquote
+            session_id = unquote(self.path[len("/api/replay-inspection/"):])
+            try:
+                self._json(replay_routes.get_replay_inspection(session_id))
+            except FileNotFoundError as exc:
+                self._json_error(404, str(exc))
+            return
         if self.path == "/api/telecom-tests":
             self._json(telecom_test_routes.get_telecom_tests())
             return
@@ -743,6 +751,9 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/api/export/"):
             self._handle_export()
+            return
+        if self.path == "/replay-inspection" or self.path.startswith("/replay-inspection?"):
+            self._serve_replay_inspection_page()
             return
         self.send_response(404)
         self.end_headers()
@@ -849,6 +860,34 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     # ── Inline handlers for routes with custom response shapes ────────────────
+
+    def _serve_replay_inspection_page(self) -> None:
+        """Serve the replay inspection standalone page.
+
+        Reads the template from disk, injects the session_id query parameter
+        (if provided) into a JSON boot-data block, and returns the HTML.
+        Owned by Agent 4; additive alongside existing route handlers.
+        """
+        from urllib.parse import urlparse, parse_qs, unquote
+        from .ui.template_loader import FRONTEND_DIR
+
+        template_path = FRONTEND_DIR / "templates" / "replay_inspection.html"
+        if not template_path.is_file():
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        session_id_values = params.get("session_id", [])
+        session_id = unquote(session_id_values[0]) if session_id_values else ""
+
+        boot_data = json.dumps({"session_id": session_id})
+        content = template_path.read_text(encoding="utf-8").replace(
+            "__RI_BOOT_DATA__", boot_data
+        )
+        body = content.encode("utf-8")
+        self._raw(200, "text/html; charset=utf-8", body)
 
     def _handle_export(self) -> None:
         from urllib.parse import unquote, urlparse
