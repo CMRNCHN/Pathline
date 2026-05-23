@@ -128,6 +128,17 @@ class StreamingServer:
         self._last_recording_artifacts: list[dict[str, object]] = []
         self._event_listeners: set[WebSocket] = set()
         self.app = FastAPI()
+
+        @self.app.post("/twilio/voice")
+        async def twilio_voice() -> Response:
+            twiml = """
+<Response>
+  <Connect>
+    <Stream url="wss://inequilateral-consolidative-anja.ngrok-free.dev/stream" />
+  </Connect>
+</Response>
+"""
+            return Response(content=twiml, media_type="application/xml")
         self.app.add_api_websocket_route("/stream", self._handle_stream)
         self.app.add_api_websocket_route("/listen", self._handle_listen)
         self.app.add_api_websocket_route("/ws/events", self._handle_events)
@@ -860,7 +871,7 @@ class StreamingServer:
 
 
 # Module-level default instance for simple single-process usage.
-_default_server = StreamingServer()
+_default_server = StreamingServer(stream_auth_token="")
 app = _default_server.app
 register_transcript_callback = _default_server.register_transcript_callback
 
