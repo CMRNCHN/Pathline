@@ -462,10 +462,18 @@ def _mapping(value: object) -> dict[str, Any]:
 
 # New service API — also importable directly from replay.inspection_service.
 # Legacy functions above remain unchanged for backwards compatibility.
-from replay.inspection_service import (  # noqa: E402
-    InspectionService,
-    build_inspection_report,
-)
+try:  # noqa: E402
+    from replay.inspection_service import (
+        InspectionService,
+        build_inspection_report,
+    )
+except ModuleNotFoundError:  # temporary recovery shim
+    InspectionService = None
+
+    def build_inspection_report(*args, **kwargs):
+        raise NotImplementedError(
+            "replay.inspection_service has not been restored yet"
+        )
 
 __all__ = [
     # legacy
