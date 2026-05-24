@@ -1,36 +1,33 @@
 from __future__ import annotations
 
-import asyncio
-import json
-from typing import Any
-
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import structlog
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from runtime.transcription.streaming_whisper import StreamingWhisperTranscriber
-from runtime.transcription.storage import TranscriptStorage
+from runtime.api import app_state
 from runtime.telephony.media_handler import TwilioMediaReceiver
 
 log = structlog.get_logger()
 router = APIRouter()
 
-transcriber = StreamingWhisperTranscriber(
-    initial_prompt="IVR phone menu: press 1, press 2, amount, dollars, cents."
-)
-storage = TranscriptStorage()
-
 
 @router.websocket("/transcribe/{call_sid}")
-async def transcribe_ws(websocket: WebSocket, call_sid: str):
+async def transcribe_ws(websocket: WebSocket, call_sid: str) -> None:
     """
-    Twilio Media Stream WebSocket endpoint.
-    Receives audio, transcribes in real-time, stores locally.
+    Twilio Media Stream endpoint.
+    Receives mulaw audio, transcribes it, stores segments, and fans them out
+    to all dashboard subscribers via LiveBroadcaster.
     """
     await websocket.accept()
     log.info("transcribe_ws_accepted", call_sid=call_sid)
 
-    audio_chunks = []
-    segments = []
+    session_mgr = app_state.session_manager
+    broadcaster = app_state.broadcaster
+    transcriber = app_state.transcriber
+    storage = app_state.storage
+
+    session = session_mgr.get_or_create(call_sid)
+    audio_chunks: list[bytes] = []
+    segments: list[dict] = []
 
     try:
         async def chunk_generator():
@@ -38,47 +35,40 @@ async def transcribe_ws(websocket: WebSocket, call_sid: str):
                 audio_chunks.append(chunk)
                 yield chunk
 
-        async for segment in transcriber.stream_transcribe(chunk_generator()):
-            segments.append(
-                {
-                    "text": segment.text,
-                    "raw_text": segment.raw_text,
-                    "start": segment.start_time,
-                    "end": segment.end_time,
-                    "confidence": segment.confidence,
-                    "final": segment.is_final,
-                    "metadata": segment.metadata,
-                }
-            )
+        async for seg in transcriber.stream_transcribe(chunk_generator()):
+            segment_dict = {
+                "text": seg.text,
+                "raw_text": seg.raw_text,
+                "start": seg.start_time,
+                "end": seg.end_time,
+                "confidence": seg.confidence,
+                "final": seg.is_final,
+            }
+            segments.append(segment_dict)
+            session_mgr.add_transcript_segment(call_sid, segment_dict)
 
-            await websocket.send_json(
-                {
-                    "event": "transcript",
-                    "segment": {
-                        "text": segment.text,
-                        "start": segment.start_time,
-                        "end": segment.end_time,
-                        "confidence": segment.confidence,
-                        "metadata": segment.metadata,
-                    },
-                }
-            )
+            await broadcaster.broadcast_transcript(call_sid, seg)
+
+            # Re-broadcast updated map after each new node.
+            cyto = session.flow_map.to_cytoscape()
+            await broadcaster.broadcast_map_update(call_sid, cyto)
 
             log.info(
                 "segment_transcribed",
                 call_sid=call_sid,
-                text=segment.text[:80],
-                confidence=segment.confidence,
-                final=segment.is_final,
+                text=seg.text[:80],
+                confidence=seg.confidence,
             )
 
     except WebSocketDisconnect:
         log.info("transcribe_ws_disconnected", call_sid=call_sid)
 
-    except Exception as e:
-        log.error("transcribe_ws_error", call_sid=call_sid, error=str(e))
+    except Exception as exc:
+        log.error("transcribe_ws_error", call_sid=call_sid, error=str(exc))
         raise
 
     finally:
-        paths = storage.save_call(call_sid, audio_chunks, segments)
-        log.info("call_complete", call_sid=call_sid, segments=len(segments), call_id=paths["call_id"])
+        session_mgr.close_session(call_sid)
+        if storage and segments:
+            paths = storage.save_call(call_sid, audio_chunks, segments)
+            log.info("call_saved", call_sid=call_sid, **paths)

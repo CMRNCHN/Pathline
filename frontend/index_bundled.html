@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pathline - IVR Explorer</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape.js/3.24.0/cytoscape.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; background: #fff; }
+    #root { width: 100%; height: 100vh; }
+
+    .dashboard { display: flex; height: 100vh; }
+
+    .sidebar { width: 280px; border-right: 1px solid #ddd; overflow-y: auto; background: #f8f9fa; }
+    .sidebar-header { padding: 16px; font-weight: bold; font-size: 14px; border-bottom: 1px solid #ddd; }
+
+    .call-item { padding: 12px 16px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
+    .call-item:hover { background: #f0f0f0; }
+    .call-item.active { background: #e7f3ff; border-left: 4px solid #007bff; }
+    .call-item-sid { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+    .call-item-phone { font-size: 11px; color: #666; }
+    .call-item-suite { font-size: 10px; color: #0056b3; margin-top: 4px; }
+
+    .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .header { border-bottom: 1px solid #ddd; padding: 16px; background: #f8f9fa; }
+    .header-title { font-weight: bold; font-size: 16px; }
+    .header-stats { font-size: 12px; color: #666; margin-top: 4px; }
+
+    .content-area { display: flex; flex: 1; overflow: hidden; }
+
+    .transcript-panel { width: 30%; border-right: 1px solid #ddd; display: flex; flex-direction: column; overflow: hidden; }
+    .panel-header { padding: 16px; font-weight: bold; border-bottom: 1px solid #ddd; background: #f8f9fa; }
+    .transcript-list { flex: 1; overflow-y: auto; }
+    .transcript-item { padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 12px; }
+    .transcript-text { margin-bottom: 4px; }
+    .transcript-meta { font-size: 10px; color: #999; }
+
+    .map-panel { width: 70%; display: flex; flex-direction: column; }
+    .map-container { flex: 1; border-bottom: 1px solid #ddd; background: #f8f9fa; }
+    .controls-panel { padding: 16px; border-top: 1px solid #ddd; }
+    .control-group { margin-bottom: 16px; }
+    .control-label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+    .control-input { width: 100%; padding: 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; margin-bottom: 8px; }
+    .control-row { display: flex; gap: 8px; }
+    .control-row input { flex: 1; }
+
+    .btn { padding: 6px 12px; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: 500; }
+    .btn-primary { background: #007bff; }
+    .btn-primary:hover { background: #0056b3; }
+    .btn-success { background: #28a745; }
+    .btn-success:hover { background: #218838; }
+    .btn-secondary { background: #6c757d; padding: 4px 8px; font-size: 11px; }
+    .btn-secondary:hover { background: #5a6268; }
+
+    .suite-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+    .empty-state { display: flex; align-items: center; justify-content: center; flex: 1; color: #999; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    const PathlineDashboard = () => {
+      const [activeCalls, setActiveCalls] = useState([]);
+      const [selectedCall, setSelectedCall] = useState(null);
+      const [sessionState, setSessionState] = useState(null);
+      const [flowMap, setFlowMap] = useState(null);
+      const [transcriptSegments, setTranscriptSegments] = useState([]);
+      const [dtmfInput, setDtmfInput] = useState('');
+      const [voiceInput, setVoiceInput] = useState('');
+      const [suites, setSuites] = useState({});
+      const wsRef = useRef(null);
+      const cytoscapeRef = useRef(null);
+      const cyInstanceRef = useRef(null);
+
+      useEffect(() => {
+        const fetchSessions = async () => {
+          try {
+            const res = await fetch('http://localhost:8000/api/sessions/active');
+            const data = await res.json();
+            setActiveCalls(data.sessions || []);
+          } catch (err) {
+            console.error('Failed to fetch sessions:', err);
+          }
+        };
+
+        fetchSessions();
+        const interval = setInterval(fetchSessions, 2000);
+        return () => clearInterval(interval);
+      }, []);
+
+      useEffect(() => {
+        const fetchSuites = async () => {
+          try {
+            const res = await fetch('http://localhost:8000/api/suites');
+            const data = await res.json();
+            setSuites(data.suites || {});
+          } catch (err) {
+            console.error('Failed to fetch suites:', err);
+          }
+        };
+
+        fetchSuites();
+      }, []);
+
+      useEffect(() => {
+        if (!selectedCall) return;
+
+        const connectWebSocket = async () => {
+          try {
+            const res = await fetch(`http://localhost:8000/api/session/${selectedCall}`);
+            const data = await res.json();
+            setSessionState(data);
+            setTranscriptSegments(data.transcript_segments || []);
+          } catch (err) {
+            console.error('Failed to fetch session:', err);
+          }
+
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          wsRef.current = new WebSocket(`${protocol}//localhost:8000/live/${selectedCall}`);
+
+          wsRef.current.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            if (message.event === 'transcript') {
+              setTranscriptSegments((prev) => [...prev, message.data]);
+            } else if (message.event === 'flow_map' || message.event === 'map_update') {
+              setFlowMap(message.data);
+            }
+          };
+
+          wsRef.current.onerror = (err) => console.error('WebSocket error:', err);
+        };
+
+        connectWebSocket();
+        return () => { if (wsRef.current) wsRef.current.close(); };
+      }, [selectedCall]);
+
+      useEffect(() => {
+        if (!selectedCall) return;
+
+        const fetchMap = async () => {
+          try {
+            const res = await fetch(
+              `http://localhost:8000/api/map/${selectedCall}?format=cytoscape`
+            );
+            const data = await res.json();
+            setFlowMap(data);
+            renderCytoscape(data);
+          } catch (err) {
+            console.error('Failed to fetch map:', err);
+          }
+        };
+
+        fetchMap();
+      }, [selectedCall]);
+
+      const renderCytoscape = useCallback((data) => {
+        if (!cytoscapeRef.current || !data) return;
+
+        try {
+          if (cyInstanceRef.current) cyInstanceRef.current.destroy();
+
+          cyInstanceRef.current = cytoscape({
+            container: cytoscapeRef.current,
+            elements: data.elements || [],
+            style: [
+              {
+                selector: 'node',
+                style: {
+                  'content': 'data(label)',
+                  'text-valign': 'center',
+                  'text-halign': 'center',
+                  'background-color': '#007bff',
+                  'color': '#fff',
+                  'font-size': 10,
+                  'width': '120px',
+                  'height': '60px',
+                  'text-wrap': 'wrap',
+                },
+              },
+              {
+                selector: 'edge',
+                style: {
+                  'target-arrow-shape': 'triangle',
+                  'line-color': '#ccc',
+                  'target-arrow-color': '#ccc',
+                  'curve-style': 'bezier',
+                  'label': 'data(label)',
+                  'font-size': 9,
+                  'edge-text-rotation': 'autorotate',
+                },
+              },
+            ],
+            layout: {
+              name: 'breadthfirst',
+              directed: true,
+              roots: data.elements?.filter(e => !e.data?.source)?.[0],
+              spacingFactor: 1.5,
+            },
+          });
+        } catch (err) {
+          console.error('Cytoscape error:', err);
+        }
+      }, []);
+
+      const sendDTMF = async () => {
+        if (!selectedCall || !dtmfInput) return;
+        try {
+          await fetch('http://localhost:8000/api/dtmf/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_sid: selectedCall, dtmf: dtmfInput }),
+          });
+          setDtmfInput('');
+        } catch (err) {
+          console.error('Failed to send DTMF:', err);
+        }
+      };
+
+      const injectVoice = async () => {
+        if (!selectedCall || !voiceInput) return;
+        try {
+          await fetch('http://localhost:8000/api/voice/inject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_sid: selectedCall, text: voiceInput }),
+          });
+          setVoiceInput('');
+        } catch (err) {
+          console.error('Failed to inject voice:', err);
+        }
+      };
+
+      const executeSuite = async (suiteName) => {
+        if (!selectedCall) return;
+        try {
+          await fetch('http://localhost:8000/api/suites/execute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_sid: selectedCall, suite_name: suiteName }),
+          });
+        } catch (err) {
+          console.error('Failed to execute suite:', err);
+        }
+      };
+
+      return (
+        <div className="dashboard">
+          <div className="sidebar">
+            <div className="sidebar-header">Active Calls ({activeCalls.length})</div>
+            {activeCalls.map((call) => (
+              <div
+                key={call.call_sid}
+                className={`call-item ${selectedCall === call.call_sid ? 'active' : ''}`}
+                onClick={() => setSelectedCall(call.call_sid)}
+              >
+                <div className="call-item-sid">{call.call_sid.substring(0, 12)}</div>
+                <div className="call-item-phone">{call.phone_number || 'Unknown'}</div>
+                {call.suite_name && (
+                  <div className="call-item-suite">Suite: {call.suite_name}</div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="main-content">
+            {selectedCall ? (
+              <>
+                <div className="header">
+                  <div className="header-title">Call: {selectedCall}</div>
+                  {sessionState && (
+                    <div className="header-stats">
+                      Segments: {sessionState.transcript_segments?.length || 0} | Nodes:{' '}
+                      {flowMap?.elements?.filter((e) => !e.data?.source).length || 0}
+                    </div>
+                  )}
+                </div>
+
+                <div className="content-area">
+                  <div className="transcript-panel">
+                    <div className="panel-header">Transcript</div>
+                    <div className="transcript-list">
+                      {transcriptSegments.map((seg, idx) => (
+                        <div key={idx} className="transcript-item">
+                          <div className="transcript-text">{seg.text}</div>
+                          <div className="transcript-meta">
+                            Conf: {(seg.confidence * 100).toFixed(0)}% | {seg.start?.toFixed(1)}s
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="map-panel">
+                    <div className="panel-header">Flow Map</div>
+                    <div ref={cytoscapeRef} className="map-container" />
+
+                    <div className="controls-panel">
+                      <div className="control-group">
+                        <label className="control-label">DTMF</label>
+                        <div className="control-row">
+                          <input
+                            type="text"
+                            className="control-input"
+                            value={dtmfInput}
+                            onChange={(e) => setDtmfInput(e.target.value)}
+                            placeholder="1,500,2"
+                          />
+                          <button className="btn btn-primary" onClick={sendDTMF}>Send</button>
+                        </div>
+                      </div>
+
+                      <div className="control-group">
+                        <label className="control-label">Voice</label>
+                        <div className="control-row">
+                          <input
+                            type="text"
+                            className="control-input"
+                            value={voiceInput}
+                            onChange={(e) => setVoiceInput(e.target.value)}
+                            placeholder="What menu options do you have?"
+                          />
+                          <button className="btn btn-success" onClick={injectVoice}>Inject</button>
+                        </div>
+                      </div>
+
+                      <div className="control-group">
+                        <label className="control-label">Test Suites</label>
+                        <div className="suite-buttons">
+                          {Object.entries(suites).map(([name, suite]) => (
+                            <button
+                              key={name}
+                              className="btn btn-secondary"
+                              onClick={() => executeSuite(name)}
+                            >
+                              {suite.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">Select a call to view details</div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<PathlineDashboard />);
+  </script>
+</body>
+</html>
