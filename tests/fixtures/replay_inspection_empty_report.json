@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "identity": {
+    "session_id": null,
+    "call_sid": null,
+    "source_kind": null,
+    "source_path": null
+  },
+  "artifact_availability": {
+    "entries": [],
+    "missing": []
+  },
+  "session_metadata": {
+    "target": null,
+    "started_at": null,
+    "ended_at": null,
+    "duration_ms": null,
+    "manual_mode": null,
+    "created_at": null,
+    "updated_at": null
+  },
+  "summary": {
+    "event_count": 0,
+    "prompt_count": 0,
+    "action_count": 0,
+    "node_count": 0,
+    "first_prompt": null,
+    "last_prompt": null,
+    "last_action": null,
+    "largest_gap_ms": null,
+    "notes": []
+  },
+  "chronology": {
+    "entries": []
+  },
+  "path": {
+    "root_prompts": [],
+    "dtmf_path": [],
+    "unique_actions": [],
+    "visited_nodes": [],
+    "active_path": [],
+    "steps": []
+  },
+  "state_diagnostics": {
+    "graph_node_count": 0,
+    "transcript_count": 0,
+    "visited_node_count": 0,
+    "call_status": null,
+    "snapshot_offset": null,
+    "target_offset": null,
+    "total_event_count": null,
+    "queue": {},
+    "metrics": {},
+    "error": null
+  },
+  "correlation": {
+    "startup_to_gui_ready_ms": null,
+    "session_start_to_first_prompt_ms": null,
+    "session_start_to_first_action_ms": null,
+    "stream_connect_to_first_prompt_ms": null,
+    "session_duration_ms": null,
+    "last_activity_at": null,
+    "idle_for_s": null
+  },
+  "anomalies": [],
+  "bookmarks_annotations": {
+    "bookmarks": [],
+    "annotations": []
+  },
+  "media_status": {
+    "recording_reference": null,
+    "recording_path": null,
+    "recording_available": false,
+    "waveform_reference": null,
+    "waveform_path": null,
+    "waveform_available": false,
+    "media_duration_ms": null,
+    "replay_anchor_timestamp": null
+  },
+  "next_steps": []
+}

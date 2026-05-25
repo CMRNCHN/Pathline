@@ -25,7 +25,7 @@ def test_legacy_drift_detection():
     
     # Files to ignore (binaries, etc)
     ignore_extensions = [".png", ".jpg", ".jpeg", ".wav", ".mp3", ".pyc", ".db", ".iml"]
-    ignore_dirs = [".git", ".venv", "__pycache__", "node_modules", "pathline.egg-info", "tmp"]
+    ignore_dirs = [".git", ".venv", "__pycache__", "node_modules", "pathline.egg-info", "tmp", ".claude"]
 
     for root, dirs, files in os.walk(PROJECT_ROOT):
         # Filter directories

@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pathline — Replay Inspection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+  /* ── Page shell ─────────────────────────────────────── */
+  body {
+    overflow: auto;
+    background: var(--bg-0);
+    color: var(--text-1);
+    font: 13px/1.45 var(--font-sans);
+  }
+
+  .ri-shell {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Page header ────────────────────────────────────── */
+  .ri-page-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ri-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background var(--transition-fast), color var(--transition-fast);
+  }
+
+  .ri-back-btn:hover {
+    background: rgba(255,255,255,.04);
+    color: var(--text-1);
+  }
+
+  .ri-page-title-group {
+    flex: 1;
+  }
+
+  .ri-page-kicker {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+  }
+
+  .ri-page-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-top: 2px;
+  }
+
+  /* ── Session ID input form ──────────────────────────── */
+  .ri-session-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 340px;
+    gap: 16px;
+  }
+
+  .ri-session-form-card {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 32px 36px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .ri-form-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 4px;
+  }
+
+  .ri-form-hint {
+    font-size: 12px;
+    color: var(--text-3);
+    line-height: 1.5;
+  }
+
+  .ri-form-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .ri-sid-input {
+    flex: 1;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--panel-inset);
+    color: var(--text-1);
+    font-size: 13px;
+    font-family: var(--font-mono);
+    outline: none;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  }
+
+  .ri-sid-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(196,162,90,.3);
+  }
+
+  /* ── Error state ────────────────────────────────────── */
+  .ri-error-banner {
+    padding: 16px 18px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(176,90,90,.35);
+    background: var(--danger-soft);
+    color: var(--danger);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .ri-error-banner-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .ri-error-banner-body {
+    flex: 1;
+  }
+
+  .ri-error-banner-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .ri-error-banner-msg {
+    color: rgba(176,90,90,.85);
+    font-size: 12px;
+  }
+
+  /* ── Loading state ──────────────────────────────────── */
+  .ri-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    gap: 12px;
+    color: var(--text-3);
+    font-size: 13px;
+  }
+
+  .ri-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: ri-spin 0.8s linear infinite;
+  }
+
+  @keyframes ri-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Section wrappers ───────────────────────────────── */
+  .ri-section {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(255,255,255,.018) 0%, rgba(255,255,255,.008) 100%), var(--panel);
+    overflow: hidden;
+  }
+
+  .ri-section-header {
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .ri-section-kicker {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    flex-shrink: 0;
+  }
+
+  .ri-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-left: 2px;
+  }
+
+  .ri-section-body {
+    padding: 16px 18px;
+  }
+
+  /* ── 1. Identity + Summary card ─────────────────────── */
+  .ri-identity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .ri-stat-card {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,.015);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ri-stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+  }
+
+  .ri-stat-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    font-family: var(--font-mono);
+    word-break: break-all;
+  }
+
+  .ri-stat-value.large {
+    font-size: 22px;
+  }
+
+  .ri-stat-value.normal {
+    font-family: var(--font-sans);
+    font-size: 13px;
+  }
+
+  .ri-notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .ri-note-item {
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--panel-inset);
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.45;
+  }
+
+  /* ── 2. Anomalies ───────────────────────────────────── */
+  .ri-anomaly-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .ri-anomaly-item {
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    border-left-width: 3px;
+    border-left-style: solid;
+    border-top: 1px solid transparent;
+    border-right: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .ri-anomaly-item.sev-error {
+    background: var(--danger-soft);
+    border-color: rgba(176,90,90,.22);
+    border-left-color: var(--danger);
+  }
+
+  .ri-anomaly-item.sev-warn {
+    background: var(--warn-soft);
+    border-color: rgba(196,137,60,.22);
+    border-left-color: var(--warn);
+  }
+
+  .ri-anomaly-item.sev-info {
+    background: var(--info-soft);
+    border-color: rgba(74,130,168,.22);
+    border-left-color: var(--info);
+  }
+
+  .ri-anomaly-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ri-anomaly-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    flex-shrink: 0;
+  }
+
+  .sev-error .ri-anomaly-badge {
+    background: rgba(176,90,90,.25);
+    color: var(--danger);
+    border: 1px solid rgba(176,90,90,.4);
+  }
+
+  .sev-warn .ri-anomaly-badge {
+    background: rgba(196,137,60,.25);
+    color: var(--warn);
+    border: 1px solid rgba(196,137,60,.4);
+  }
+
+  .sev-info .ri-anomaly-badge {
+    background: rgba(74,130,168,.25);
+    color: var(--info);
+    border: 1px solid rgba(74,130,168,.4);
+  }
+
+  .ri-anomaly-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .ri-anomaly-explanation {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+
+  .ri-anomaly-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .ri-anomaly-ref {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.03);
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+  }
+
+  .ri-anomaly-ref .ref-kind {
+    color: var(--text-4);
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+
+  /* ── 3. Next steps ──────────────────────────────────── */
+  .ri-nextsteps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ri-nextstep-item {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,.015);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ri-nextstep-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .ri-nextstep-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    border: 1px solid rgba(196,162,90,.3);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .ri-nextstep-action {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    line-height: 1.45;
+    flex: 1;
+  }
+
+  .ri-nextstep-rationale {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.5;
+    margin-left: 34px;
+  }
+
+  .ri-nextstep-cites {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-left: 34px;
+  }
+
+  .ri-cite-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.025);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .ri-cite-btn:hover {
+    background: var(--accent-soft);
+    border-color: rgba(196,162,90,.3);
+    color: var(--accent-strong);
+  }
+
+  .ri-cite-arrow {
+    font-size: 10px;
+    color: var(--text-3);
+  }
+
+  /* ── 4. Chronology ──────────────────────────────────── */
+  .ri-chronology-table-wrap {
+    overflow-x: auto;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .ri-chronology-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .ri-chronology-table th {
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    background: var(--panel-raised);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .ri-chronology-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--text-2);
+    line-height: 1.4;
+  }
+
+  .ri-chronology-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .ri-chronology-table tr:hover td {
+    background: rgba(255,255,255,.015);
+  }
+
+  .ri-seq-num {
+    font-family: var(--font-mono);
+    color: var(--text-4);
+    font-size: 11px;
+  }
+
+  .ri-kind-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .ri-kind-badge.kind-prompt { background: var(--accent-soft); border-color: rgba(196,162,90,.25); color: var(--accent); }
+  .ri-kind-badge.kind-dtmf { background: rgba(94,139,110,.12); border-color: rgba(94,139,110,.25); color: var(--success); }
+  .ri-kind-badge.kind-action { background: rgba(74,130,168,.12); border-color: rgba(74,130,168,.25); color: var(--info); }
+  .ri-kind-badge.kind-speech { background: rgba(94,139,110,.12); border-color: rgba(94,139,110,.25); color: var(--success); }
+  .ri-kind-badge.kind-error { background: var(--danger-soft); border-color: rgba(176,90,90,.25); color: var(--danger); }
+  .ri-kind-badge.kind-warn { background: var(--warn-soft); border-color: rgba(196,137,60,.25); color: var(--warn); }
+
+  .ri-t-ms {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .ri-delta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-4);
+    white-space: nowrap;
+  }
+
+  .ri-text-preview {
+    color: var(--text-1);
+    max-width: 480px;
+    word-break: break-word;
+  }
+
+  .ri-dtmf-pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    background: rgba(94,139,110,.1);
+    border: 1px solid rgba(94,139,110,.22);
+    color: var(--success);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+
+  /* Scrollable chronology body cap */
+  .ri-chronology-scroll {
+    max-height: 480px;
+    overflow-y: auto;
+  }
+
+  /* ── 5. Path ────────────────────────────────────────── */
+  .ri-path-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 700px) {
+    .ri-path-grid { grid-template-columns: 1fr; }
+    .ri-identity-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .ri-path-subpanel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,.012);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ri-path-sublabel {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+  }
+
+  .ri-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .ri-chip {
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel-inset);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-2);
+  }
+
+  .ri-chip.dtmf {
+    background: rgba(94,139,110,.1);
+    border-color: rgba(94,139,110,.22);
+    color: var(--success);
+  }
+
+  .ri-chip.node {
+    background: var(--accent-soft);
+    border-color: rgba(196,162,90,.22);
+    color: var(--accent);
+  }
+
+  .ri-path-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .ri-step-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--panel-inset);
+    border: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  .ri-step-idx {
+    font-family: var(--font-mono);
+    color: var(--text-4);
+    font-size: 11px;
+    min-width: 28px;
+  }
+
+  .ri-step-kind {
+    font-weight: 600;
+    color: var(--text-2);
+    min-width: 64px;
+  }
+
+  .ri-step-value {
+    color: var(--text-1);
+    flex: 1;
+    word-break: break-all;
+  }
+
+  .ri-step-t {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-4);
+    white-space: nowrap;
+  }
+
+  /* ── 6. State / Media / Correlation diagnostics ─────── */
+  .ri-diag-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  @media (max-width: 700px) {
+    .ri-diag-grid { grid-template-columns: 1fr; }
+  }
+
+  .ri-kv-panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,.012);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ri-kv-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: 8px;
+  }
+
+  .ri-kv-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  .ri-kv-row:last-child {
+    border-bottom: none;
+  }
+
+  .ri-kv-key {
+    color: var(--text-3);
+    flex-shrink: 0;
+  }
+
+  .ri-kv-val {
+    color: var(--text-1);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: right;
+    word-break: break-all;
+  }
+
+  .ri-kv-val.tone-ok { color: var(--success); }
+  .ri-kv-val.tone-error { color: var(--danger); }
+  .ri-kv-val.tone-warn { color: var(--warn); }
+
+  .ri-error-detail {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--danger-soft);
+    border: 1px solid rgba(176,90,90,.3);
+    color: var(--danger);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    word-break: break-word;
+    line-height: 1.4;
+  }
+
+  /* ── 7. Artifacts ───────────────────────────────────── */
+  .ri-artifacts-table-wrap {
+    overflow-x: auto;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .ri-artifacts-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .ri-artifacts-table th {
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    background: var(--panel-raised);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .ri-artifacts-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-2);
+    vertical-align: top;
+  }
+
+  .ri-artifacts-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .ri-avail-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+
+  .ri-avail-dot.avail { background: var(--success); }
+  .ri-avail-dot.missing { background: var(--danger); }
+
+  .ri-artifact-name {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .ri-artifact-location {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+    word-break: break-all;
+  }
+
+  /* ── 8. Bookmarks & Annotations ─────────────────────── */
+  .ri-bookmarks-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  @media (max-width: 700px) {
+    .ri-bookmarks-grid { grid-template-columns: 1fr; }
+  }
+
+  .ri-bm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ri-bm-item {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,.015);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ri-bm-label {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-1);
+  }
+
+  .ri-bm-meta {
+    font-size: 11px;
+    color: var(--text-3);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .ri-bm-note {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-top: 2px;
+    line-height: 1.45;
+  }
+
+  .ri-ann-sev-badge {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.03);
+    color: var(--text-3);
+  }
+
+  .ri-ann-sev-badge.sev-error { background: var(--danger-soft); color: var(--danger); border-color: rgba(176,90,90,.3); }
+  .ri-ann-sev-badge.sev-warn  { background: var(--warn-soft);   color: var(--warn);   border-color: rgba(196,137,60,.3); }
+  .ri-ann-sev-badge.sev-info  { background: var(--info-soft);   color: var(--info);   border-color: rgba(74,130,168,.3); }
+
+  /* ── Scroll highlight ────────────────────────────────── */
+  .ri-section.ri-highlight {
+    outline: 2px solid rgba(196,162,90,.55);
+    outline-offset: 1px;
+    transition: outline 0.6s ease;
+  }
+
+  /* ── Utilities ──────────────────────────────────────── */
+  .ri-empty {
+    color: var(--text-4);
+    font-size: 12px;
+    font-style: italic;
+    padding: 8px 0;
+  }
+
+  .is-hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<script>const RI_BOOT = __RI_BOOT_DATA__;</script>
+
+<div class="ri-shell">
+
+  <!-- Page header -->
+  <header class="ri-page-header">
+    <a class="ri-back-btn" href="/" title="Back to Console">&#8592; Console</a>
+    <div class="ri-page-title-group">
+      <div class="ri-page-kicker">Replay Analysis</div>
+      <h1 class="ri-page-title" id="ri-page-title">Replay Inspection</h1>
+    </div>
+  </header>
+
+  <!-- Session-ID input form (shown when no session_id in URL) -->
+  <div id="ri-session-form-container" class="ri-session-form is-hidden">
+    <div class="ri-session-form-card">
+      <div>
+        <div class="ri-form-title">Inspect a Session</div>
+        <div class="ri-form-hint">Enter a session ID to load the replay inspection report.</div>
+      </div>
+      <form id="ri-session-form" class="ri-form-row" onsubmit="RI.submitSessionForm(event)">
+        <input
+          id="ri-sid-input"
+          class="ri-sid-input"
+          type="text"
+          placeholder="session_id"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Session ID"
+        >
+        <button type="submit" class="btn-primary btn-compact">Load</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Loading indicator -->
+  <div id="ri-loading" class="ri-loading is-hidden">
+    <div class="ri-spinner"></div>
+    <span>Loading inspection report…</span>
+  </div>
+
+  <!-- Error banner -->
+  <div id="ri-error-banner" class="ri-error-banner is-hidden" role="alert">
+    <span class="ri-error-banner-icon">&#9888;</span>
+    <div class="ri-error-banner-body">
+      <div class="ri-error-banner-title">Failed to load inspection report</div>
+      <div class="ri-error-banner-msg" id="ri-error-msg"></div>
+    </div>
+  </div>
+
+  <!-- ── 1. Identity + Summary ────────────────────────── -->
+  <section id="section-identity" class="ri-section is-hidden">
+    <div class="ri-section-header">
+      <span class="ri-section-kicker">Session</span>
+      <span class="ri-section-title">Identity &amp; Summary</span>
+    </div>
+    <div class="ri-section-body">
+      <div class="ri-identity-grid" id="ri-identity-grid"></div>
+      <div id="ri-notes-container" class="is-hidden">
+        <div class="ri-stat-label" style="margin-bottom:8px;">Notes</div>
+        <div class="ri-notes-list" id="ri-notes-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 2. Anomalies ──────────────────────────────────── -->
+  <section id="section-anomalies" class="ri-section is-hidden">
+    <div class="ri-section-header">
+      <span class="ri-section-kicker">Findings</span>
+      <span class="ri-section-title">Anomalies</span>
+    </div>
+    <div class="ri-section-body">
+      <div class="ri-anomaly-list" id="ri-anomaly-list"></div>
+    </div>
+  </section>
+
+  <!-- ── 3. Next Steps ─────────────────────────────────── -->
+  <section id="section-next-steps" class="ri-section is-hidden">
+    <div class="ri-section-header">
+      <span class="ri-section-kicker">Operator</span>
+      <span class="ri-section-title">Next Steps</span>
+    </div>
+    <div class="ri-section-body">
+      <div class="ri-nextsteps-list" id="ri-nextsteps-list"></div>
+    </div>
+  </section>
+
+  <!-- ── 4. Chronology ─────────────────────────────────── -->
+  <section id="section-chronology" class="ri-section is-hidden">
+    <div class="ri-section-header">
+      <span class="ri-section-kicker">Timeline</span>
+      <span class="ri-section-title">Chronology</span>
+    </div>
+    <div class="ri-section-body" style="padding: 0;">
+      <div class="ri-chronology-scroll">
+        <div class="ri-chronology-table-wrap" style="border: none; border-radius: 0;">
+          <table class="ri-chronology-table" id="ri-chronology-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Kind</th>
+                <th>T (ms)</th>
+                <th>Delta</th>
+                <th>Text / Preview</th>
+              </tr>
+            </thead>
+            <tbody id="ri-chronology-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 5. Path ───────────────────────────────────────── -->
+  <section id="section-path" class="ri-section is-hidden">
+    <div class="ri-section-header">
+      <span class="ri-section-kicker">Traversal</span>
+      <span class="ri-section-title">Path</span>
+    </div>
+    <div class="ri-section-body">
+      <div class="ri-path-grid" id="ri-path-grid"></div>
+      <div id="ri-path-steps-container" class="is-hidden">
+        <div class="ri-stat-label" style="margin-bottom:8px;">Steps</div>
+        <div class="ri-path-steps" id="ri-path-steps"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 6. State + Media + Correlation diagnostics ───── -->
+  <section id="section-diagnostics" class="ri-section is-hidden">
+    <div class="ri-section-header">
+      <span class="ri-section-kicker">Diagnostics</span>
+      <span class="ri-section-title">State, Media &amp; Correlation</span>
+    </div>
+    <div class="ri-section-body">
+      <div class="ri-diag-grid" id="ri-diag-grid"></div>
+    </div>
+  </section>
+
+  <!-- ── 7. Artifacts ──────────────────────────────────── -->
+  <section id="section-artifacts" class="ri-section is-hidden">
+    <div class="ri-section-header">
+      <span class="ri-section-kicker">Evidence</span>
+      <span class="ri-section-title">Artifact Availability</span>
+    </div>
+    <div class="ri-section-body" style="padding: 0;">
+      <div class="ri-artifacts-table-wrap" style="border: none; border-radius: 0;">
+        <table class="ri-artifacts-table" id="ri-artifacts-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Artifact</th>
+              <th>Location</th>
+              <th>Files</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="ri-artifacts-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 8. Bookmarks & Annotations ───────────────────── -->
+  <section id="section-bookmarks" class="ri-section is-hidden">
+    <div class="ri-section-header">
+      <span class="ri-section-kicker">Operator Notes</span>
+      <span class="ri-section-title">Bookmarks &amp; Annotations</span>
+    </div>
+    <div class="ri-section-body">
+      <div class="ri-bookmarks-grid" id="ri-bookmarks-grid"></div>
+    </div>
+  </section>
+
+</div><!-- /.ri-shell -->
+
+<script src="/static/js/replay_inspection.js"></script>
+</body>
+</html>

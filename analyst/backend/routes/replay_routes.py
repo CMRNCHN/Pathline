@@ -1,6 +1,7 @@
 """Replay API route handlers."""
 from __future__ import annotations
 from typing import Any
+from replay.inspection_service import build_inspection_report as _build_inspection_report
 from replay.timelines.replay_service import ReplayService
 from replay.media_sync.waveform_metadata import WaveformService
 from runtime.state.replay_state import ReplayCursor
@@ -264,6 +265,29 @@ def search_replay(session_id: str, query_params: dict[str, Any]) -> list[dict[st
         event_index_range=query_params.get("event_index_range")
     )
     return ReplaySearch.format_results(results)
+
+# Inspection API (canonical ReplayInspectionReport)
+def get_replay_inspection(session_id: str) -> dict[str, Any]:
+    """Return the canonical ReplayInspectionReport for a session as a dict.
+
+    Raises FileNotFoundError with a descriptive message when the session has no
+    artifacts (no event log, no snapshot), which the HTTP dispatcher converts to
+    a 404 response with body ``{"error": "session not found"}``.
+
+    Note: the task spec uses ``{"detail": ...}`` — that's a FastAPI convention.
+    This codebase uses ``{"error": ...}`` (see ``_json_error`` in live_map_gui).
+    We follow the codebase convention.
+    """
+    report = _build_inspection_report(session_id)
+
+    # The bundle resolver never raises on an unknown session — it returns an
+    # empty bundle.  ``source_kind == "empty"`` is the canonical signal that
+    # no artifacts exist for the requested session.
+    if report.identity.source_kind == "empty":
+        raise FileNotFoundError(f"session not found: {session_id}")
+
+    return report.to_dict()
+
 
 # Compare API
 def compare_replays(left_session_id: str, right_session_id: str) -> dict[str, Any]:
