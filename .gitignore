@@ -24,8 +24,9 @@ generated-answer-sheet.txt
 .ai/
 .agent.md
 
-# Claude Code local settings
+# Claude Code local settings and worktrees
 .claude/settings.local.json
+.claude/worktrees/
 
 # Runtime storage — binary artifacts and large outputs
 /storage/*.wav
