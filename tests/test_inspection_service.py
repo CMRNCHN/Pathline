@@ -15,15 +15,12 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 from replay.bundle_resolver import BundleResolver, ResolvedReplayBundle
 from replay.inspection_models import (
     Anomaly,
-    AnnotationSummary,
     ArtifactAvailabilityEntry,
     ArtifactAvailabilitySection,
-    BookmarkSummary,
     Reference,
     ReplayInspectionReport,
 )
@@ -478,7 +475,6 @@ def test_service_with_mock_resolver_full_bundle() -> None:
     """Service populates all sections correctly given a mock resolver."""
     from unittest.mock import MagicMock
 
-    from replay.snapshots.replay_snapshot import ReplaySnapshot
     from runtime.state.replay_state import ReplayState
 
     session_id = "mock-full"

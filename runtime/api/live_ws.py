@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect

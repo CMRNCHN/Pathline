@@ -15,13 +15,12 @@ Agent 3 must update.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any
 
 from replay.bundle_resolver import BundleResolver, ResolvedReplayBundle
 from replay.inspection_models import (
     Anomaly,
     AnnotationSummary,
-    ArtifactAvailabilitySection,
     BookmarkSummary,
     BookmarksAnnotationsSection,
     ChronologyEntry,
@@ -38,9 +37,6 @@ from replay.inspection_models import (
     SummarySection,
 )
 
-if TYPE_CHECKING:
-    from replay.bundle_resolver import BundleResolver as _BundleResolverT
-
 # ---------------------------------------------------------------------------
 # Anomaly-detection stub (Agent 3 wires in the real module here)
 # ---------------------------------------------------------------------------
@@ -54,12 +50,11 @@ try:
 except ImportError:  # pragma: no cover — removed once Agent 3 lands
     # STUB — anomaly_detection.py does not exist yet (owned by Agent 3).
     # Both stubs return empty lists so report construction is never blocked.
-    _detect_anomalies: Callable[[ReplayInspectionReport], list[Anomaly]] = (  # type: ignore[no-redef]
-        lambda report: []
-    )
-    _generate_next_steps: Callable[[ReplayInspectionReport], list[NextStep]] = (  # type: ignore[no-redef]
-        lambda report: []
-    )
+    def _detect_anomalies(report: ReplayInspectionReport) -> list[Anomaly]:  # type: ignore[no-redef]
+        return []
+
+    def _generate_next_steps(report: ReplayInspectionReport) -> list[NextStep]:  # type: ignore[no-redef]
+        return []
 
 # ---------------------------------------------------------------------------
 # Event-type → chronology-kind mapping

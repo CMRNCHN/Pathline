@@ -14,4 +14,5 @@ def test_empty_report_json_matches_snapshot_fixture() -> None:
 
 
 def test_next_step_requires_non_empty_cites() -> None:
-    with pytest.raises(ValueError, match="NextStep.cites must be non-empty"): NextStep(action="inspect chronology", rationale="needs grounding", cites=[])
+    with pytest.raises(ValueError, match="NextStep.cites must be non-empty"):
+        NextStep(action="inspect chronology", rationale="needs grounding", cites=[])
