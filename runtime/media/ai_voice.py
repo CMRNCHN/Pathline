@@ -54,6 +54,8 @@ def infer_content_guidance(text: str) -> dict[str, str]:
             "verification code",
             "date of birth",
             "recorded",
+            "please hold",
+            "if you would like",
         )
     )
     sensitive_cues = (
@@ -63,6 +65,9 @@ def infer_content_guidance(text: str) -> dict[str, str]:
         "security code",
         "verification code",
         "date of birth",
+        "secret word",
+        "security number",
+        "last four digits",
     )
     has_sensitive_cue = any(cue in lowered for cue in sensitive_cues)
     has_long_digit_run = bool(re.search(r"\d{10,}", normalized))

@@ -76,11 +76,11 @@ Add a future non-hot-path preflight utility for Suite Planning / Configuration:
 ## Engine Matrix
 
 | Engine | Type | Runtime Role | Strengths | Limitations | Network Use | Recommended Status |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | Simulated STT | Deterministic local script | Operational validation and degraded transcript flow | No model, no binary, deterministic, validates downstream transcript handling | Not real speech recognition; not valid for checkpoint evidence | None | Already available; keep explicit and label as simulation |
-| Apple Speech.framework | OS-native local/on-device when available | macOS local STT fallback | No HF download; operator-friendly on macOS; may use system speech assets | macOS-only; PyObjC bridge likely needed; availability/language behavior must be probed | Should be treated as local-only only when confirmed | Future local fallback candidate |
-| whisper.cpp | Local binary/model | Local STT fallback | Small binaries; GGML/GGUF cache is easy to vendor/pre-seed; good offline story | Separate binary and model management; streaming integration needs bounded subprocess handling | None after cache seed | Strong future offline fallback |
-| faster-whisper / CTranslate2 | Local Python model | Default local STT | Already implemented; CPU/GPU support; current stats expose model/cache fields | HF cache/download failure blocks startup unless cache/path is prepared | Optional only during explicit provisioning, not active run | Keep as default real STT when verified |
+| MLX Whisper | Fully Local MLX model | Default local STT | Optimized for Apple Silicon; high throughput; zero-latency local processing | Requires macOS/Apple Silicon for peak performance | None | **Landed: Primary Local STT** |
+| Apple Speech.framework | OS-native local/on-device when available | macOS local STT fallback | No HF download; operator-friendly on macOS | macOS-only; variable accuracy | Should be treated as local-only | Future local fallback candidate |
+| whisper.cpp | Local binary/model | Local STT fallback | Small binaries; GGML/GGUF cache is easy to vendor | Separate binary management | None after cache seed | Strong future offline fallback |
 | Vosk / lightweight offline ASR | Local model | Last-resort real offline STT | Small models; predictable offline operation; no HF dependency | Lower accuracy on noisy IVR prompts; grammar tuning may be needed | None after cache seed | Useful degraded real-STT fallback |
 | Deepgram | Cloud STT | Existing optional cloud STT | Already wired; real-time cloud quality | Requires key/network; not local-first | Yes | Optional explicit fallback only |
 | OpenAI/cloud STT | Cloud STT | Optional fallback or post-run transcription | Strong accuracy and broad model support | Requires key/network/cost; must not be default | Yes | Optional explicit fallback only, never implicit |
@@ -95,14 +95,13 @@ Fallback must be deterministic and selected before Live Operations / Active Run 
 
 ### STT Default Profile
 
-Use this order only when `STT_BACKEND=auto-local` or a future equivalent explicit setting is approved:
+Use this order when `STT_BACKEND=mlx-whisper` (Default):
 
-1. `faster-whisper` with `WHISPER_MODEL_PATH` or verified local cache.
+1. `mlx-whisper` with Apple Silicon acceleration.
 2. `whisper.cpp` with verified binary and local model file.
-3. Apple Speech.framework when running on macOS and local/on-device availability is confirmed.
-4. Vosk/lightweight offline ASR with verified local model directory.
-5. `simulated` only if the operator explicitly allows simulated degraded transcript mode.
-6. OpenAI/cloud STT only if the operator explicitly enables cloud fallback and required credentials/network checks pass.
+3. Vosk/lightweight offline ASR with verified local model directory.
+4. `simulated` only if the operator explicitly allows simulated degraded transcript mode.
+5. OpenAI/cloud STT only if the operator explicitly enables cloud fallback and required credentials/network checks pass.
 
 Current explicit `STT_BACKEND` values should remain authoritative. If the operator sets `STT_BACKEND=faster-whisper`, a missing model should produce a clear unavailable/degraded message rather than silently switching to cloud.
 
@@ -139,7 +138,7 @@ Current explicit `TTS_BACKEND` values should remain authoritative. If the operat
 
 ### Degraded STT: Real Offline Fallbacks
 
-- If `faster-whisper` is unavailable but another local backend is selected pre-run, report the selected engine, model path, language, and expected limitations.
+- If `mlx-whisper` is unavailable but another local backend is selected pre-run, report the selected engine, model path, language, and expected limitations.
 - Enforce bounded queues and subprocess timeouts for any future binary-backed engine.
 - Do not download models from `connect()` or `process_audio()` unless an explicit provisioning command was run before the active run.
 - Do not change confidence gates, transcript filter semantics, or traversal logic without a separate approved runtime plan.
@@ -178,7 +177,7 @@ Use a single operator-visible model root in future planning, for example `~/.ivr
 
 ```text
 ~/.ivr_assessor/models/
-├── faster-whisper/
+├── mlx-whisper/
 ├── whisper.cpp/
 ├── vosk/
 ├── piper/
@@ -217,7 +216,7 @@ Provisioning should be separate from active runs:
 For each STT backend, preflight should return `available`, `degraded`, or `unavailable`:
 
 - `simulated`: always available; degraded because it is not real STT.
-- `faster-whisper`: check importability, model path/cache presence, `local_files_only` state, device/compute compatibility, and optional cache manifest hash.
+- `mlx-whisper`: check Apple Silicon availability, MLX framework presence, and local weights.
 - `whisper.cpp`: check binary executable, model file/hash, invocation smoke command, and output parsing readiness.
 - Apple Speech.framework: check platform, framework/PyObjC importability, recognizer availability, language support, and local/on-device mode if required.
 - Vosk/lightweight ASR: check package/binary importability, model directory/hash, language metadata, and decode smoke fixture.
@@ -235,9 +234,9 @@ For each TTS backend, preflight should return `available`, `degraded`, or `unava
 
 ### Health and Messaging
 
-Future status payloads should remain additive and avoid protocol changes unless separately approved. Candidate wording:
+Status messages:
 
-- “STT backend unavailable: faster-whisper model not found in local cache. Active runs cannot start with real local STT until a model is provisioned or a degraded mode is selected.”
+- “STT backend unavailable: mlx-whisper weights not found. Active runs cannot start with real local STT until a model is provisioned.”
 - “STT degraded: simulated transcript backend selected. Output validates downstream flow but is not evidence of heard IVR audio.”
 - “TTS degraded: Piper voice unavailable. Spoken response automation disabled; keypad/manual responses remain available.”
 - “Cloud fallback enabled: audio/text may leave this machine for the selected provider.”

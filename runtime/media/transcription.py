@@ -34,6 +34,7 @@ _DEFAULT_IVR_KEYWORDS: list[str] = [
     "security code:2",
     "CVV:2",
     "zip code:2",
+    "zipcode:2",
     "billing:1",
     "routing number:2",
     "social security:2",
@@ -43,6 +44,16 @@ _DEFAULT_IVR_KEYWORDS: list[str] = [
     "press two:1",
     "representative:1",
     "agent:1",
+    "credit card number:2",
+    "somebody to help:1",
+    "secret word:1",
+    "security number:2",
+    "keypad:1",
+    "last four digits:2",
+    "recorded:1",
+    "touch tone system:1",
+    "please hold:1",
+    "if you would like:1",
 ]
 
 

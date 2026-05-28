@@ -1,41 +1,212 @@
 {
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║                    PATHLINE • VS CODE                       ║
+    // ║               Clean Python + AI Runtime Setup               ║
+    // ╚══════════════════════════════════════════════════════════════╝
+
+    // ──────────────────────────────────────────────────────────────
+    // GEMINI / AI
+    // ──────────────────────────────────────────────────────────────
     "geminicodeassist.project": "gen-lang-client-0689627288",
-    "cSpell.words": [
-        "repomix",
-        "pytest",
-        "replayable",
-        "replayability",
-        "PQRS",
-        "WXYZ"
+
+    // ──────────────────────────────────────────────────────────────
+    // SPELL CHECKING
+    // ──────────────────────────────────────────────────────────────
+    // Reduced noise + added common engineering/runtime vocabulary
+
+    "cSpell.enabled": true,
+    "cSpell.language": "en",
+    "cSpell.allowCompoundWords": true,
+    "cSpell.caseSensitive": false,
+
+    // Don't aggressively spellcheck these
+    "cSpell.ignorePaths": [
+        "**/.git/**",
+        "**/.venv/**",
+        "**/node_modules/**",
+        "**/__pycache__/**",
+        "**/.pytest_cache/**",
+        "**/.mypy_cache/**",
+        "**/dist/**",
+        "**/build/**"
     ],
-    "python.defaultInterpreterPath": "${workspaceFolder}/backend/python/.venv/bin/python",
+
+    // Ignore screaming ENV vars and IDs
+    "cSpell.ignoreRegExpList": [
+        "/[A-Z0-9_]{3,}/g",
+        "/AC[a-zA-Z0-9]{16,}/g",
+        "/\\+[0-9]{10,15}/g"
+    ],
+
+    "cSpell.words": [
+        // AI / LLM
+        "agentic",
+        "anthropic",
+        "autogen",
+        "deepgram",
+        "gpt",
+        "langchain",
+        "llm",
+        "mlx",
+        "ollama",
+        "openai",
+        "promptflow",
+        "reranker",
+        "tokenizer",
+        "whisper",
+
+        // Audio / Telephony
+        "asterisk",
+        "dtmf",
+        "mulaw",
+        "pcm",
+        "sip",
+        "stt",
+        "tts",
+        "twilio",
+        "vad",
+        "voip",
+        "webrtc",
+
+        // Infra / Runtime
+        "asyncio",
+        "auth",
+        "dotenv",
+        "fastapi",
+        "httpx",
+        "ngrok",
+        "pydantic",
+        "pytest",
+        "structlog",
+        "typer",
+        "uvicorn",
+        "uvloop",
+        "websocket",
+        "websockets",
+
+        // Project Terms
+        "allowlist",
+        "backend",
+        "bridging",
+        "cloudflare",
+        "codebase",
+        "hotreload",
+        "interactive",
+        "logprob",
+        "orchestrator",
+        "pathline",
+        "replayable",
+        "runtime",
+        "tooling",
+        "transcriber",
+        "transcription",
+
+        // General Engineering
+        "config",
+        "configs",
+        "devtools",
+        "envfile",
+        "filesystem",
+        "frontend",
+        "hostname",
+        "localhost",
+        "middleware",
+        "stdout",
+        "webhook",
+        "webhooks"
+    ],
+
+    // ──────────────────────────────────────────────────────────────
+    // PYTHON
+    // ──────────────────────────────────────────────────────────────
+
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
     "python.terminal.activateEnvironment": true,
+    "python.terminal.useEnvFile": true,
+    "python.envFile": "${workspaceFolder}/.env",
+
+    // ──────────────────────────────────────────────────────────────
+    // TESTING
+    // ──────────────────────────────────────────────────────────────
+
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
+
     "python.testing.pytestArgs": [
-        "backend/python/tests"
+        "tests"
     ],
-    "python.envFile": "${workspaceFolder}/backend/python/.env",
+
+    // ──────────────────────────────────────────────────────────────
+    // PYLANCE / ANALYSIS
+    // ──────────────────────────────────────────────────────────────
+
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/backend/python/src"
+        "${workspaceFolder}"
     ],
+
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.autoImportCompletions": true,
-    "files.exclude": {
-        "**/__pycache__": true,
-        "**/.pytest_cache": true,
-        "**/.mypy_cache": true
-    },
-    "files.watcherExclude": {
-        "**/__pycache__/**": true,
-        "**/.pytest_cache/**": true,
-        "**/.mypy_cache/**": true
-    },
+    "python.analysis.inlayHints.variableTypes": true,
+    "python.analysis.inlayHints.functionReturnTypes": true,
+
+    // ──────────────────────────────────────────────────────────────
+    // FORMATTERS
+    // ──────────────────────────────────────────────────────────────
+
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true,
+
         "editor.codeActionsOnSave": {
-            "source.organizeImports": "explicit"
-        }
-    }
-}
+            "source.organizeImports": "explicit",
+            "source.fixAll": "explicit"
+        },
+
+        "editor.rulers": [
+            88
+        ]
+    },
+
+    // ──────────────────────────────────────────────────────────────
+    // FILE EXCLUDES
+    // ──────────────────────────────────────────────────────────────
+
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/.mypy_cache": true,
+        "**/.ruff_cache": true,
+        "**/.DS_Store": true
+    },
+
+    "files.watcherExclude": {
+        "**/__pycache__/**": true,
+        "**/.pytest_cache/**": true,
+        "**/.mypy_cache/**": true,
+        "**/.ruff_cache/**": true
+    },
+
+    // ──────────────────────────────────────────────────────────────
+    // EDITOR UX
+    // ──────────────────────────────────────────────────────────────
+
+    "editor.formatOnPaste": true,
+    "editor.inlineSuggest.enabled": true,
+    "editor.minimap.enabled": false,
+    "editor.renderWhitespace": "selection",
+    "editor.smoothScrolling": true,
+
+    // ──────────────────────────────────────────────────────────────
+    // TERMINAL
+    // ──────────────────────────────────────────────────────────────
+
+    "terminal.integrated.scrollback": 10000,
+    "terminal.integrated.fontSize": 13,
+
+    // ──────────────────────────────────────────────────────────────
+    // GIT
+    // ──────────────────────────────────────────────────────────────
+
+    "git.autofetch": true,
+    "git.enableSmartCommit": true
+}--- 

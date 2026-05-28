@@ -1,4 +1,4 @@
-"""Tests for stt_service.py — FasterWhisperTranscriber + factory."""
+"""Tests for stt_service.py — MlxWhisperTranscriber + factory."""
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from runtime.media.stt_service import (
-    FasterWhisperTranscriber,
+    MlxWhisperTranscriber,
     SimulatedTranscriber,
     create_transcriber,
 )
@@ -16,16 +16,10 @@ from runtime.media.transcription import DeepgramTranscriber
 
 # ─── Factory ──────────────────────────────────────────────────────────────────
 
-def test_create_transcriber_default_is_faster_whisper(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_create_transcriber_default_is_mlx_whisper(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("STT_BACKEND", raising=False)
     t = create_transcriber()
-    assert isinstance(t, FasterWhisperTranscriber)
-
-
-def test_create_transcriber_faster_whisper_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("STT_BACKEND", "faster-whisper")
-    t = create_transcriber()
-    assert isinstance(t, FasterWhisperTranscriber)
+    assert isinstance(t, MlxWhisperTranscriber)
 
 
 def test_create_transcriber_deepgram(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -41,7 +35,7 @@ def test_create_transcriber_simulated(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_stats_include_model_resolution_fields() -> None:
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
     stats = t.stats()
     for key in ("model_source", "resolved_model_target", "download_root", "local_files_only"):
         assert key in stats
@@ -49,8 +43,8 @@ def test_stats_include_model_resolution_fields() -> None:
 
 # ─── INPUT_FORMAT ─────────────────────────────────────────────────────────────
 
-def test_faster_whisper_input_format() -> None:
-    assert FasterWhisperTranscriber.INPUT_FORMAT == "pcm16_16k"
+def test_mlx_whisper_input_format() -> None:
+    assert MlxWhisperTranscriber.INPUT_FORMAT == "pcm16_16k"
 
 
 def test_deepgram_input_format() -> None:
@@ -61,7 +55,7 @@ def test_simulated_input_format() -> None:
     assert SimulatedTranscriber.INPUT_FORMAT == "mulaw_8k"
 
 
-# ─── FasterWhisperTranscriber — connect ───────────────────────────────────────
+# ─── MlxWhisperTranscriber — connect ───────────────────────────────────────
 
 def _make_mock_model(segments=None):
     """Return a mock WhisperModel with .transcribe() returning segments."""
@@ -81,13 +75,13 @@ def _make_segment(text: str, avg_logprob: float = -0.1) -> MagicMock:
 
 
 async def _connect_with_mock_model(transcriber, model):
-    """Patch WhisperModel so connect() returns without downloading anything."""
-    with patch("runtime.media.stt_service.FasterWhisperTranscriber._load_model_sync", return_value=model):
+    """Patch MLX model so connect() returns without downloading anything."""
+    with patch("runtime.media.stt_service.MlxWhisperTranscriber._load_model_sync", return_value=model):
         return await transcriber.connect()
 
 
 def test_connect_loads_model_in_executor() -> None:
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
     mock_model = _make_mock_model()
 
     async def go():
@@ -100,10 +94,10 @@ def test_connect_loads_model_in_executor() -> None:
 
 
 def test_connect_returns_false_on_model_load_error() -> None:
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
 
     with patch(
-        "runtime.media.stt_service.FasterWhisperTranscriber._load_model_sync",
+        "runtime.media.stt_service.MlxWhisperTranscriber._load_model_sync",
         side_effect=RuntimeError("model not found"),
     ):
         result = asyncio.run(t.connect())
@@ -113,7 +107,7 @@ def test_connect_returns_false_on_model_load_error() -> None:
 
 def test_model_path_override_forces_local_files_only(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WHISPER_MODEL_PATH", "/tmp/fw-small-en")
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
     target, kwargs = t._resolve_model_target()
     assert target == "/tmp/fw-small-en"
     assert kwargs["local_files_only"] is True
@@ -123,17 +117,17 @@ def test_download_root_and_local_files_only_env(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.delenv("WHISPER_MODEL_PATH", raising=False)
     monkeypatch.setenv("WHISPER_DOWNLOAD_ROOT", "/tmp/hf-cache")
     monkeypatch.setenv("WHISPER_LOCAL_FILES_ONLY", "true")
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
     target, kwargs = t._resolve_model_target()
     assert target == t._model_size
     assert kwargs["download_root"] == "/tmp/hf-cache"
     assert kwargs["local_files_only"] is True
 
 
-# ─── FasterWhisperTranscriber — process_audio ─────────────────────────────────
+# ─── MlxWhisperTranscriber — process_audio ─────────────────────────────────
 
 def test_process_audio_queues_utterance() -> None:
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
     mock_model = _make_mock_model()
 
     async def go():
@@ -147,7 +141,7 @@ def test_process_audio_queues_utterance() -> None:
 
 def test_process_audio_before_connect_drops_silently() -> None:
     """process_audio before connect() should not raise."""
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
 
     async def go():
         await t.process_audio(bytes(640))  # model is None — should be a no-op
@@ -156,11 +150,11 @@ def test_process_audio_before_connect_drops_silently() -> None:
     asyncio.run(go())
 
 
-# ─── FasterWhisperTranscriber — transcription callback ────────────────────────
+# ─── MlxWhisperTranscriber — transcription callback ────────────────────────
 
 def test_transcription_emits_on_transcript_callback() -> None:
     received = []
-    t = FasterWhisperTranscriber(on_transcript=lambda text, final, sfinal: received.append(text))
+    t = MlxWhisperTranscriber(on_transcript=lambda text, final, sfinal: received.append(text))
     seg = _make_segment("press one for billing", avg_logprob=-0.1)
     mock_model = _make_mock_model([seg])
 
@@ -178,7 +172,7 @@ def test_transcription_emits_on_transcript_callback() -> None:
 def test_low_confidence_transcript_dropped() -> None:
     received = []
     # Confidence min default is 0.6; avg_logprob=-3 → exp(-3)≈0.05
-    t = FasterWhisperTranscriber(
+    t = MlxWhisperTranscriber(
         on_transcript=lambda text, f, sf: received.append(text),
         confidence_min=0.6,
     )
@@ -199,7 +193,7 @@ def test_low_confidence_transcript_dropped() -> None:
 def test_high_confidence_transcript_passes() -> None:
     received = []
     # avg_logprob=-0.1 → exp(-0.1)≈0.90 — well above 0.6
-    t = FasterWhisperTranscriber(
+    t = MlxWhisperTranscriber(
         on_transcript=lambda text, f, sf: received.append(text),
         confidence_min=0.6,
     )
@@ -217,10 +211,10 @@ def test_high_confidence_transcript_passes() -> None:
     assert "account number" in received
 
 
-# ─── FasterWhisperTranscriber — stats ─────────────────────────────────────────
+# ─── MlxWhisperTranscriber — stats ─────────────────────────────────────────
 
 def test_stats_contains_expected_keys() -> None:
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
     s = t.stats()
     for key in (
         "backend",
@@ -237,14 +231,14 @@ def test_stats_contains_expected_keys() -> None:
         assert key in s, f"Missing key: {key}"
 
 
-def test_stats_backend_is_faster_whisper() -> None:
-    assert FasterWhisperTranscriber().stats()["backend"] == "faster-whisper"
+def test_stats_backend_is_mlx_whisper() -> None:
+    assert MlxWhisperTranscriber().stats()["backend"] == "mlx-whisper"
 
 
 # ─── _transcribe_sync (unit — no model download) ──────────────────────────────
 
 def test_transcribe_sync_returns_text_confidence_pairs() -> None:
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
     seg = _make_segment("hello world", avg_logprob=-0.2)
     mock_model = MagicMock()
     mock_model.transcribe.return_value = (iter([seg]), MagicMock())
@@ -260,7 +254,7 @@ def test_transcribe_sync_returns_text_confidence_pairs() -> None:
 
 
 def test_transcribe_sync_filters_empty_segments() -> None:
-    t = FasterWhisperTranscriber()
+    t = MlxWhisperTranscriber()
     seg_empty = _make_segment("", avg_logprob=-0.1)
     seg_blank = _make_segment("   ", avg_logprob=-0.1)
     mock_model = MagicMock()
