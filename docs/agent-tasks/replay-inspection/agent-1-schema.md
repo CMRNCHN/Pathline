@@ -1,6 +1,6 @@
 # Agent 1 — schema + service
 
-Status: Status: deliverable-1-merged, deliverable-2-merged, deliverable-3-merged, deliverable-4-running
+Status: deliverable-1-merged, deliverable-2-merged, deliverable-3-merged, deliverable-4-running
 Branch (D1): merged via squash to next/replay-and-runtime-usability
 Branch (D2): next/replay-and-runtime-usability--agent-1-d2 (when started)
 Worktree (D2): ../pathline-agent-1
@@ -105,7 +105,7 @@ verify nothing was invented or duplicated.
 
 Run before reporting validation status:
 
-```
+```bash
 pytest tests/test_inspection.py tests/test_replay_*.py -q
 ```
 
@@ -159,7 +159,7 @@ shim, do not edit the test.
 
 Run before reporting validation status:
 
-```
+```bash
 pytest tests/ -q
 ```
 
