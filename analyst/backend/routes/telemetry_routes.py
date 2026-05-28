@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...events.operator_telemetry import record_operator_action
+from runtime.events.operator_telemetry import record_operator_action
 
 
 def handle_telemetry(data: dict[str, Any]) -> dict[str, Any]:
