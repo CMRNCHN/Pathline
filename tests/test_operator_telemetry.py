@@ -5,11 +5,11 @@ from typing import Any
 
 import pytest
 
-from ivr_assessor.backend.routes import telemetry_routes
-from ivr_assessor.events.event_bus import bus
-from ivr_assessor.events.event_models import OperationalEvent
-from ivr_assessor.events.event_types import EventType
-from ivr_assessor.events.operator_telemetry import (
+from analyst.backend.routes import telemetry_routes
+from runtime.events.event_bus import bus
+from runtime.events.event_models import OperationalEvent
+from runtime.events.event_types import EventType
+from runtime.events.operator_telemetry import (
     REDACTED_FIELDS,
     record_operator_action,
 )
@@ -135,7 +135,7 @@ def test_event_type_constant_exists() -> None:
 
 def _flow_through_sink_event(tmp_path) -> dict[str, Any]:
     """Helper: persist an OPERATOR_ACTION through EventSink to disk."""
-    from ivr_assessor.events.event_sink import EventSink
+    from runtime.events.event_sink import EventSink
 
     sink = EventSink(base_dir=tmp_path)
     sink.start()

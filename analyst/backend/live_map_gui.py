@@ -35,7 +35,6 @@ from .ui.template_loader import render_index
 from .ui.frontend_assets import load_static
 from .routes import mapper_routes, run_suite_routes, replay_routes, telecom_test_routes
 from .routes.run_suite_routes import normalize_suite_filename as _normalize_suite_filename  # noqa: F401 (public re-export for tests)
-from .events.event_sink import sink as EventSink
 from .backend.ui.template_loader import render_index, TEMPLATE_INDEX
 from .backend.ui.frontend_assets import load_static
 from .backend.routes import (
