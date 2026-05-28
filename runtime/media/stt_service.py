@@ -2,7 +2,8 @@
 """STT (Speech-to-Text) service factory.
 
 Reads STT_BACKEND env var to select the transcriber:
-    faster-whisper  (default) — local, free, runs on CPU or GPU
+    mlx-whisper     (default) — local, Apple Silicon optimized
+    faster-whisper  — local, runs on CPU or GPU (x86 / non-Apple)
     deepgram        — cloud, paid, real-time streaming
     simulated       — deterministic transcript script for runtime validation
 
@@ -44,17 +45,20 @@ def create_transcriber(
 ) -> Any:
     """Return the configured STT transcriber.
 
-    STT_BACKEND=faster-whisper  → FasterWhisperTranscriber (default)
+    STT_BACKEND=mlx-whisper     → MlxWhisperTranscriber (default)
+    STT_BACKEND=faster-whisper  → FasterWhisperTranscriber
     STT_BACKEND=deepgram        → DeepgramTranscriber
     STT_BACKEND=simulated       → SimulatedTranscriber
     """
-    backend = os.getenv("STT_BACKEND", "faster-whisper").lower()
+    backend = os.getenv("STT_BACKEND", "mlx-whisper").lower()
     if backend == "deepgram":
         from .transcription import DeepgramTranscriber
         return DeepgramTranscriber(on_transcript=on_transcript, on_status=on_status)
     if backend == "simulated":
         return SimulatedTranscriber(on_transcript=on_transcript, on_status=on_status)
-    return FasterWhisperTranscriber(on_transcript=on_transcript, on_status=on_status)
+    if backend == "faster-whisper":
+        return FasterWhisperTranscriber(on_transcript=on_transcript, on_status=on_status)
+    return MlxWhisperTranscriber(on_transcript=on_transcript, on_status=on_status)
 
 
 class SimulatedTranscriber:
@@ -130,6 +134,273 @@ class SimulatedTranscriber:
             "last_chunk_at": self._last_chunk_at,
             "last_transcript_at": self._last_transcript_at,
             "connected_at": self._connected_at,
+        }
+
+
+class _MlxModelWrapper:
+    """Thin wrapper around mlx_whisper.transcribe that presents a .transcribe() method.
+
+    This lets MlxWhisperTranscriber._transcribe_sync use ``self._model.transcribe()``
+    with the same calling convention as faster-whisper's WhisperModel, making
+    unit tests that swap in a MagicMock work without importing mlx_whisper.
+    """
+
+    def __init__(self, model_path: str, language: str) -> None:
+        self._model_path = model_path
+        self._language = language
+
+    def transcribe(self, samples: Any) -> tuple[Any, Any]:
+        import mlx_whisper  # type: ignore[import]
+        result = mlx_whisper.transcribe(
+            samples,
+            path_or_hf_repo=self._model_path,
+            language=self._language,
+            verbose=False,
+        )
+        # Convert dict result to segment-like objects so _transcribe_sync can
+        # iterate uniformly over seg.text / seg.avg_logprob.
+        segments = result.get("segments") or []
+        return [_MlxSegment(s) for s in segments], None
+
+
+class _MlxSegment:
+    """Adapts an mlx_whisper segment dict to the faster-whisper segment attribute API."""
+
+    def __init__(self, seg: dict[str, Any]) -> None:
+        self.text: str = seg.get("text") or ""
+        self.avg_logprob: float = seg.get("avg_logprob", -0.1)
+
+
+class MlxWhisperTranscriber:
+    """Local real-time transcriber using mlx-whisper (Apple Silicon optimized).
+
+    Audio contract:
+        process_audio() receives complete utterances (PCM16 16kHz bytes)
+        already segmented by VoiceActivityDetector — NOT raw streaming frames.
+        Each call is one utterance; the result is emitted as a single
+        (text, is_final=True, speech_final=True) callback.
+
+    Requires:
+        pip install mlx-whisper  (Apple Silicon only)
+    """
+
+    INPUT_FORMAT = "pcm16_16k"
+
+    _DEFAULT_MODEL = "mlx-community/whisper-large-v3-turbo"
+
+    def __init__(
+        self,
+        on_transcript: Callable[[str, bool, bool], None] | None = None,
+        on_status: Callable[[str], None] | None = None,
+        model: str | None = None,
+        language: str = "en",
+        confidence_min: float | None = None,
+    ) -> None:
+        self.on_transcript = on_transcript
+        self.on_status = on_status
+
+        self._model_size = model or os.getenv("WHISPER_MODEL", self._DEFAULT_MODEL)
+        self._model_name = self._model_size  # alias for internal use
+        self._language = language
+        self._confidence_min = confidence_min or float(
+            os.getenv("WHISPER_CONFIDENCE_MIN", str(_DEFAULT_CONFIDENCE_MIN))
+        )
+        self._model_path_override = os.getenv("WHISPER_MODEL_PATH", "").strip()
+        self._download_root = os.getenv("WHISPER_DOWNLOAD_ROOT")
+        self._local_files_only = os.getenv("WHISPER_LOCAL_FILES_ONLY", "").lower() in {
+            "1", "true", "yes", "on",
+        }
+
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=20)
+        self._worker_task: asyncio.Task[None] | None = None
+        # _model is set to a sentinel after connect() and cleared on close(),
+        # mirroring FasterWhisperTranscriber so tests can assert `t._model is None`.
+        self._model: Any = None
+        self._connected = False
+
+        # Diagnostics
+        self._utterances_queued = 0
+        self._transcripts_emitted = 0
+        self._transcripts_dropped_confidence = 0
+        self._utterances_dropped_queue_full = 0
+        self._connect_time: float | None = None
+        self._total_inference_ms = 0.0
+        self._last_connect_ms = 0.0
+        self._last_inference_ms = 0.0
+        self._max_queue_size_seen = 0
+        self._last_enqueue_at: float | None = None
+        self._last_dequeue_at: float | None = None
+        self._last_transcript_at: float | None = None
+        self._model_source = ""
+        self._resolved_model_target = ""
+
+    def _notify(self, msg: str) -> None:
+        logger.debug("notify: %s", msg)
+        if self.on_status:
+            try:
+                self.on_status(msg)
+            except Exception as exc:
+                logger.error("on_status callback raised: %s", exc)
+
+    def _resolve_model_target(self) -> tuple[str, dict[str, Any]]:
+        kwargs: dict[str, Any] = {}
+        if self._download_root:
+            kwargs["download_root"] = self._download_root
+        if self._model_path_override:
+            self._model_source = "path_override"
+            self._resolved_model_target = self._model_path_override
+            kwargs["local_files_only"] = True
+            return self._model_path_override, kwargs
+        self._model_source = "model_name"
+        self._resolved_model_target = self._model_size
+        kwargs["local_files_only"] = self._local_files_only
+        return self._model_size, kwargs
+
+    async def connect(self) -> bool:
+        model_target, _ = self._resolve_model_target()
+        self._notify(f"[mlx-whisper] loading model {model_target!r}…")
+        t0 = time.monotonic()
+        # Warm the model in a thread to avoid blocking the event loop.
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(self._executor, self._load_model_sync)
+        except Exception as exc:
+            self._notify(f"[mlx-whisper] model load failed: {exc}")
+            logger.error("MlxWhisper model load failed: %s", exc, exc_info=True)
+            return False
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        self._connect_time = time.monotonic()
+        self._last_connect_ms = elapsed_ms
+        self._connected = True
+        self._model = True  # sentinel: truthy while connected, None after close()
+        self._notify(f"[mlx-whisper] ✓ model ready in {elapsed_ms:.0f} ms")
+        self._worker_task = asyncio.create_task(self._worker_loop())
+        return True
+
+    def _warm_model_sync(self) -> None:
+        """Pre-load the model by running a silent inference."""
+        import numpy as np  # type: ignore[import]
+        import mlx_whisper  # type: ignore[import]
+        model_target, _ = self._resolve_model_target()
+        silence = np.zeros(16000, dtype=np.float32)
+        mlx_whisper.transcribe(
+            silence,
+            path_or_hf_repo=model_target,
+            language=self._language,
+            verbose=False,
+        )
+        # Store a callable wrapper so _transcribe_sync can use self._model.
+        self._model = _MlxModelWrapper(model_target, self._language)
+
+    # Primary entry point — patched in tests to avoid downloading a real model.
+    def _load_model_sync(self) -> None:
+        self._warm_model_sync()
+
+    async def process_audio(self, pcm_bytes: bytes) -> None:
+        if self._model is None:
+            logger.warning("process_audio called before connect — dropping utterance")
+            return
+        if self._queue.full():
+            try:
+                dropped = self._queue.get_nowait()
+                self._utterances_dropped_queue_full += 1
+                logger.warning(
+                    "utterance queue full — dropped oldest (%d bytes)", len(dropped or b"")
+                )
+            except asyncio.QueueEmpty:
+                pass
+        await self._queue.put(pcm_bytes)
+        self._utterances_queued += 1
+        self._last_enqueue_at = time.monotonic()
+        self._max_queue_size_seen = max(self._max_queue_size_seen, self._queue.qsize())
+
+    async def _worker_loop(self) -> None:
+        loop = asyncio.get_running_loop()
+        while True:
+            pcm_bytes = await self._queue.get()
+            self._last_dequeue_at = time.monotonic()
+            if pcm_bytes is None:
+                break
+            try:
+                t0 = time.monotonic()
+                results = await loop.run_in_executor(
+                    self._executor, self._transcribe_sync, pcm_bytes
+                )
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                self._total_inference_ms += elapsed_ms
+                self._last_inference_ms = elapsed_ms
+                for text, confidence in results:
+                    if confidence < self._confidence_min:
+                        self._transcripts_dropped_confidence += 1
+                        continue
+                    self._transcripts_emitted += 1
+                    self._last_transcript_at = time.monotonic()
+                    if self.on_transcript:
+                        try:
+                            self.on_transcript(text, True, True)
+                        except Exception as exc:
+                            logger.error("on_transcript callback raised: %s", exc, exc_info=True)
+            except Exception as exc:
+                logger.error("MlxWhisper transcription error: %s", exc, exc_info=True)
+                self._notify(f"[mlx-whisper] transcription error: {exc}")
+            finally:
+                self._queue.task_done()
+
+    def _transcribe_sync(self, pcm_bytes: bytes) -> list[tuple[str, float]]:
+        import numpy as np  # type: ignore[import]
+        import math
+        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        # self._model is either an _MlxModelWrapper or a test mock; both expose .transcribe()
+        result_iter, _ = self._model.transcribe(samples)
+        pairs: list[tuple[str, float]] = []
+        for seg in result_iter:
+            text = (seg.text or "").strip()
+            if not text:
+                continue
+            confidence = math.exp(max(seg.avg_logprob, -10))
+            pairs.append((text, confidence))
+        return pairs
+
+    async def close(self) -> None:
+        await self._queue.put(None)
+        if self._worker_task is not None:
+            try:
+                await asyncio.wait_for(self._worker_task, timeout=30)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                self._worker_task.cancel()
+            self._worker_task = None
+        self._executor.shutdown(wait=False)
+        self._connected = False
+        self._model = None
+
+    def stats(self) -> dict[str, Any]:
+        avg_latency = (
+            self._total_inference_ms / self._transcripts_emitted
+            if self._transcripts_emitted > 0
+            else 0.0
+        )
+        return {
+            "backend": "mlx-whisper",
+            "model": self._model_size,
+            "model_source": self._model_source,
+            "resolved_model_target": self._resolved_model_target,
+            "download_root": self._download_root,
+            "local_files_only": self._local_files_only or bool(self._model_path_override),
+            "device": "apple-silicon",
+            "utterances_queued": self._utterances_queued,
+            "transcripts_emitted": self._transcripts_emitted,
+            "transcripts_dropped_confidence": self._transcripts_dropped_confidence,
+            "avg_inference_ms": round(avg_latency, 1),
+            "connected": self._connected,
+            "queue_size": self._queue.qsize(),
+            "max_queue_size_seen": self._max_queue_size_seen,
+            "utterances_dropped_queue_full": self._utterances_dropped_queue_full,
+            "last_connect_ms": round(self._last_connect_ms, 1),
+            "last_inference_ms": round(self._last_inference_ms, 1),
+            "last_enqueue_at": self._last_enqueue_at,
+            "last_dequeue_at": self._last_dequeue_at,
+            "last_transcript_at": self._last_transcript_at,
         }
 
 
