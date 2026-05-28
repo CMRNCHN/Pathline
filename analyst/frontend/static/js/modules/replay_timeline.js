@@ -223,6 +223,17 @@ export const ReplayTimeline = {
         const btnNext = document.getElementById('btn-replay-next');
         if (btnPrev) btnPrev.disabled = (this.cursor === 0);
         if (btnNext) btnNext.disabled = (this.cursor === this.totalEvents);
+
+        // Keep the scrubber in sync when cursor moves via buttons.
+        const scrubber = document.getElementById('replay-scrubber');
+        if (scrubber) {
+            if (scrubber.max !== String(this.totalEvents)) {
+                scrubber.max = String(this.totalEvents);
+            }
+            if (scrubber.value !== String(this.cursor)) {
+                scrubber.value = String(this.cursor);
+            }
+        }
     },
 
     updateTimeDisplay(timeMs) {
@@ -270,6 +281,7 @@ export const ReplayTimeline = {
                         <span id="replay-media-time-display" style="font-family: var(--font-mono); font-size: 12px; color: var(--accent);">00:00.000</span>
                     </div>
                 </div>
+                <input id="replay-scrubber" type="range" min="0" max="${this.totalEvents}" value="${this.cursor}" step="1" class="w-full replay-scrubber" title="Scrub timeline">
             </div>
             <div id="replay-diff-log" style="margin-top: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-3); max-height: 80px; overflow-y: auto;"></div>
         `;
@@ -278,7 +290,18 @@ export const ReplayTimeline = {
         document.getElementById('btn-replay-prev').onclick = () => this.stepBackward();
         document.getElementById('btn-replay-next').onclick = () => this.stepForward();
         document.getElementById('btn-replay-end').onclick = () => this.jumpToEnd();
-        
+
+        const scrubber = document.getElementById('replay-scrubber');
+        if (scrubber) {
+            scrubber.addEventListener('change', (e) => {
+                const value = parseInt(e.target.value, 10);
+                if (!Number.isNaN(value)) {
+                    const oldCursor = this.cursor;
+                    this.seek(value, oldCursor);
+                }
+            });
+        }
+
         document.getElementById('btn-replay-play').onclick = () => {
             if (this.audio.playbackState === 'playing') {
                 this.audio.pause();
