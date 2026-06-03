@@ -430,8 +430,8 @@ def test_runner_happy_path_no_telephony() -> None:
                 name="Clean Logs",
                 steps=[
                     TestStep(step_id="no_pan", action=StepAction.CHECK_NO_RAW_CARD_LOGGED,
-                             timeout_ms=1000),
-                    TestStep(step_id="end", action=StepAction.END_CALL, timeout_ms=1000),
+                             timeout_s=1),
+                    TestStep(step_id="end", action=StepAction.END_CALL, timeout_s=1),
                 ],
             )
         ],
@@ -457,7 +457,7 @@ def test_runner_wait_for_prompt_pass() -> None:
                         step_id="wait",
                         action=StepAction.WAIT_FOR_PROMPT,
                         expected_text_contains="press 1",
-                        timeout_ms=2000,
+                        timeout_s=2,
                     ),
                 ],
             )
@@ -485,7 +485,7 @@ def test_runner_wait_for_prompt_timeout() -> None:
                         step_id="wait",
                         action=StepAction.WAIT_FOR_PROMPT,
                         expected_text_contains="billing",
-                        timeout_ms=300,  # very short timeout
+                        timeout_s=0.3,  # very short timeout
                     ),
                 ],
             )
@@ -513,7 +513,7 @@ def test_runner_check_secure_card_saved() -> None:
                     TestStep(
                         step_id="card",
                         action=StepAction.CHECK_SECURE_CARD_SAVED,
-                        timeout_ms=2000,
+                        timeout_s=2,
                     ),
                 ],
             )
@@ -548,7 +548,7 @@ def test_runner_secure_card_pan_rejected() -> None:
                     TestStep(
                         step_id="card",
                         action=StepAction.CHECK_SECURE_CARD_SAVED,
-                        timeout_ms=2000,
+                        timeout_s=2,
                     ),
                 ],
             )
@@ -577,7 +577,7 @@ def test_runner_check_no_pan_in_logs() -> None:
                 name="SC",
                 steps=[
                     TestStep(step_id="check", action=StepAction.CHECK_NO_RAW_CARD_LOGGED,
-                             timeout_ms=1000),
+                             timeout_s=1),
                 ],
             )
         ],
@@ -601,7 +601,7 @@ def test_runner_poll_events() -> None:
                 scenario_id="sc",
                 name="SC",
                 steps=[
-                    TestStep(step_id="end", action=StepAction.END_CALL, timeout_ms=1000),
+                    TestStep(step_id="end", action=StepAction.END_CALL, timeout_s=1),
                 ],
             )
         ],
@@ -629,9 +629,9 @@ def test_runner_remaining_steps_skipped_on_failure() -> None:
                 name="SC",
                 steps=[
                     TestStep(step_id="fail_step", action=StepAction.WAIT_FOR_PROMPT,
-                             expected_text_contains="xyz", timeout_ms=200),
+                             expected_text_contains="xyz", timeout_s=0.2),
                     TestStep(step_id="should_skip", action=StepAction.END_CALL,
-                             timeout_ms=1000),
+                             timeout_s=1),
                 ],
             )
         ],
