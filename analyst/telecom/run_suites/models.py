@@ -37,7 +37,7 @@ class TestStep:
     expected_intent: str | None = None
     expected_node_id: str | None = None
     validation_rule: str | None = None
-    timeout_ms: int = 10_000
+    timeout_s: float = 10.0
     retry_count: int = 0
 
     def as_dict(self) -> dict[str, Any]:
@@ -61,7 +61,7 @@ class TestStep:
             expected_intent=data.get("expected_intent") or None,
             expected_node_id=data.get("expected_node_id") or None,
             validation_rule=data.get("validation_rule") or None,
-            timeout_ms=int(data.get("timeout_ms", 10_000)),
+            timeout_s=float(data.get("timeout_s", data.get("timeout_ms", 10_000)) or 10),
             retry_count=int(data.get("retry_count", 0)),
         )
 

@@ -385,12 +385,12 @@ class SuiteRunner:
             except _StepTimeout:
                 if attempts + 1 >= max_attempts:
                     result.status = StepStatus.TIMED_OUT
-                    result.error = f"Timed out after {step.timeout_ms}ms"
+                    result.error = f"Timed out after {step.timeout_s}s"
                     self._emit(StepTimedOutEvent(
                         suite_id=self._suite.suite_id,
                         scenario_id=scenario_id,
                         step_id=step.step_id,
-                        timeout_ms=step.timeout_ms,
+                        timeout_ms=int(step.timeout_s * 1000),
                     ))
                     break
             except _StepFailed as exc:
@@ -498,7 +498,7 @@ class SuiteRunner:
             ctx.result.actual_response = ctx.step.expected_event
 
     def _step_wait_for_prompt(self, ctx: _StepContext) -> None:
-        timeout_s = ctx.step.timeout_ms / 1000
+        timeout_s = ctx.step.timeout_s
         deadline = time.time() + timeout_s
 
         while time.time() < deadline:
@@ -653,7 +653,7 @@ class SuiteRunner:
 
     def _wait_for_event(self, ctx: _StepContext, expected_type: str) -> IVRRuntimeEvent:
         """Drain the event queue until we see expected_type or timeout."""
-        timeout_s = ctx.step.timeout_ms / 1000
+        timeout_s = ctx.step.timeout_s
         deadline = time.time() + timeout_s
 
         while time.time() < deadline:

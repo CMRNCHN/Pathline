@@ -35,9 +35,9 @@ def _validate_steps(steps_raw: list, context: str, valid_actions: set, allow_tem
                 f"Valid actions: {sorted(valid_actions)}"
             )
 
-        timeout_ms = step.get("timeout_ms", 10_000)
-        if not isinstance(timeout_ms, (int, float)) or timeout_ms <= 0:
-            raise ValueError(f"Step {step_id!r} timeout_ms must be a positive number")
+        timeout_s = step.get("timeout_s", step.get("timeout_ms", 10_000))
+        if not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
+            raise ValueError(f"Step {step_id!r} timeout_s must be a positive number")
 
         # Actions that require input_value (template vars allowed in base_steps)
         if action in ("send_dtmf", "send_speech"):
