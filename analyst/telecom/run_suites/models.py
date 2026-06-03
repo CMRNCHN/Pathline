@@ -11,6 +11,7 @@ from analyst.telecom.run_suites.status import StepStatus, SuiteRunStatus
 class StepAction(str, Enum):
     START_CALL = "start_call"
     WAIT_FOR_PROMPT = "wait_for_prompt"
+    WAIT_FOR_PHRASE = "wait_for_phrase"
     SEND_DTMF = "send_dtmf"
     SEND_SPEECH = "send_speech"
     WAIT_FOR_TRANSCRIPT = "wait_for_transcript"
@@ -67,14 +68,23 @@ class TestStep:
 
 @dataclass
 class TestScenario:
-    """A sequence of steps forming a complete IVR test path."""
+    """A sequence of steps forming a complete IVR test path.
+
+    Steps may be omitted when the parent RunSuite defines base_steps.
+    At runtime the runner resolves the final step list by cloning base_steps,
+    substituting {{VAR}} placeholders from params, and injecting
+    expected_text_contains into the first wait_for_transcript step.
+    """
     scenario_id: str
     name: str
     steps: list[TestStep] = field(default_factory=list)
     target_number: str = ""
     # Human-readable label for the IVR outcome this scenario expects (e.g. "APPROVED").
-    # When set, ScenarioResult.ivr_status is populated after the run.
     ivr_status_label: str | None = None
+    # Template variable substitutions applied to base_steps (e.g. {"CARD_NUMBER": "4111..."}).
+    params: dict[str, str] = field(default_factory=dict)
+    # Injected into the first wait_for_transcript step when using base_steps.
+    expected_text_contains: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -85,6 +95,10 @@ class TestScenario:
         }
         if self.ivr_status_label is not None:
             d["ivr_status_label"] = self.ivr_status_label
+        if self.params:
+            d["params"] = self.params
+        if self.expected_text_contains is not None:
+            d["expected_text_contains"] = self.expected_text_contains
         return d
 
     @classmethod
@@ -93,32 +107,47 @@ class TestScenario:
         if not isinstance(steps_raw, list):
             raise ValueError("Scenario 'steps' must be an array")
         steps = [TestStep.from_dict(s) for s in steps_raw]
+        params_raw = data.get("params") or {}
+        if not isinstance(params_raw, dict):
+            raise ValueError("Scenario 'params' must be an object")
+        scenario_id = str(data.get("scenario_id", ""))
         return cls(
-            scenario_id=str(data.get("scenario_id", "")),
-            name=str(data.get("name", "")),
+            scenario_id=scenario_id,
+            name=str(data.get("name") or scenario_id),
             target_number=str(data.get("target_number", "")),
             steps=steps,
             ivr_status_label=data.get("ivr_status_label") or None,
+            params={str(k): str(v) for k, v in params_raw.items()},
+            expected_text_contains=data.get("expected_text_contains") or None,
         )
 
 
 @dataclass
 class RunSuite:
-    """A collection of scenarios forming a complete test suite."""
+    """A collection of scenarios forming a complete test suite.
+
+    base_steps defines a shared step template reused across all scenarios that
+    have no steps of their own. Template variables ({{VAR}}) in base_steps are
+    substituted per-scenario from TestScenario.params at runtime.
+    """
     suite_id: str
     name: str
     description: str = ""
     scenarios: list[TestScenario] = field(default_factory=list)
     target_number: str = ""
+    base_steps: list[TestStep] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "suite_id": self.suite_id,
             "name": self.name,
             "description": self.description,
             "target_number": self.target_number,
             "scenarios": [s.as_dict() for s in self.scenarios],
         }
+        if self.base_steps:
+            d["base_steps"] = [s.as_dict() for s in self.base_steps]
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RunSuite":
@@ -126,12 +155,17 @@ class RunSuite:
         if not isinstance(scenarios_raw, list):
             raise ValueError("Suite 'scenarios' must be an array")
         scenarios = [TestScenario.from_dict(s) for s in scenarios_raw]
+        base_steps_raw = data.get("base_steps", [])
+        if not isinstance(base_steps_raw, list):
+            raise ValueError("Suite 'base_steps' must be an array")
+        base_steps = [TestStep.from_dict(s) for s in base_steps_raw]
         return cls(
             suite_id=str(data.get("suite_id", "")),
             name=str(data.get("name", "")),
             description=str(data.get("description", "")),
             target_number=str(data.get("target_number", "")),
             scenarios=scenarios,
+            base_steps=base_steps,
         )
 
 
