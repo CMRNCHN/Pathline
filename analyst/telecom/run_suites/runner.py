@@ -12,8 +12,10 @@ synchronous HTTP server via thread-safe queues.
 """
 from __future__ import annotations
 
+import copy
 import logging
 import queue
+import re
 import threading
 import time
 import uuid
@@ -44,11 +46,6 @@ from analyst.telecom.run_suites.models import (
     RunResult,
     SuiteRunStatus,
 )
-
-import copy
-import re
-
-_TEMPLATE_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 from analyst.telecom.run_suites.status import StepStatus, FailureReason, is_terminal
 from analyst.telecom.run_suites.validators import (
     validate_text_contains,
@@ -58,6 +55,8 @@ from analyst.telecom.run_suites.validators import (
     validate_secure_card_token,
     validate_secure_card_deleted,
 )
+
+_TEMPLATE_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 
 logger = logging.getLogger(__name__)
 
