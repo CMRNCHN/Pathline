@@ -72,14 +72,20 @@ class TestScenario:
     name: str
     steps: list[TestStep] = field(default_factory=list)
     target_number: str = ""
+    # Human-readable label for the IVR outcome this scenario expects (e.g. "APPROVED").
+    # When set, ScenarioResult.ivr_status is populated after the run.
+    ivr_status_label: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "scenario_id": self.scenario_id,
             "name": self.name,
             "target_number": self.target_number,
             "steps": [s.as_dict() for s in self.steps],
         }
+        if self.ivr_status_label is not None:
+            d["ivr_status_label"] = self.ivr_status_label
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TestScenario":
@@ -92,6 +98,7 @@ class TestScenario:
             name=str(data.get("name", "")),
             target_number=str(data.get("target_number", "")),
             steps=steps,
+            ivr_status_label=data.get("ivr_status_label") or None,
         )
 
 
@@ -171,6 +178,10 @@ class ScenarioResult:
     duration_ms: float = 0.0
     started_at: float = 0.0
     completed_at: float = 0.0
+    # Set after run: the IVR status label matched (or "UNMATCHED: <transcript>").
+    ivr_status: str | None = None
+    # Full concatenated transcript captured during this scenario.
+    full_transcript: str | None = None
 
     @property
     def pass_count(self) -> int:
@@ -191,6 +202,8 @@ class ScenarioResult:
             "fail_count": self.fail_count,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
+            "ivr_status": self.ivr_status,
+            "full_transcript": self.full_transcript,
             "step_results": [s.as_dict() for s in self.step_results],
         }
 
