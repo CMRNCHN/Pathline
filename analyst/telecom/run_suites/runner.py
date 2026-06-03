@@ -264,6 +264,25 @@ class SuiteRunner:
         sc_result.duration_ms = (sc_result.completed_at - sc_result.started_at) * 1000
         sc_result.passed = sc_result.fail_count == 0
 
+        # Collect all transcript snippets captured during this scenario.
+        snippets = [
+            sr.transcript_snippet
+            for sr in sc_result.step_results
+            if sr.transcript_snippet
+        ]
+        if snippets:
+            sc_result.full_transcript = " | ".join(snippets)
+
+        # Derive ivr_status from the scenario label and whether it matched.
+        if scenario.ivr_status_label:
+            if sc_result.passed:
+                sc_result.ivr_status = scenario.ivr_status_label
+            else:
+                raw = sc_result.full_transcript or "(no transcript)"
+                sc_result.ivr_status = f"UNMATCHED: {raw}"
+        elif sc_result.full_transcript:
+            sc_result.ivr_status = sc_result.full_transcript
+
         self._emit(ScenarioCompletedEvent(
             suite_id=self._suite.suite_id,
             scenario_id=scenario.scenario_id,
