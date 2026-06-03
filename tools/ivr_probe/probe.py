@@ -45,6 +45,7 @@ import re
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -120,12 +121,12 @@ def _collect_status_rules(suite: RunSuite) -> list[tuple[str, str]]:
 
 
 def _match_status(transcript: str, rules: list[tuple[str, str]]) -> tuple[str, str]:
-    """Return (status_label, matched_keyword). First match wins."""
+    """Return (status_label, matched_keyword). First match wins. Status is uppercased."""
     t = transcript.lower()
     for keyword, label in rules:
         if keyword in t:
-            return label, keyword
-    return "UNKNOWN", ""
+            return label.upper(), keyword
+    return "UNMATCHED", ""
 
 
 def run(
@@ -196,6 +197,10 @@ def main() -> None:
     parser.add_argument("--phone", help="Override target IVR phone number")
     parser.add_argument("--suite", type=Path, default=_DEFAULT_SUITE, help="Suite JSON path")
     parser.add_argument("--dry-run", action="store_true", help="Skip real call, inject fake transcript")
+    parser.add_argument(
+        "--format", choices=["text", "json"], default="text",
+        help="Output format (default: text)"
+    )
     args = parser.parse_args()
 
     telephony = None
@@ -204,7 +209,9 @@ def main() -> None:
         number = args.phone or suite.target_number
         telephony = _build_telephony(number)
 
-    print(f"Probing card: {'*' * (len(args.card) - 4)}{args.card[-4:]}  (calling IVR...)")
+    if args.format == "text":
+        print(f"Probing card: {'*' * (len(args.card) - 4)}{args.card[-4:]}  (calling IVR...)")
+
     outcome = run(
         card_number=args.card,
         suite_path=args.suite,
@@ -213,10 +220,13 @@ def main() -> None:
         dry_run=args.dry_run,
     )
 
-    print()
-    print(f"STATUS:     {outcome['status']}")
-    print(f"TRANSCRIPT: {outcome['transcript'] or '(none captured)'}")
-    print(f"MATCHED:    {outcome['matched_keyword'] or '(none)'}")
+    if args.format == "json":
+        print(json.dumps(outcome))
+    else:
+        print()
+        print(f"STATUS:     {outcome['status']}")
+        print(f"TRANSCRIPT: {outcome['transcript'] or '(none captured)'}")
+        print(f"MATCHED:    {outcome['matched_keyword'] or '(none)'}")
 
 
 if __name__ == "__main__":

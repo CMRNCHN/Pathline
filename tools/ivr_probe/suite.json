@@ -27,6 +27,11 @@
       "scenario_id": "yellow",
       "ivr_status_label": "yellow",
       "expected_text_contains": "what_is_your_secret"
+    },
+    {
+      "scenario_id": "red",
+      "ivr_status_label": "red",
+      "expected_text_contains": "you gave me your old credit card number"
     }
   ]
 }
