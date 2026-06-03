@@ -768,7 +768,8 @@ class LiveMapRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if self.path == "/api/telemetry":
-                self._json(telemetry_routes.handle_telemetry(data)); return
+                self._json(telemetry_routes.handle_telemetry(data))
+                return
             if self.path == "/api/telecom-tests/run":
                 self._json(telecom_test_routes.handle_run_telecom_test(data, _run_session_thread))
                 return
