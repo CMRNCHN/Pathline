@@ -12,8 +12,10 @@ synchronous HTTP server via thread-safe queues.
 """
 from __future__ import annotations
 
+import copy
 import logging
 import queue
+import re
 import threading
 import time
 import uuid
@@ -53,6 +55,8 @@ from analyst.telecom.run_suites.validators import (
     validate_secure_card_token,
     validate_secure_card_deleted,
 )
+
+_TEMPLATE_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 
 logger = logging.getLogger(__name__)
 
@@ -219,9 +223,49 @@ class SuiteRunner:
             result.status = SuiteRunStatus.ERRORED
             result.completed_at = time.time()
 
+    def _resolve_steps(self, scenario: TestScenario) -> list[TestStep]:
+        """Return the effective step list for a scenario.
+
+        If the scenario has its own steps, use them as-is.
+        Otherwise clone the suite's base_steps, substitute {{VAR}} from
+        scenario.params, and inject scenario.expected_text_contains into
+        the first wait_for_transcript step.
+        """
+        if scenario.steps:
+            return scenario.steps
+
+        if not self._suite.base_steps:
+            return []
+
+        resolved: list[TestStep] = []
+        params = scenario.params or {}
+
+        for step in self._suite.base_steps:
+            cloned = copy.copy(step)
+
+            # Substitute {{VAR}} in input_value
+            if cloned.input_value:
+                def _sub(m: re.Match) -> str:
+                    return params.get(m.group(1), m.group(0))
+                cloned.input_value = _TEMPLATE_RE.sub(_sub, cloned.input_value)
+
+            # Inject expected_text_contains into first wait_for_transcript step
+            if (
+                scenario.expected_text_contains
+                and cloned.action == StepAction.WAIT_FOR_TRANSCRIPT
+                and cloned.expected_text_contains is None
+            ):
+                cloned.expected_text_contains = scenario.expected_text_contains
+
+            resolved.append(cloned)
+
+        return resolved
+
     def _run_scenario(
         self, scenario: TestScenario, run_result: RunResult
     ) -> ScenarioResult:
+        steps = self._resolve_steps(scenario)
+
         sc_result = ScenarioResult(
             scenario_id=scenario.scenario_id,
             name=scenario.name,
@@ -232,10 +276,10 @@ class SuiteRunner:
             suite_id=self._suite.suite_id,
             scenario_id=scenario.scenario_id,
             name=scenario.name,
-            step_count=len(scenario.steps),
+            step_count=len(steps),
         ))
 
-        for step in scenario.steps:
+        for step in steps:
             if self._abort_event.is_set():
                 step_result = StepResult(
                     step_id=step.step_id,
@@ -251,8 +295,8 @@ class SuiteRunner:
             # Stop scenario on first failure (unless step is non-critical check)
             if step_result.status in (StepStatus.FAILED, StepStatus.ERRORED, StepStatus.TIMED_OUT):
                 # Mark remaining steps skipped
-                remaining_idx = scenario.steps.index(step) + 1
-                for remaining in scenario.steps[remaining_idx:]:
+                remaining_idx = steps.index(step) + 1
+                for remaining in steps[remaining_idx:]:
                     sc_result.step_results.append(StepResult(
                         step_id=remaining.step_id,
                         action=remaining.action.value,
@@ -341,12 +385,12 @@ class SuiteRunner:
             except _StepTimeout:
                 if attempts + 1 >= max_attempts:
                     result.status = StepStatus.TIMED_OUT
-                    result.error = f"Timed out after {step.timeout_ms}ms"
+                    result.error = f"Timed out after {step.timeout_s}s"
                     self._emit(StepTimedOutEvent(
                         suite_id=self._suite.suite_id,
                         scenario_id=scenario_id,
                         step_id=step.step_id,
-                        timeout_ms=step.timeout_ms,
+                        timeout_ms=int(step.timeout_s * 1000),
                     ))
                     break
             except _StepFailed as exc:
@@ -405,13 +449,13 @@ class SuiteRunner:
 
         if action == StepAction.START_CALL:
             self._step_start_call(ctx)
-        elif action == StepAction.WAIT_FOR_PROMPT:
+        elif action in (StepAction.WAIT_FOR_PROMPT, StepAction.WAIT_FOR_PHRASE):
             self._step_wait_for_prompt(ctx)
         elif action == StepAction.SEND_DTMF:
             self._step_send_dtmf(ctx)
         elif action == StepAction.SEND_SPEECH:
             self._step_send_speech(ctx)
-        elif action in (StepAction.WAIT_FOR_TRANSCRIPT, StepAction.WAIT_FOR_PROMPT):
+        elif action == StepAction.WAIT_FOR_TRANSCRIPT:
             self._step_wait_for_prompt(ctx)
         elif action == StepAction.WAIT_FOR_INTENT:
             self._step_wait_for_event(ctx, IVREventType.INTENT_DETECTED, "intent")
@@ -454,7 +498,7 @@ class SuiteRunner:
             ctx.result.actual_response = ctx.step.expected_event
 
     def _step_wait_for_prompt(self, ctx: _StepContext) -> None:
-        timeout_s = ctx.step.timeout_ms / 1000
+        timeout_s = ctx.step.timeout_s
         deadline = time.time() + timeout_s
 
         while time.time() < deadline:
@@ -609,7 +653,7 @@ class SuiteRunner:
 
     def _wait_for_event(self, ctx: _StepContext, expected_type: str) -> IVRRuntimeEvent:
         """Drain the event queue until we see expected_type or timeout."""
-        timeout_s = ctx.step.timeout_ms / 1000
+        timeout_s = ctx.step.timeout_s
         deadline = time.time() + timeout_s
 
         while time.time() < deadline:

@@ -1,7 +1,7 @@
 {
   "suite_id": "ivr_card_probe",
   "name": "IVR Card Status Probe",
-  "description": "Dials IVR, presses **11, enters card number from params, captures spoken status, hangs up. Set CARD_NUMBER in each scenario's params before running.",
+  "description": "Dials IVR, presses **11, enters card number, captures spoken status.",
   "target_number": "+18009505114",
   "base_steps": [
     { "step_id": "s1_dial",        "action": "start_call",         "timeout_s": 30 },
@@ -16,20 +16,22 @@
     {
       "scenario_id": "green",
       "ivr_status_label": "green",
-      "expected_text_contains": "five_digit_zipcode",
-      "params": { "CARD_NUMBER": "REPLACEME" }
+      "expected_text_contains": "five_digit_zipcode"
     },
     {
       "scenario_id": "orange",
       "ivr_status_label": "orange",
-      "expected_text_contains": "while_i_get_somebody_to_help",
-      "params": { "CARD_NUMBER": "REPLACEME" }
+      "expected_text_contains": "while_i_get_somebody_to_help"
     },
     {
       "scenario_id": "yellow",
       "ivr_status_label": "yellow",
-      "expected_text_contains": "what_is_your_secret",
-      "params": { "CARD_NUMBER": "REPLACEME" }
+      "expected_text_contains": "what_is_your_secret"
+    },
+    {
+      "scenario_id": "red",
+      "ivr_status_label": "red",
+      "expected_text_contains": "you gave me your old credit card number"
     }
   ]
 }

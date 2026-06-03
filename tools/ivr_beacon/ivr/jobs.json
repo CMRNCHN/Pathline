@@ -1,0 +1,12 @@
+[
+  {
+    "name": "job_a",
+    "card_number": "1234",
+    "enabled": true
+  },
+  {
+    "name": "job_b",
+    "card_number": "5678",
+    "enabled": true
+  }
+]

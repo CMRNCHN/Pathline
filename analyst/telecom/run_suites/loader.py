@@ -14,6 +14,38 @@ _SUITE_DIR = Path.home() / ".ivr_assessor" / "run_suites"
 _ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 
 
+def _validate_steps(steps_raw: list, context: str, valid_actions: set, allow_template_vars: bool = False) -> None:
+    """Validate a list of step dicts. context is used in error messages."""
+    seen_step_ids: set[str] = set()
+    for ti, step in enumerate(steps_raw):
+        if not isinstance(step, dict):
+            raise ValueError(f"{context} step #{ti + 1} must be an object")
+
+        step_id = step.get("step_id", "")
+        if not step_id:
+            raise ValueError(f"Step #{ti + 1} in {context} missing 'step_id'")
+        if step_id in seen_step_ids:
+            raise ValueError(f"Duplicate step_id {step_id!r} in {context}")
+        seen_step_ids.add(step_id)
+
+        action = step.get("action", "")
+        if action not in valid_actions:
+            raise ValueError(
+                f"Step {step_id!r} has unknown action {action!r}. "
+                f"Valid actions: {sorted(valid_actions)}"
+            )
+
+        timeout_s = step.get("timeout_s", step.get("timeout_ms", 10_000))
+        if not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
+            raise ValueError(f"Step {step_id!r} timeout_s must be a positive number")
+
+        # Actions that require input_value (template vars allowed in base_steps)
+        if action in ("send_dtmf", "send_speech"):
+            val = step.get("input_value", "")
+            if not val and not allow_template_vars:
+                raise ValueError(f"Step {step_id!r} action {action!r} requires 'input_value'")
+
+
 def _validate_suite_dict(data: Any) -> None:
     """Raise ValueError with a clear message if the suite JSON is malformed."""
     if not isinstance(data, dict):
@@ -35,6 +67,15 @@ def _validate_suite_dict(data: Any) -> None:
         raise ValueError("Suite must contain at least one scenario")
 
     valid_actions = {a.value for a in StepAction}
+    has_base_steps = bool(data.get("base_steps"))
+
+    # Validate base_steps if present
+    base_steps_raw = data.get("base_steps", [])
+    if base_steps_raw:
+        if not isinstance(base_steps_raw, list):
+            raise ValueError("Suite 'base_steps' must be an array")
+        _validate_steps(base_steps_raw, "base_steps", valid_actions, allow_template_vars=True)
+
     for si, sc in enumerate(scenarios_raw):
         if not isinstance(sc, dict):
             raise ValueError(f"Scenario #{si + 1} must be an object")
@@ -45,47 +86,16 @@ def _validate_suite_dict(data: Any) -> None:
         if not _ID_RE.match(str(sc_id)):
             raise ValueError(f"Invalid scenario_id {sc_id!r}")
 
-        if not sc.get("name"):
-            raise ValueError(f"Scenario {sc_id!r} is missing 'name'")
-
-        steps_raw = sc.get("steps")
+        steps_raw = sc.get("steps") or []
         if not isinstance(steps_raw, list):
             raise ValueError(f"Scenario {sc_id!r} 'steps' must be an array")
-        if not steps_raw:
-            raise ValueError(f"Scenario {sc_id!r} must contain at least one step")
 
-        seen_step_ids: set[str] = set()
-        for ti, step in enumerate(steps_raw):
-            if not isinstance(step, dict):
-                raise ValueError(f"Scenario {sc_id!r} step #{ti + 1} must be an object")
-
-            step_id = step.get("step_id", "")
-            if not step_id:
-                raise ValueError(f"Step #{ti + 1} in scenario {sc_id!r} missing 'step_id'")
-            if step_id in seen_step_ids:
-                raise ValueError(
-                    f"Duplicate step_id {step_id!r} in scenario {sc_id!r}"
-                )
-            seen_step_ids.add(step_id)
-
-            action = step.get("action", "")
-            if action not in valid_actions:
-                raise ValueError(
-                    f"Step {step_id!r} has unknown action {action!r}. "
-                    f"Valid actions: {sorted(valid_actions)}"
-                )
-
-            timeout_ms = step.get("timeout_ms", 10_000)
-            if not isinstance(timeout_ms, (int, float)) or timeout_ms <= 0:
-                raise ValueError(
-                    f"Step {step_id!r} timeout_ms must be a positive number"
-                )
-
-            # Actions that require input_value
-            if action in ("send_dtmf", "send_speech") and not step.get("input_value"):
-                raise ValueError(
-                    f"Step {step_id!r} action {action!r} requires 'input_value'"
-                )
+        if steps_raw:
+            _validate_steps(steps_raw, f"scenario {sc_id!r}", valid_actions)
+        elif not has_base_steps:
+            raise ValueError(
+                f"Scenario {sc_id!r} has no steps and the suite defines no base_steps"
+            )
 
 
 def load_suite(suite_id: str, suites_dir: Path | None = None) -> RunSuite:
