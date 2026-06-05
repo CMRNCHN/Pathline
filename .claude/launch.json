@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend-preview",
+      "runtimeExecutable": "/Users/cameroncohen/IdeaProjects/Pathline/.venv/bin/python",
+      "runtimeArgs": ["_preview_server.py"],
+      "port": 8099
+    }
+  ]
+}
