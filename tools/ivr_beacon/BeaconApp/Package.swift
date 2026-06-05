@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "IVRBeacon",
+    name: "PathlinePulse",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "IVRBeacon",
-            path: "Sources/IVRBeacon"
+            name: "PathlinePulse",
+            path: "Sources/PathlinePulse"
         )
     ]
 )
