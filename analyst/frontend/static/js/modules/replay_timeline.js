@@ -113,6 +113,14 @@ export const ReplayTimeline = {
         this.cursor = clampedPos;
         this.updateDisplay();
 
+        if (window.Telemetry && currentCursor !== null && currentCursor !== this.cursor) {
+            window.Telemetry.track(
+                'replay_scrubbed',
+                { from: currentCursor, to: this.cursor, total: this.totalEvents },
+                this.sessionId,
+            );
+        }
+
         // Clear pending seek timer if exists
         if (this.seekTimeout) clearTimeout(this.seekTimeout);
 
