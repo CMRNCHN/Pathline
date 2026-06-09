@@ -427,12 +427,15 @@ class IvrMapper:
             _etype = _kind_map.get(getattr(event, "kind", "prompt"), CallEventType.PROMPT_HEARD)
             _t_ms = getattr(event, "t_ms", 0)
             _text = getattr(event, "text", "") or ""
+            # Strip "dtmf:" prefix used by legacy callers (e.g. "dtmf:1" → "1")
+            _dtmf_raw = getattr(event, "dtmf", None) or (_text if _etype == CallEventType.DTMF_INJECTED else None)
+            if _dtmf_raw and _dtmf_raw.startswith("dtmf:"):
+                _dtmf_raw = _dtmf_raw[5:]
             event = CallEvent(
                 event_type=_etype,
                 timestamp=datetime.fromtimestamp(_t_ms / 1000.0, tz=timezone.utc),
                 transcript=_text if _etype == CallEventType.PROMPT_HEARD else None,
-                dtmf_value=_text if _etype == CallEventType.DTMF_INJECTED else
-                           getattr(event, "dtmf", None) or None,
+                dtmf_value=_dtmf_raw,
             )
 
         if storage is None:
@@ -1127,10 +1130,15 @@ class IvrMapper:
         Returns:
             A plain dict suitable for json.dumps().
         """
+        _using_defaults = storage is None and system_id is None
         if storage is None:
             storage = getattr(self, "_ephemeral_storage", None) or StorageBackend(":memory:")
         if system_id is None:
             system_id = getattr(self, "_ephemeral_system_id", "")
+
+        # Legacy callers (no args) expect {prompt_text: {observations, sessions, branches, ...}}
+        if _using_defaults:
+            return self._legacy_graph(system_id, storage)
 
         nodes: dict[str, Any] = {}
         edges: dict[str, Any] = {}
@@ -1185,6 +1193,53 @@ class IvrMapper:
             }
 
         return {"nodes": nodes, "edges": edges, "gaps": gaps}
+
+    def _legacy_graph(self, system_id: str, storage: StorageBackend) -> dict[str, Any]:
+        """Return the pre-refactor graph shape: {prompt_text: {observations, ...}}."""
+        raw_nodes = storage.get_nodes_by_system(system_id)
+        prompt_by_id: dict[str, str] = {n.node_id: n.display_prompt for n in raw_nodes}
+        node_id_by_prompt: dict[str, str] = {n.display_prompt: n.node_id for n in raw_nodes}
+
+        # Build branch counts from resolved edges in storage
+        result: dict[str, Any] = {}
+        for node in raw_nodes:
+            obs_records = storage.get_observations_for_node(node.node_id)
+            sessions = sorted({o.session_id for o in obs_records if o.session_id})
+            opts = sorted(o.dtmf_digit for o in storage.get_announced_options(node.node_id))
+            branches: dict[str, Any] = {}
+            for edge in storage.get_edges_from_node(node.node_id):
+                dest_prompt = prompt_by_id.get(edge.to_node_id, edge.to_node_id)
+                branches[edge.dtmf_option] = {
+                    "count": edge.observation_count,
+                    "confidence": round(edge.confidence, 6),
+                    "sessions": [],
+                    "next_prompts": [dest_prompt] if dest_prompt else [],
+                }
+            result[node.display_prompt] = {
+                "observations": node.observation_count,
+                "confidence": round(node.confidence, 6),
+                "sessions": sessions,
+                "announced_options": opts,
+                "branches": branches,
+            }
+
+        # Fold in unresolved pending edges (DTMF pressed but no follow-up prompt yet)
+        for session_id, (from_node_id, trigger, _trigger_type) in self._pending_edge.items():
+            from_prompt = prompt_by_id.get(from_node_id)
+            if from_prompt and from_prompt in result:
+                br = result[from_prompt]["branches"]
+                if trigger in br:
+                    br[trigger]["count"] += 1
+                    br[trigger]["sessions"] = sorted(set(br[trigger]["sessions"]) | {session_id})
+                else:
+                    br[trigger] = {
+                        "count": 1,
+                        "confidence": 0.0,
+                        "sessions": [session_id],
+                        "next_prompts": [],
+                    }
+
+        return result
 
 
 # ---------------------------------------------------------------------------
