@@ -48,38 +48,92 @@
 
 <header class="shell-header">
   <div class="shell-brand">
-    <div class="logo-icon">☎</div>
-    <div>
-      <div class="shell-kicker">IVR Operations Console</div>
-      <div class="logo-text">Pathline</div>
+    <div class="logo-icon">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="9" cy="4" r="2.2" fill="currentColor" opacity=".9"/>
+        <circle cx="3.5" cy="13.5" r="2.2" fill="currentColor" opacity=".7"/>
+        <circle cx="14.5" cy="13.5" r="2.2" fill="currentColor" opacity=".7"/>
+        <line x1="9" y1="6.2" x2="3.5" y2="11.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".5"/>
+        <line x1="9" y1="6.2" x2="14.5" y2="11.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".5"/>
+        <line x1="3.5" y1="13.5" x2="14.5" y2="13.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".35"/>
+      </svg>
     </div>
+    <div class="logo-text">Pathline</div>
   </div>
 
-  <div class="shell-center">
-    <div class="shell-target">
-      <label for="f-target">Target IVR</label>
-      <input id="f-target" type="tel" placeholder="(800) 555-0114" value="">
+  <nav class="shell-nav">
+    <button class="shell-nav-btn" data-workspace="prep">Call Setup</button>
+    <button class="shell-nav-btn" data-workspace="discover">IVR Discovery</button>
+
+    <button class="shell-nav-live is-active" data-workspace="live" id="shell-live-btn">
+      <span class="shell-live-ring shell-live-ring-2"></span>
+      <span class="shell-live-ring shell-live-ring-1"></span>
+      <span class="shell-live-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="shell-live-label">Live Call</span>
+    </button>
+
+    <button class="shell-nav-btn" data-workspace="review">Session Replay</button>
+    <button class="shell-nav-btn" data-workspace="run">Suite Execution</button>
+  </nav>
+
+  <div class="shell-header-right">
+    <button class="hdr-icon-btn mic-btn" id="btn-mic-toggle" title="Toggle microphone" aria-pressed="true">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <rect x="5" y="1" width="5" height="8" rx="2.5" fill="currentColor"/>
+        <path d="M2.5 7.5a5 5 0 0010 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+        <line x1="7.5" y1="12.5" x2="7.5" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="5" y1="14" x2="10" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <span class="mic-status-dot" id="mic-dot"></span>
+    </button>
+
+    <div class="hdr-dropdown-wrap">
+      <button class="hdr-icon-btn" id="btn-notifications" title="Notifications">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+          <path d="M7.5 1.5a4.5 4.5 0 00-4.5 4.5v2.5l-1 2h11l-1-2V6a4.5 4.5 0 00-4.5-4.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/>
+          <path d="M6 10.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+        </svg>
+        <span class="notif-badge is-hidden" id="notif-badge">0</span>
+      </button>
+      <div class="hdr-dropdown" id="notif-dropdown">
+        <div class="hdr-dropdown-title">Notifications</div>
+        <div class="hdr-dropdown-empty" id="notif-list">No notifications</div>
+      </div>
     </div>
 
-    <div class="call-dock" aria-label="Interactive call controls">
-      <button class="call-dock-btn is-active" id="btn-interactive-call" type="button">Interactive Call</button>
-      <button class="call-dock-btn call-dock-btn-primary" id="btn-live-call" type="button">Live</button>
-      <button class="call-dock-btn" id="btn-hangup-call" type="button">Hang Up</button>
-      <span class="status-pill tone-info is-hidden" id="hdr-runtime-state">ACTIVE</span>
+    <div class="hdr-dropdown-wrap">
+      <button class="hdr-icon-btn" id="btn-settings" title="Settings">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+          <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M2.6 2.6l1.1 1.1M11.3 11.3l1.1 1.1M11.3 3.7l-1.1 1.1M3.8 11.2L2.6 12.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="hdr-dropdown" id="settings-dropdown">
+        <div class="hdr-dropdown-title">Settings</div>
+        <div class="hdr-dropdown-section">
+          <div class="hdr-setting-row">
+            <span>Injection Mode</span>
+            <select id="settings-injection-mode" class="hdr-select">
+              <option value="auto">Auto</option>
+              <option value="dtmf">DTMF</option>
+              <option value="speech">Speech</option>
+            </select>
+          </div>
+          <div class="hdr-setting-row">
+            <span>Record Audio</span>
+            <label class="hdr-toggle"><input type="checkbox" id="settings-record" checked><span></span></label>
+          </div>
+          <div class="hdr-setting-row">
+            <span>Auto Transcript</span>
+            <label class="hdr-toggle"><input type="checkbox" id="settings-transcript" checked><span></span></label>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
-
-  <div class="shell-actions">
-    <nav class="shell-nav">
-      <button class="nav-btn" data-workspace="prep">Prep</button>
-      <button class="nav-btn" data-workspace="discover">Discover</button>
-      <button class="nav-btn" data-workspace="review">Review</button>
-      <button class="nav-btn" data-workspace="run">Run</button>
-      <a class="nav-btn" href="/replay-inspection" target="_blank">Inspect</a>
-    </nav>
-    <button class="btn-secondary" id="btn-test-suite" type="button">Suite Planning</button>
-    <button class="btn-secondary" id="btn-run-suites" type="button">Suite Execution</button>
-    <button class="btn-secondary" id="btn-settings" type="button">Review / Replay</button>
   </div>
 </header>
 
@@ -307,11 +361,12 @@
       </section>
 
       <section class="panel unknown-prompts-panel">
-        <div class="panel-header">
-          <h2 class="panel-title">Unknown Prompts</h2>
+        <div class="panel-header panel-header-spread">
+          <h2 class="panel-title">Discovered Prompts</h2>
+          <button class="btn-tertiary btn-compact" id="btn-save-discovered">Save All to Library</button>
         </div>
         <div class="panel-body scrollable-panel" id="unknown-prompts">
-          <!-- Unknown Prompts -->
+          <!-- Discovered Prompts — each row rendered by JS with inline response entry -->
         </div>
       </section>
 
@@ -327,109 +382,147 @@
   </div>
 
   <div id="ws-live" class="workspace">
-    <section class="live-status-bar" id="live-status-bar">
-      <!-- Active Call Status Card -->
-      <div class="empty-state">Loading status…</div>
-    </section>
+    <section class="live-status-bar" id="live-status-bar"></section>
 
-    <div class="live-main-area">
-      <section class="live-map-container">
-        <div class="panel-header panel-header-spread">
-          <div>
-            <div class="panel-kicker">IVR Operational Surface</div>
-            <h2 class="panel-title">Graph Intelligence</h2>
+    <!-- Hidden proxy IDs the JS still needs -->
+    <input id="f-target" type="hidden" value="">
+    <span id="hdr-call-timer" style="display:none">00:00</span>
+    <span id="hdr-runtime-state" style="display:none"></span>
+    <button id="btn-interactive-call" style="display:none" type="button"></button>
+    <button id="btn-live-call" style="display:none" type="button"></button>
+    <button id="btn-hangup-call" style="display:none" type="button"></button>
+
+    <div class="live-3col">
+
+      <!-- ── Left: Call Tools ──────────────────────────────────────────── -->
+      <aside class="live-col live-col-left">
+
+        <div class="live-panel">
+          <div class="live-panel-header">DTMF</div>
+          <div class="dtmf-grid" id="dtmf-grid">
+            <button class="dtmf-key" data-digit="1">1</button>
+            <button class="dtmf-key" data-digit="2">2<span>ABC</span></button>
+            <button class="dtmf-key" data-digit="3">3<span>DEF</span></button>
+            <button class="dtmf-key" data-digit="4">4<span>GHI</span></button>
+            <button class="dtmf-key" data-digit="5">5<span>JKL</span></button>
+            <button class="dtmf-key" data-digit="6">6<span>MNO</span></button>
+            <button class="dtmf-key" data-digit="7">7<span>PQRS</span></button>
+            <button class="dtmf-key" data-digit="8">8<span>TUV</span></button>
+            <button class="dtmf-key" data-digit="9">9<span>WXYZ</span></button>
+            <button class="dtmf-key" data-digit="*">✱</button>
+            <button class="dtmf-key" data-digit="0">0</button>
+            <button class="dtmf-key" data-digit="#">#</button>
           </div>
-          <div class="panel-actions">
-            <button class="btn-tertiary btn-compact" id="btn-refresh-maps" type="button">Refresh Map</button>
+          <div class="dtmf-display-row">
+            <span class="dtmf-display" id="pad-display">—</span>
+            <button class="dtmf-del" id="dtmf-del">⌫</button>
+            <button class="dtmf-send-btn" id="dtmf-send">Send</button>
           </div>
         </div>
-        <div class="live-map-surface" id="graph-box">
-          <div class="empty-state">
-            <div class="empty-icon">⋯</div>
-            <p>No IVR state mapping yet</p>
+
+        <div class="live-panel">
+          <div class="live-panel-header">Inject Response</div>
+          <div class="inject-row" id="injection-bar-root">
+            <!-- Populated by JS -->
           </div>
         </div>
+
+        <div class="live-panel live-panel-grow">
+          <div class="live-panel-header">Quick Responses</div>
+          <div class="quick-responses-list" id="ready-responses-root">
+            <!-- Populated by JS -->
+          </div>
+          <div class="prompt-markers-container" id="prompt-markers-root"></div>
+        </div>
+
+      </aside>
+
+      <!-- ── Center: dial idle / active call ─────────────────────────── -->
+      <section class="live-col live-col-center" id="live-center-col">
+
+        <!-- Idle: shown when no call is active -->
+        <div class="call-idle-screen" id="call-idle-screen">
+          <div class="call-idle-inner">
+            <div class="call-idle-ring call-idle-ring-3"></div>
+            <div class="call-idle-ring call-idle-ring-2"></div>
+            <div class="call-idle-ring call-idle-ring-1"></div>
+            <button class="call-idle-btn" id="btn-dial-main" type="button">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="currentColor"/>
+              </svg>
+              <span>Start Call</span>
+            </button>
+            <div class="call-idle-label">Enter a number and press Start Call</div>
+          </div>
+        </div>
+
+        <!-- Active: shown during a live call -->
+        <div class="call-active-screen is-hidden" id="call-active-screen">
+
+          <div class="live-active-banner" id="live-active-banner">
+            <span class="live-pulse-dot"></span>
+            <span class="live-active-label">Live Call</span>
+            <span class="live-active-number" id="live-active-number"></span>
+            <span class="live-active-timer" id="live-active-timer">00:00</span>
+          </div>
+
+          <div class="live-panel live-panel-map">
+            <div class="live-panel-header-spread">
+              <span>IVR Map</span>
+              <button class="live-panel-action" id="btn-refresh-maps" type="button">Refresh</button>
+            </div>
+            <div class="live-map-surface" id="graph-box">
+              <div class="empty-state">
+                <div class="empty-icon">⋯</div>
+                <p>No IVR state mapping yet</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="live-panel live-panel-transcript">
+            <div class="live-panel-header">Live Transcript</div>
+            <div class="live-transcript-stream" id="transcript">
+              <div class="empty-state">Awaiting events…</div>
+            </div>
+          </div>
+
+        </div>
+
       </section>
 
-      <section class="live-ops-container">
-        <div class="live-transcript-area">
-          <div class="panel-header panel-header-spread">
-            <h2 class="panel-title">Live Transcript</h2>
-            <div class="timer-badge" id="timer">00:00</div>
+      <!-- ── Right: Notes & Phrases ────────────────────────────────────── -->
+      <aside class="live-col live-col-right">
+
+        <div class="live-panel live-panel-grow">
+          <div class="live-panel-header-spread">
+            <span>Call Notes</span>
+            <button class="live-panel-action" id="btn-add-note" type="button">+ Note</button>
           </div>
-          <div class="live-transcript-stream" id="transcript">
-            <div class="empty-state">Awaiting events…</div>
+          <div class="notes-list" id="notes-list">
+            <div class="empty-state-sm">No notes yet</div>
           </div>
         </div>
 
-        <div class="live-controls-area">
-          <div class="injection-bar-container" id="injection-bar-root">
-            <!-- Unified Injection Bar -->
-          </div>
-          <div class="ready-responses-container" id="ready-responses-root">
-            <!-- Ready Responses -->
-          </div>
-          <div class="prompt-markers-container" id="prompt-markers-root">
-            <!-- Prompt Marker Tools -->
+        <div class="live-panel live-panel-grow">
+          <div class="live-panel-header">Unresolved States</div>
+          <div class="bottom-list" id="unresolved-states">
+            <div class="empty-state-sm">None</div>
           </div>
         </div>
-      </section>
+
+        <div class="live-panel live-panel-grow">
+          <div class="live-panel-header">Recent Events</div>
+          <div class="bottom-list" id="recent-events">
+            <div class="empty-state-sm">No events</div>
+          </div>
+        </div>
+
+      </aside>
+
     </div>
 
-    <div class="live-bottom-area">
-      <section class="panel bottom-panel">
-        <div class="panel-header">
-          <h2 class="panel-title">Recent Events</h2>
-        </div>
-        <div class="bottom-list" id="recent-events">
-          <div class="empty-state">No recent events</div>
-        </div>
-      </section>
-      <section class="panel bottom-panel">
-        <div class="panel-header">
-          <h2 class="panel-title">Unresolved States</h2>
-        </div>
-        <div class="bottom-list" id="unresolved-states">
-          <div class="empty-state">No unresolved states</div>
-        </div>
-      </section>
-    </div>
-
-    <!-- State Inspector - Contextual -->
     <div id="state-inspector" class="state-inspector is-hidden"></div>
   </div>
-
-  <section class="panel drawer-panel" id="drawer-panel">
-    <div class="panel-header panel-header-spread">
-      <div>
-        <div class="panel-kicker">Bounded System Visibility</div>
-        <h2 class="panel-title">Runtime Diagnostics & Analysis</h2>
-      </div>
-      <div class="drawer-actions">
-        <button class="btn-tertiary btn-compact" id="btn-refresh-diagnostics" type="button">Refresh</button>
-        <button class="btn-secondary btn-compact" id="drawer-toggle" type="button">Collapse</button>
-      </div>
-    </div>
-
-    <div class="drawer-tabs" id="drawer-tabs">
-      <button class="drawer-tab is-active" type="button" data-drawer-tab="runtime">Run Health</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="queue">Checkpoint Verification</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="artifacts">Evidence &amp; Artifacts</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="session">Call-Path Replay</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="websocket">Technical Diagnostics</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="telemetry">Operational Telemetry</button>
-      <button class="drawer-tab" type="button" data-drawer-tab="smoke">Run Readiness</button>
-    </div>
-
-    <div class="drawer-body" id="drawer-body">
-      <div class="empty-state">
-        <div class="empty-icon">⋯</div>
-        <p>Review data loading</p>
-        <span>Read-only run health, checkpoint verification, evidence, and call-path replay appear here without steering the active run.</span>
-      </div>
-    </div>
-  </section>
-  <!-- </div> REMOVED UNMATCHED TAG -->
 
   <div id="ws-review" class="workspace is-hidden">
     <section class="review-header" id="review-header">
@@ -483,6 +576,31 @@
             <!-- Temporal Replay Controller (Slice 6) -->
           </div>
           <audio id="replay-audio" class="replay-audio-element is-hidden" preload="metadata" controls></audio>
+        </div>
+      </section>
+
+      <!-- Prompt + Response Library -->
+      <section class="panel review-library-panel">
+        <div class="panel-header panel-header-spread">
+          <div>
+            <div class="panel-kicker">Prompt Library</div>
+            <h2 class="panel-title">Prompt + Response Library</h2>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-tertiary btn-compact" id="btn-library-add-manual">+ Manual Entry</button>
+          </div>
+        </div>
+        <div class="review-library-tabs">
+          <button class="review-library-tab is-active" data-lib-tab="discovered">Discovered Prompts</button>
+          <button class="review-library-tab" data-lib-tab="manual">Pre-set Prompts</button>
+        </div>
+        <div class="review-library-body" id="review-library-body">
+          <div class="library-tab-content is-active" id="lib-discovered">
+            <div class="library-empty">No discovered prompts yet — run IVR Discovery first.</div>
+          </div>
+          <div class="library-tab-content" id="lib-manual">
+            <div class="library-empty">No pre-set prompts yet — add one above.</div>
+          </div>
         </div>
       </section>
 
