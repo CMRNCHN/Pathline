@@ -9,8 +9,10 @@ struct JobResult: Identifiable, Equatable {
     let status: String
     let transcript: String
     let timestamp: String
+    let decodeError: String?      // non-nil → file was found but could not be decoded
 
     var statusColor: Color {
+        if decodeError != nil { return .purple }
         switch status.uppercased() {
         case "GREEN":  return .green
         case "ORANGE": return .orange
@@ -21,6 +23,7 @@ struct JobResult: Identifiable, Equatable {
     }
 
     var relativeTime: String {
+        guard decodeError == nil else { return "—" }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let iso2 = ISO8601DateFormatter()
@@ -41,18 +44,23 @@ private struct ResultFile: Decodable {
     let timestamp: String
 }
 
-private func readResult(at url: URL) -> JobResult? {
-    guard
-        let data = try? Data(contentsOf: url),
-        let file = try? JSONDecoder().decode(ResultFile.self, from: data)
-    else { return nil }
-    let name = url.deletingLastPathComponent().lastPathComponent
-    return JobResult(
-        name: name,
-        status: file.status,
-        transcript: file.transcript,
-        timestamp: file.timestamp
-    )
+private enum DecodeOutcome {
+    case success(JobResult)
+    case missing
+    case corrupted(String)
+}
+
+private func readResult(at url: URL, name: String) -> DecodeOutcome {
+    guard let data = try? Data(contentsOf: url) else {
+        return .missing
+    }
+    do {
+        let file = try JSONDecoder().decode(ResultFile.self, from: data)
+        return .success(JobResult(name: name, status: file.status, transcript: file.transcript,
+                                  timestamp: file.timestamp, decodeError: nil))
+    } catch {
+        return .corrupted(error.localizedDescription)
+    }
 }
 
 // ── Jobs config (~/ivr/jobs.json) ────────────────────────────────────────────
@@ -82,6 +90,8 @@ final class JobStore: ObservableObject {
         }
     }
 
+    var malformedCount: Int { jobs.filter { $0.decodeError != nil }.count }
+
     func reload() {
         let fm = FileManager.default
         guard
@@ -96,7 +106,16 @@ final class JobStore: ObservableObject {
             return
         }
         jobs = dirs
-            .compactMap { dir in readResult(at: dir.appendingPathComponent("latest.json")) }
+            .compactMap { dir -> JobResult? in
+                let name = dir.lastPathComponent
+                switch readResult(at: dir.appendingPathComponent("latest.json"), name: name) {
+                case .success(let job):      return job
+                case .missing:               return nil   // directory exists, no result yet — not an error
+                case .corrupted(let reason): return JobResult(name: name, status: "MALFORMED",
+                                                              transcript: "", timestamp: "",
+                                                              decodeError: reason)
+                }
+            }
             .sorted { $0.name < $1.name }
     }
 

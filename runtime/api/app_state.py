@@ -9,7 +9,7 @@ transcriber = None       # StreamingWhisperTranscriber
 storage = None           # TranscriptStorage
 dtmf_generator = None    # DTMFGenerator
 voice_synthesizer = None # VoiceSynthesizer
-twilio_client = None     # TwilioTelephonyClient
+twilio_client = None     # TelephonyClient (set by build_telephony() at startup)
 
 SUITES: dict = {}
 DTMF_PRESETS: dict = {}
