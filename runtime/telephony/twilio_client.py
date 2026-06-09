@@ -58,7 +58,7 @@ class TwilioClient:
         stream_host: str,
     ) -> None:
         try:
-            from twilio.rest import Client
+            import twilio.rest  # noqa: F401 — availability check
         except ImportError as e:
             raise RuntimeError("twilio is required: pip install twilio>=8.0.0") from e
 

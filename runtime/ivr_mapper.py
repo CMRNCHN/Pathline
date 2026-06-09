@@ -40,10 +40,7 @@ from typing import Any
 from schemas.ivr_models import (
     AnnouncedOption,
     EpistemicState,
-    IVREdge,
-    IVRNode,
     NodeType,
-    PromptVariant,
     StabilityClass,
 )
 import runtime.storage as _storage_module
@@ -1198,7 +1195,6 @@ class IvrMapper:
         """Return the pre-refactor graph shape: {prompt_text: {observations, ...}}."""
         raw_nodes = storage.get_nodes_by_system(system_id)
         prompt_by_id: dict[str, str] = {n.node_id: n.display_prompt for n in raw_nodes}
-        node_id_by_prompt: dict[str, str] = {n.display_prompt: n.node_id for n in raw_nodes}
 
         # Build branch counts from resolved edges in storage
         result: dict[str, Any] = {}
