@@ -1188,3 +1188,8 @@ def _option_sort_key(dtmf: str) -> tuple[int, str]:
 def _normalize_prompt(text: str) -> str:
     """Alias for _normalize_text; retained for migration compatibility."""
     return _normalize_text(text)
+
+
+def branch_sort_key(dtmf: str) -> tuple[int, str]:
+    """Sort key for DTMF branch labels. Numerics before non-numerics, then by value."""
+    return _option_sort_key(dtmf)
