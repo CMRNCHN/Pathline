@@ -412,6 +412,29 @@ class IvrMapper:
             any epistemic state transition, immediately-created gap_ids, and
             is_new_node flag.
         """
+        # Accept the legacy runtime.state.models.CallEvent (kind/text/t_ms) and
+        # upcast it to the new shape so old callers don't need to be migrated.
+        if not isinstance(event, CallEvent):
+            _kind_map = {
+                "prompt": CallEventType.PROMPT_HEARD,
+                "action": CallEventType.DTMF_INJECTED,
+                "dtmf":   CallEventType.DTMF_INJECTED,
+                "speech": CallEventType.SPEECH_INJECTED,
+                "transfer": CallEventType.TRANSFER_DETECTED,
+                "human": CallEventType.HUMAN_AGENT_REACHED,
+                "end":   CallEventType.CALL_ENDED,
+            }
+            _etype = _kind_map.get(getattr(event, "kind", "prompt"), CallEventType.PROMPT_HEARD)
+            _t_ms = getattr(event, "t_ms", 0)
+            _text = getattr(event, "text", "") or ""
+            event = CallEvent(
+                event_type=_etype,
+                timestamp=datetime.fromtimestamp(_t_ms / 1000.0, tz=timezone.utc),
+                transcript=_text if _etype == CallEventType.PROMPT_HEARD else None,
+                dtmf_value=_text if _etype == CallEventType.DTMF_INJECTED else
+                           getattr(event, "dtmf", None) or None,
+            )
+
         if storage is None:
             if not hasattr(self, "_ephemeral_storage"):
                 import tempfile
