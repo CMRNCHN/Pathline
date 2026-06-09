@@ -4,25 +4,26 @@ Asterisk AMI telephony adapter.
 Uses the Asterisk Manager Interface (AMI) for call control — no SIP stack
 in Python. Asterisk handles SIP/RTP; this adapter is pure control plane.
 
-Requires: pip install panoramisk
+Originate uses a Local channel (Local/1000@ivr-test/n) so no registered
+SIP endpoint is required. One leg runs the IVR dialplan; the other is the
+"caller" leg we send DTMF to.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import socket
 import time
+import uuid
 
 log = logging.getLogger(__name__)
 
-_AMI_HOST = os.getenv("ASTERISK_AMI_HOST", "127.0.0.1")
-_AMI_PORT = int(os.getenv("ASTERISK_AMI_PORT", "5038"))
-_AMI_USER = os.getenv("ASTERISK_AMI_USER", "pathline")
+_AMI_HOST   = os.getenv("ASTERISK_AMI_HOST",   "127.0.0.1")
+_AMI_PORT   = int(os.getenv("ASTERISK_AMI_PORT",   "5038"))
+_AMI_USER   = os.getenv("ASTERISK_AMI_USER",   "pathline")
 _AMI_SECRET = os.getenv("ASTERISK_AMI_SECRET", "pathline-ami-secret")
-_IVR_EXTENSION = os.getenv("ASTERISK_IVR_EXTENSION", "1000")
-_IVR_CONTEXT = os.getenv("ASTERISK_IVR_CONTEXT", "ivr-test")
-_SIP_CHANNEL = os.getenv("ASTERISK_SIP_CHANNEL", "PJSIP/pathline-test")
+_IVR_EXT    = os.getenv("ASTERISK_IVR_EXTENSION", "1000")
+_IVR_CTX    = os.getenv("ASTERISK_IVR_CONTEXT",   "ivr-test")
 
 
 class AsteriskTelephonyClient:
@@ -32,94 +33,116 @@ class AsteriskTelephonyClient:
     """
 
     def __init__(self) -> None:
-        self._active_channels: dict[str, str] = {}  # session_id -> channel name
+        # session_id -> (ivr_channel, caller_channel)
+        self._sessions: dict[str, tuple[str, str]] = {}
 
     # ── TelephonyClient protocol ───────────────────────────────────────────────
 
     def dial(self, target_number: str) -> str:
         """
-        Originate a call via Asterisk AMI. Returns a synthetic session ID
-        (channel name) usable with send_dtmf / hangup.
+        Originate a Local channel call into the IVR dialplan.
+        Returns a session_id usable with send_dtmf / hangup.
+
+        Local/1000@ivr-test/n creates two legs (no SIP registration needed):
+          ;1 = IVR leg  — runs the dialplan
+          ;2 = caller leg — we send DTMF to this one
         """
-        channel = f"{_SIP_CHANNEL}"
-        session_id = f"asterisk::{target_number}::{int(time.time())}"
+        action_id = uuid.uuid4().hex[:12]
+        # /n flag keeps both legs alive independently so PlayDTMF works
+        channel = f"Local/{_IVR_EXT}@{_IVR_CTX}/n"
 
-        response = self._ami_action({
-            "Action": "Originate",
-            "Channel": channel,
-            "Exten": _IVR_EXTENSION,
-            "Context": _IVR_CONTEXT,
-            "Priority": "1",
-            "CallerID": f"Pathline <{target_number}>",
-            "Timeout": "30000",
-            "Variable": f"TARGET_NUMBER={target_number}",
-            "Async": "true",
-        })
+        with self._session() as (sock, reader):
+            self._send(sock, {
+                "Action":    "Originate",
+                "ActionID":  action_id,
+                "Channel":   channel,
+                "Application": "Wait",
+                "Data":      "30",
+                "CallerID":  f"Pathline <{target_number}>",
+                "Async":     "true",
+            })
+            # Read immediate Queued response
+            response = self._read_response(reader)
+            # Read OriginateResponse event to get actual channel name
+            channel_name = self._wait_for_originate(reader, action_id)
 
-        log.info("[ASTERISK] dial to=%s session=%s response=%s", target_number, session_id, response)
-        self._active_channels[session_id] = channel
+        session_id = f"asterisk::{target_number}::{action_id}"
+        ivr_ch  = f"{channel_name};1"   # IVR leg
+        call_ch = f"{channel_name};2"   # caller leg (receives our DTMF)
+        self._sessions[session_id] = (ivr_ch, call_ch)
+
+        log.info("[ASTERISK] dial to=%s channel=%s session=%s", target_number, channel_name, session_id)
         return session_id
 
     def send_dtmf(self, session_id: str, digits: str) -> None:
-        channel = self._active_channels.get(session_id, _SIP_CHANNEL)
+        _, call_ch = self._sessions.get(session_id, ("", ""))
+        if not call_ch:
+            log.warning("[ASTERISK] send_dtmf: unknown session %s", session_id)
+            return
         for digit in digits:
             self._ami_action({
-                "Action": "PlayDTMF",
-                "Channel": channel,
-                "Digit": digit,
+                "Action":   "PlayDTMF",
+                "Channel":  call_ch,
+                "Digit":    digit,
                 "Duration": "500",
             })
-            time.sleep(0.2)
+            time.sleep(0.15)
         log.info("[ASTERISK] send_dtmf session=%s digits=%s", session_id, digits)
 
     def play_clip(self, session_id: str, file_path: str) -> None:
-        channel = self._active_channels.get(session_id, _SIP_CHANNEL)
-        self._ami_action({
-            "Action": "AGI",
-            "Channel": channel,
-            "Command": f"STREAM FILE {file_path} \"\"",
-        })
+        ivr_ch, _ = self._sessions.get(session_id, ("", ""))
+        if ivr_ch:
+            self._ami_action({"Action": "AGI", "Channel": ivr_ch,
+                              "Command": f'STREAM FILE {file_path} ""'})
         log.info("[ASTERISK] play_clip session=%s path=%s", session_id, file_path)
 
     def say(self, session_id: str, text: str) -> None:
-        # Asterisk AMI doesn't have a direct TTS action; log intent
         log.info("[ASTERISK] say session=%s text=%r (TTS not wired)", session_id, text)
 
     def hangup(self, session_id: str) -> None:
-        channel = self._active_channels.pop(session_id, _SIP_CHANNEL)
-        self._ami_action({
-            "Action": "Hangup",
-            "Channel": channel,
-            "Cause": "16",
-        })
+        channels = self._sessions.pop(session_id, ("", ""))
+        for ch in channels:
+            if ch:
+                try:
+                    self._ami_action({"Action": "Hangup", "Channel": ch, "Cause": "16"})
+                except Exception:
+                    pass  # channel may already be gone
         log.info("[ASTERISK] hangup session=%s", session_id)
 
-    # ── AMI socket transport ───────────────────────────────────────────────────
+    # ── AMI transport ─────────────────────────────────────────────────────────
 
     def _ami_action(self, action: dict[str, str]) -> str:
-        """Send a single AMI action over a raw TCP socket. Returns raw response."""
-        with socket.create_connection((_AMI_HOST, _AMI_PORT), timeout=10) as sock:
-            reader = sock.makefile("rb")
-
-            # Read banner
-            reader.readline()
-
-            # Login
-            self._send(sock, {
-                "Action": "Login",
-                "Username": _AMI_USER,
-                "Secret": _AMI_SECRET,
-            })
-            self._read_response(reader)
-
-            # Send the real action
+        with self._session() as (sock, reader):
             self._send(sock, action)
-            response = self._read_response(reader)
+            return self._read_response(reader)
 
-            # Logoff
-            self._send(sock, {"Action": "Logoff"})
+    class _session:
+        """Context manager: open AMI socket, login, yield (sock, reader), logoff."""
+        def __init__(self):
+            self._sock = None
+            self._reader = None
 
-        return response
+        def __enter__(self):
+            self._sock = socket.create_connection((_AMI_HOST, _AMI_PORT), timeout=10)
+            self._reader = self._sock.makefile("rb")
+            self._reader.readline()  # banner
+            AsteriskTelephonyClient._send(self._sock, {
+                "Action":   "Login",
+                "Username": _AMI_USER,
+                "Secret":   _AMI_SECRET,
+            })
+            AsteriskTelephonyClient._read_response(self._reader)
+            return self._sock, self._reader
+
+        def __exit__(self, *_):
+            try:
+                AsteriskTelephonyClient._send(self._sock, {"Action": "Logoff"})
+            except Exception:
+                pass
+            try:
+                self._sock.close()
+            except Exception:
+                pass
 
     @staticmethod
     def _send(sock: socket.socket, fields: dict[str, str]) -> None:
@@ -136,3 +159,34 @@ class AsteriskTelephonyClient:
                 break
             lines.append(line)
         return "\n".join(lines)
+
+    @staticmethod
+    def _wait_for_originate(reader, action_id: str, timeout: float = 10.0) -> str:
+        """
+        Read AMI event stream until OriginateResponse matching action_id.
+        Returns the channel name from the event.
+        """
+        deadline = time.monotonic() + timeout
+        event_lines: list[str] = []
+
+        while time.monotonic() < deadline:
+            raw = reader.readline()
+            if not raw:
+                break
+            line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+
+            if line:
+                event_lines.append(line)
+            else:
+                # blank line = end of event block
+                block = {k.strip(): v.strip()
+                         for k, v in (l.split(":", 1) for l in event_lines if ":" in l)}
+                event_lines = []
+
+                if (block.get("Event") == "OriginateResponse"
+                        and block.get("ActionID") == action_id):
+                    ch = block.get("Channel", "")
+                    # Strip ;1 or ;2 suffix to get the base channel name
+                    return ch.rstrip(";12").rstrip(";").rsplit(";", 1)[0] if ";" in ch else ch
+
+        raise TimeoutError(f"OriginateResponse for {action_id} not received within {timeout}s")
