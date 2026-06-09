@@ -1,0 +1,9 @@
+{
+  "suites": {
+    "standard_menu": {
+      "name": "Standard Menu",
+      "description": "Explore all menu options",
+      "steps": []
+    }
+  }
+}

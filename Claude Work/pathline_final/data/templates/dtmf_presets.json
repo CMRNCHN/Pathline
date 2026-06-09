@@ -1,0 +1,28 @@
+{
+  "presets": {
+    "main_menu": {
+      "name": "Main Menu",
+      "sequence": [
+        "1",
+        "500",
+        "2"
+      ]
+    },
+    "billing": {
+      "name": "Billing",
+      "sequence": [
+        "1",
+        "500",
+        "2",
+        "500",
+        "1"
+      ]
+    },
+    "agent": {
+      "name": "Agent",
+      "sequence": [
+        "0"
+      ]
+    }
+  }
+}

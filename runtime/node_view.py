@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from runtime.storage import StorageBackend, IVRNode, AnnouncedOption
+    from runtime.storage import StorageBackend, IVRNode
 
 
 @dataclass

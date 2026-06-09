@@ -3,32 +3,46 @@
   "name": "IVR Card Status Probe",
   "description": "Dials IVR, presses **11, enters card number from params, captures spoken status, hangs up. Set CARD_NUMBER in each scenario's params before running.",
   "target_number": "+18009505114",
+  "account_name": "lastname_firstname",
+  "card_number": "5189410161261964",
   "base_steps": [
-    { "step_id": "s1_dial",        "action": "start_call",         "timeout_s": 30 },
-    { "step_id": "s2_greeting",    "action": "wait_for_phrase",    "timeout_s": 40 },
-    { "step_id": "s3_menu",        "action": "send_dtmf",          "input_value": "**11", "timeout_s": 5 },
-    { "step_id": "s4_card_prompt", "action": "wait_for_prompt",    "timeout_s": 10 },
-    { "step_id": "s5_card_number", "action": "send_dtmf",          "input_value": "{{CARD_NUMBER}}", "timeout_s": 5 },
-    { "step_id": "s6_status",      "action": "wait_for_transcript","timeout_s": 20 },
-    { "step_id": "s7_hangup",      "action": "end_call",           "timeout_s": 5 }
+    { "step_id": "s1_dial", "action": "start_call", "timeout_s": 30 },
+    { "step_id": "s2_greeting", "action": "wait_for_phrase", "timeout_s": 40 },
+    { "step_id": "s3_menu", "action": "send_dtmf", "input_value": "**11", "timeout_s": 5 },
+    { "step_id": "s4_card_prompt", "action": "wait_for_prompt", "timeout_s": 10 },
+    { "step_id": "s5_card_number", "action": "send_dtmf", "input_value": "{{card_number}}", "timeout_s": 5 },
+    { "step_id": "s6_status", "action": "wait_for_transcript", "timeout_s": 20 },
+    { "step_id": "s7_hangup", "action": "end_call", "timeout_s": 5 }
   ],
   "scenarios": [
     {
-      "scenario_id": "green",
-      "ivr_status_label": "green",
+      "scenario_id": "LIVE",
+      "ivr_status_color": "green",
       "expected_text_contains": "five_digit_zipcode",
       "params": { "CARD_NUMBER": "REPLACEME" }
     },
     {
-      "scenario_id": "orange",
-      "ivr_status_label": "orange",
+      "scenario_id": "REPORTED",
+      "ivr_status_color": "orange",
       "expected_text_contains": "while_i_get_somebody_to_help",
       "params": { "CARD_NUMBER": "REPLACEME" }
     },
     {
-      "scenario_id": "yellow",
-      "ivr_status_label": "yellow",
+      "scenario_id": "EARLY_FRAUD",
+      "ivr_status_color": "yellow",
       "expected_text_contains": "what_is_your_secret",
+      "params": { "CARD_NUMBER": "REPLACEME" }
+    },
+    {
+      "scenario_id": "DEAD",
+      "ivr_status_color": "red",
+      "expected_text_contains": "what_is_your_secret",
+      "params": { "CARD_NUMBER": "REPLACEME" }
+    },
+    {
+      "scenario_id": "INVALID_CC_NUMBER",
+      "ivr_status_color": "grey",
+      "expected_text_contains": "sorry_i_didnt_get_that",
       "params": { "CARD_NUMBER": "REPLACEME" }
     }
   ]

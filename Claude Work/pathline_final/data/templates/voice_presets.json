@@ -1,0 +1,12 @@
+{
+  "templates": {
+    "menu": {
+      "prompt": "What are your menu options?",
+      "voice": "alloy"
+    },
+    "billing": {
+      "prompt": "I need billing information",
+      "voice": "alloy"
+    }
+  }
+}

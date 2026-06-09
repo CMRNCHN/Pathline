@@ -30,7 +30,7 @@ class TwilioTelephonyClient:
         try:
             from twilio.rest import Client
         except ImportError as exc:
-            raise ImportError("Twilio client not installed. Please run 'pip install twilio'.") from exc
+            raise ImportError("twilio is required: pip install twilio>=8.0.0") from exc
 
         self._sid = account_sid or os.environ.get("TWILIO_ACCOUNT_SID")
         self._token = auth_token or os.environ.get("TWILIO_AUTH_TOKEN")
