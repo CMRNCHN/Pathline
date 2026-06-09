@@ -94,6 +94,18 @@ final class JobStore: ObservableObject {
 
     func reload() {
         let fm = FileManager.default
+
+        // jobs.json is the authoritative job list. Only show results for jobs
+        // defined there; orphan result dirs from removed jobs are ignored.
+        // Falls back to showing all results when jobs.json is absent/unparseable.
+        let knownNames: Set<String>?
+        if let data = try? Data(contentsOf: jobsFile),
+           let configs = try? JSONDecoder().decode([JobConfig].self, from: data) {
+            knownNames = Set(configs.map { $0.name })
+        } else {
+            knownNames = nil
+        }
+
         guard
             fm.fileExists(atPath: resultsDir.path),
             let dirs = try? fm.contentsOfDirectory(
@@ -106,11 +118,12 @@ final class JobStore: ObservableObject {
             return
         }
         jobs = dirs
+            .filter { knownNames == nil || knownNames!.contains($0.lastPathComponent) }
             .compactMap { dir -> JobResult? in
                 let name = dir.lastPathComponent
                 switch readResult(at: dir.appendingPathComponent("latest.json"), name: name) {
                 case .success(let job):      return job
-                case .missing:               return nil   // directory exists, no result yet — not an error
+                case .missing:               return nil
                 case .corrupted(let reason): return JobResult(name: name, status: "MALFORMED",
                                                               transcript: "", timestamp: "",
                                                               decodeError: reason)
