@@ -1077,8 +1077,8 @@ class IvrMapper:
 
     def graph(
         self,
-        system_id: str,
-        storage: StorageBackend,
+        system_id: str | None = None,
+        storage: StorageBackend | None = None,
     ) -> dict[str, Any]:
         """Return a JSON-serializable snapshot of the IVR graph for *system_id*.
 
@@ -1127,6 +1127,11 @@ class IvrMapper:
         Returns:
             A plain dict suitable for json.dumps().
         """
+        if storage is None:
+            storage = getattr(self, "_ephemeral_storage", None) or StorageBackend(":memory:")
+        if system_id is None:
+            system_id = getattr(self, "_ephemeral_system_id", "")
+
         nodes: dict[str, Any] = {}
         edges: dict[str, Any] = {}
         gaps: dict[str, Any] = {}
