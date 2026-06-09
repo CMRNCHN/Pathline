@@ -61,3 +61,24 @@ services:
     volumes:
       - piper_voices:/app/voices
     restart: "no"
+
+  # ── Asterisk local PBX (telephony integration tests) ─────────────────────────
+  # Start standalone: docker compose up asterisk -d
+  # Run tests:        TELEPHONY_MODE=asterisk pytest tests/test_asterisk_ivr.py -v
+  asterisk:
+    build:
+      context: .
+      dockerfile: docker/asterisk/Dockerfile
+    ports:
+      - "5060:5060/udp"   # SIP
+      - "5038:5038"        # AMI (control plane)
+      - "10000-10020:10000-10020/udp"  # RTP media
+    environment:
+      ASTERISK_AMI_HOST: "127.0.0.1"
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'Action: Ping\r\n\r\n' | nc -w2 127.0.0.1 5038 | grep -q Pong"]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: "no"
