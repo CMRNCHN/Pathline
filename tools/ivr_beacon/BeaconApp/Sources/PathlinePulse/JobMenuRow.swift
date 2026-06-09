@@ -70,8 +70,14 @@ struct JobMenuRow: View {
                     .foregroundStyle(.tertiary)
             }
 
-            // Transcript preview — up to 3 lines
-            if !job.transcript.isEmpty {
+            // Transcript or decode failure reason
+            if let reason = job.decodeError {
+                Text(reason)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.purple)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if !job.transcript.isEmpty {
                 Text(job.transcript)
                     .font(.caption)
                     .foregroundStyle(.secondary)
