@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from runtime.telephony.factory import build_telephony as build_telephony
+
 
 class TelephonyClient(Protocol):
     def dial(self, target_number: str) -> str: ...
