@@ -2,88 +2,118 @@ import SwiftUI
 
 struct PulseMenuView: View {
     @EnvironmentObject var store: JobStore
+    @EnvironmentObject var service: JobService
     @Environment(\.openWindow) private var openWindow
+
     @State private var expandedJobID: String?
     @State private var showingAddForm = false
 
-    // Overall signal color — worst status wins
-    private var signalColor: Color {
-        let statuses = store.jobs.map { $0.status.uppercased() }
-        if statuses.contains("RED")    { return .red }
-        if statuses.contains("ORANGE") { return .orange }
-        if statuses.contains("YELLOW") { return .yellow }
-        if statuses.allSatisfy({ $0 == "GREEN" }) && !statuses.isEmpty { return .green }
-        return .gray
-    }
-
     var body: some View {
+        let ranked = PulseMenuModel.rankedJobs(from: store.jobs)
+        let (visible, overflow) = PulseMenuModel.visibleJobs(ranked)
+        let snap = PulseMenuModel.Snapshot(
+            visible: visible,
+            overflowCount: overflow,
+            metrics: PulseMenuModel.metrics(from: ranked)
+        )
+
         VStack(spacing: 0) {
-            header
-            Divider()
+            header(metrics: snap.metrics, pulseMode: globalPulseMode(ranked: ranked))
             if showingAddForm {
-                AddJobForm(onDismiss: { showingAddForm = false }, store: store)
                 Divider()
-            } else if store.jobs.isEmpty {
+                AddJobForm(onDismiss: { showingAddForm = false }, service: service)
+            } else if snap.visible.isEmpty {
                 emptyState
             } else {
-                jobList
+                Divider()
+                cardList(snap: snap)
             }
             Divider()
             footer
         }
+        .background(Color(NSColor.windowBackgroundColor))
     }
 
     // ── Header ────────────────────────────────────────────────────────────────
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Pathline Pulse")
-                    .font(.system(size: 13, weight: .semibold))
-                Text(store.jobs.isEmpty
-                     ? "No jobs configured"
-                     : "\(store.jobs.count) job\(store.jobs.count == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    private func header(metrics: JobMetrics, pulseMode: PulseMode) -> some View {
+        HStack(spacing: 10) {
+            Text("Pathline Pulse")
+                .font(.system(size: 13, weight: .semibold))
 
             Spacer()
 
-            EKGView(color: signalColor)
-                .frame(width: 80, height: 26)
+            if metrics.hasAttention {
+                Text("⚠ \(metrics.attentionCount)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(.red.opacity(0.10), in: Capsule())
+            }
+
+            EKGView(mode: pulseMode, cycleWidth: 80)
+                .frame(width: 80, height: 24)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
     }
 
-    // ── Job list ──────────────────────────────────────────────────────────────
+    private func globalPulseMode(ranked: [JobResult]) -> PulseMode {
+        if store.isRunning { return .running }
+        let statuses = ranked.map { $0.status.uppercased() }
+        if statuses.contains("RED")                              { return .error }
+        if statuses.contains("ORANGE") || statuses.contains("YELLOW") { return .warning }
+        if !ranked.isEmpty                                       { return .healthy }
+        return .unknown
+    }
 
-    private var jobList: some View {
+    // ── Card list ─────────────────────────────────────────────────────────────
+
+    private func cardList(snap: PulseMenuModel.Snapshot) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                ForEach(store.jobs) { job in
-                    JobMenuRow(
-                        job: job,
-                        isExpanded: expandedJobID == job.id,
-                        onTap: {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                expandedJobID = expandedJobID == job.id ? nil : job.id
-                            }
-                        }
-                    )
-                    if job.id != store.jobs.last?.id {
-                        Divider()
-                            .padding(.leading, 32)
-                    }
+            VStack(spacing: 5) {
+                ForEach(snap.visible) { job in
+                    cardView(for: job)
+                }
+                if snap.overflowCount > 0 {
+                    Text("\(snap.overflowCount) more · Open Pulse for full view")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
                 }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
-        .frame(maxHeight: 340)
+        .frame(maxHeight: 380)
     }
 
+    @ViewBuilder
+    private func cardView(for job: JobResult) -> some View {
+        JobCard(
+            job: job,
+            isExpanded: expandedJobID == job.id,
+            isRunning: store.isRunning,
+            onTap: {
+                let id = job.id
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    expandedJobID = expandedJobID == id ? nil : id
+                }
+            },
+            onOpenWindow: {
+                openWindow(id: "pulse-window")
+                NSApp.sendAction(#selector(NSPopover.performClose(_:)), to: nil, from: nil)
+            }
+        )
+    }
+
+    // ── Empty state ───────────────────────────────────────────────────────────
+
     private var emptyState: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             Image(systemName: "waveform.path.ecg")
                 .font(.title2)
                 .foregroundStyle(.tertiary)
@@ -95,80 +125,62 @@ struct PulseMenuView: View {
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .padding(.vertical, 28)
     }
 
     // ── Footer ────────────────────────────────────────────────────────────────
 
     private var footer: some View {
         HStack(spacing: 6) {
-            // Add suite
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     showingAddForm.toggle()
                     expandedJobID = nil
                 }
             } label: {
-                Image(systemName: showingAddForm ? "xmark.circle" : "plus.circle")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
+                Text(showingAddForm ? "Cancel" : "+ New Suite")
+                    .font(.system(size: 11))
             }
-            .buttonStyle(.plain)
-            .help("Add job")
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
 
             Spacer()
 
             Button("Open Pulse") {
                 openWindow(id: "pulse-window")
-                // Dismiss the popover
                 NSApp.sendAction(#selector(NSPopover.performClose(_:)), to: nil, from: nil)
             }
             .buttonStyle(.borderless)
-            .font(.callout)
+            .font(.system(size: 11))
 
-            Text("·")
-                .foregroundStyle(.tertiary)
-                .font(.caption)
+            Text("·").foregroundStyle(.tertiary).font(.caption)
 
-            Button("Open Pathline") {
-                openPathlineApp()
-            }
-            .buttonStyle(.borderless)
-            .font(.callout)
-            .foregroundStyle(.secondary)
+            Button("Open Pathline") { openPathlineApp() }
+                .buttonStyle(.borderless)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
     }
 
     private func openPathlineApp() {
-        let candidates = [
-            "/Applications/Pathline.app",
-            "\(NSHomeDirectory())/Applications/Pathline.app",
-        ]
-        for path in candidates {
-            let url = URL(fileURLWithPath: path)
-            if FileManager.default.fileExists(atPath: path) {
-                NSWorkspace.shared.openApplication(
-                    at: url,
-                    configuration: NSWorkspace.OpenConfiguration()
-                )
-                return
-            }
+        let candidates = ["/Applications/Pathline.app",
+                          "\(NSHomeDirectory())/Applications/Pathline.app"]
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: path),
+                                               configuration: .init())
+            return
         }
-        // App not found — open the Pathline web app as fallback
-        if let url = URL(string: "https://pathline.app") {
-            NSWorkspace.shared.open(url)
-        }
+        NSWorkspace.shared.open(URL(string: "https://pathline.app")!)
     }
 }
 
-// ── Inline add-job form ───────────────────────────────────────────────────────
+// ── Add job form ──────────────────────────────────────────────────────────────
 
 private struct AddJobForm: View {
     let onDismiss: () -> Void
-    let store: JobStore
-
+    let service: JobService
     @State private var jobName = ""
     @State private var cardNumber = ""
     @State private var enabled = true
@@ -179,32 +191,15 @@ private struct AddJobForm: View {
             Text("New Job")
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
-
-            TextField("Job name (e.g. job_c)", text: $jobName)
-                .textFieldStyle(.roundedBorder)
-                .font(.callout)
-
-            SecureField("Card number", text: $cardNumber)
-                .textFieldStyle(.roundedBorder)
-                .font(.callout)
-
-            Toggle("Enabled", isOn: $enabled)
-                .font(.callout)
-
-            if let err = error {
-                Text(err)
-                    .font(.caption)
-                    .foregroundColor(.red)
-            }
-
+            TextField("Job name", text: $jobName).textFieldStyle(.roundedBorder).font(.callout)
+            SecureField("Card number", text: $cardNumber).textFieldStyle(.roundedBorder).font(.callout)
+            Toggle("Enabled", isOn: $enabled).font(.callout)
+            if let err = error { Text(err).font(.caption).foregroundColor(.red) }
             HStack {
-                Button("Cancel", action: onDismiss)
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
+                Button("Cancel", action: onDismiss).buttonStyle(.borderless).foregroundStyle(.secondary)
                 Spacer()
                 Button("Add") { submit() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent).controlSize(.small)
                     .disabled(jobName.trimmingCharacters(in: .whitespaces).isEmpty || cardNumber.isEmpty)
             }
         }
@@ -214,12 +209,9 @@ private struct AddJobForm: View {
 
     private func submit() {
         let name = jobName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty, !cardNumber.isEmpty else { return }
         do {
-            try store.addJob(name: name, cardNumber: cardNumber, enabled: enabled)
+            try service.addJob(name: name, cardNumber: cardNumber, enabled: enabled)
             onDismiss()
-        } catch {
-            self.error = error.localizedDescription
-        }
+        } catch { self.error = error.localizedDescription }
     }
 }
