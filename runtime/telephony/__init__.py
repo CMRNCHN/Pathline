@@ -1,8 +1,22 @@
+"""
+Telephony subsystem.
+
+Canonical entry point: build_telephony()
+
+Direct TwilioTelephonyClient construction is reserved for:
+- CLI tools with explicit user-provided credentials
+- Test harnesses that need a real adapter
+- Explicit credential injection flows (e.g. analyst GUI dial form)
+
+All other callers must use build_telephony().
+"""
 from __future__ import annotations
 
 from typing import Protocol
 
 from runtime.telephony.factory import build_telephony as build_telephony
+
+__all__ = ["build_telephony", "TelephonyClient"]
 
 
 class TelephonyClient(Protocol):

@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import logging
-import uuid
 
 log = logging.getLogger(__name__)
 
 
 class MockTelephonyClient:
-    """No-op telephony client. Safe for CI, testing, and dry-run contexts."""
+    """No-op telephony client. Safe for CI, testing, and dry-run contexts.
+
+    SID format is deterministic on (method, to) so test assertions are stable.
+    """
 
     def dial(self, target_number: str) -> str:
-        sid = f"mock-call-{uuid.uuid4().hex[:12]}"
+        sid = f"mock_call::{target_number}"
         log.info("[MOCK] dial to=%s sid=%s", target_number, sid)
         return sid
 
