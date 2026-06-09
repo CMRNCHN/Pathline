@@ -52,7 +52,9 @@ from runtime.storage import (
     GapTaskRecord,
     IVREdge as StorageIVREdge,
     IVRNode as StorageIVRNode,
+    IVRSystem as StorageIVRSystem,
     PromptVariant as StoragePromptVariant,
+    Session as StorageSession,
     SessionObservation as StorageSessionObservation,
     StorageBackend,
 )
@@ -394,7 +396,9 @@ class IvrMapper:
         self,
         event: CallEvent,
         session_id: str,
-        storage: StorageBackend,
+        storage: StorageBackend | None = None,
+        *,
+        branch_confidence: float | None = None,  # deprecated — ignored
     ) -> ObservationResult:
         """Process a single CallEvent and update the world model.
 
@@ -408,6 +412,24 @@ class IvrMapper:
             any epistemic state transition, immediately-created gap_ids, and
             is_new_node flag.
         """
+        if storage is None:
+            if not hasattr(self, "_ephemeral_storage"):
+                import tempfile
+                self._ephemeral_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+                self._ephemeral_db.close()
+                self._ephemeral_storage = StorageBackend(self._ephemeral_db.name)
+                self._ephemeral_system_id = str(uuid.uuid4())
+                self._ephemeral_storage.upsert_ivr_system(StorageIVRSystem(
+                    system_id=self._ephemeral_system_id, phone_number="", display_name="ephemeral",
+                ))
+                self._ephemeral_sessions: set[str] = set()
+            storage = self._ephemeral_storage
+            if session_id not in self._ephemeral_sessions:
+                storage.start_session(StorageSession(
+                    session_id=session_id, system_id=self._ephemeral_system_id,
+                ))
+                self._ephemeral_sessions.add(session_id)
+
         observation_id = str(uuid.uuid4())
         now = event.timestamp
         if now.tzinfo is None:
