@@ -49,15 +49,15 @@ async def lifespan(app: FastAPI):
         initial_prompt="IVR phone menu: press 1, press 2, amount, dollars, cents."
     )
 
-    # Twilio client — optional; DTMF/voice injection disabled if creds absent.
+    # Telephony client — optional; DTMF/voice injection disabled if creds absent.
     twilio_sid = os.environ.get("TWILIO_ACCOUNT_SID")
     twilio_token = os.environ.get("TWILIO_AUTH_TOKEN")
     if twilio_sid and twilio_token:
-        from runtime.twilio_client import TwilioTelephonyClient
-        app_state.twilio_client = TwilioTelephonyClient()
-        app_state.dtmf_generator = DTMFGenerator(app_state.twilio_client)
-        app_state.voice_synthesizer = VoiceSynthesizer(app_state.twilio_client)
-        log.info("twilio_client_ready")
+        from runtime.telephony.twilio_client import TwilioTelephonyClient
+        app_state.telephony_client = TwilioTelephonyClient()
+        app_state.dtmf_generator = DTMFGenerator(app_state.telephony_client)
+        app_state.voice_synthesizer = VoiceSynthesizer(app_state.telephony_client)
+        log.info("telephony_client_ready")
     else:
         log.warning("twilio_creds_missing", detail="DTMF/voice injection disabled")
 

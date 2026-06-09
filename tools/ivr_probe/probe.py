@@ -183,7 +183,7 @@ def _build_telephony(target_number: str) -> Any:
             file=sys.stderr,
         )
         sys.exit(1)
-    from runtime.twilio_client import TwilioTelephonyClient
+    from runtime.telephony.twilio_client import TwilioTelephonyClient
     return TwilioTelephonyClient(
         account_sid=sid,
         auth_token=token,

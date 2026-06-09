@@ -20,7 +20,7 @@ from runtime.transport.streaming_server import (
     append_stream_auth_token,
     default_stream_auth_token,
 )
-from runtime.twilio_client import TwilioTelephonyClient
+from runtime.telephony.twilio_client import TwilioTelephonyClient
 from .ui.ui_state import (
     RECORDINGS_DIR,
     REPLAYS_DIR,
