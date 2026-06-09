@@ -61,8 +61,8 @@ class AsteriskTelephonyClient:
                 "CallerID":  f"Pathline <{target_number}>",
                 "Async":     "true",
             })
-            # Read immediate Queued response
-            response = self._read_response(reader)
+            # Read immediate Queued response (discard — just drains the buffer)
+            self._read_response(reader)
             # Read OriginateResponse event to get actual channel name
             channel_name = self._wait_for_originate(reader, action_id)
 
@@ -180,7 +180,7 @@ class AsteriskTelephonyClient:
             else:
                 # blank line = end of event block
                 block = {k.strip(): v.strip()
-                         for k, v in (l.split(":", 1) for l in event_lines if ":" in l)}
+                         for k, v in (ln.split(":", 1) for ln in event_lines if ":" in ln)}
                 event_lines = []
 
                 if (block.get("Event") == "OriginateResponse"
