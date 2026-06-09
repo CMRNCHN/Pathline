@@ -489,7 +489,7 @@ function summarizeGraphContext() {
     { label: 'Target IVR', value: target || 'Unset' },
   ];
   cards.push({ label: 'Saved Context', value: savedMap ? ((savedMap.session_count || 0) + ' prior runs') : ((AppState.savedMaps || []).length + ' saved maps') });
-  $('graph-meta').innerHTML = renderGraphMeta(cards);
+  if ($('graph-meta')) $('graph-meta').innerHTML = renderGraphMeta(cards);
 }
 
 function renderGraph() {
@@ -577,6 +577,13 @@ function renderStatusCard() {
   const bar = $('live-status-bar');
   if (!bar) return;
 
+  if (!AppState.callRunning) {
+    bar.innerHTML = '';
+    bar.classList.remove('is-active');
+    return;
+  }
+
+  bar.classList.add('is-active');
   const html = '<div class="status-card-compact">' + items.map(item => `
     <div class="status-card-item">
       <div class="status-card-label">${escapeHtml(item.label)}</div>
@@ -1244,15 +1251,66 @@ function renderDiscoveryEvents() {
 function renderUnknownPrompts() {
   const root = $('unknown-prompts');
   if (!root) return;
-  root.innerHTML = AppState.discover.unknownPrompts.map(p => `
-    <div class="prompt-card">
-      <div class="prompt-transcript">${escapeHtml(p.transcript)}</div>
-      <div class="prompt-actions">
-        <button class="btn-secondary btn-compact">Label</button>
-        <button class="btn-tertiary btn-compact">Retry</button>
+  const prompts = AppState.discover.unknownPrompts || [];
+  if (!prompts.length) {
+    root.innerHTML = '<div class="empty-state-sm">No discovered prompts yet</div>';
+    return;
+  }
+  root.innerHTML = prompts.map((p, i) => `
+    <div class="discovered-prompt-row" data-prompt-index="${i}">
+      <div class="discovered-prompt-text">"${escapeHtml(p.transcript)}"</div>
+      <div class="discovered-prompt-meta">Discovered · ${p.state_id || 'Unknown state'}</div>
+      <div class="discovered-prompt-response">
+        <input type="text" placeholder="Enter response for this prompt…" value="${escapeHtml(p.response || '')}" data-prompt-response="${i}">
+        <button class="discovered-response-save" data-prompt-save="${i}">Save</button>
       </div>
     </div>
   `).join('');
+
+  // Wire save buttons
+  root.querySelectorAll('[data-prompt-save]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.promptSave);
+      const input = root.querySelector(`[data-prompt-response="${idx}"]`);
+      if (input && AppState.discover.unknownPrompts[idx]) {
+        AppState.discover.unknownPrompts[idx].response = input.value;
+        saveDiscoveredToLibrary([AppState.discover.unknownPrompts[idx]]);
+        btn.textContent = 'Saved ✓';
+        setTimeout(() => btn.textContent = 'Save', 1500);
+      }
+    });
+  });
+}
+
+// Persist discovered prompts to in-memory library (survives tab switches, not page refresh)
+const _promptLibrary = { discovered: [], manual: [] };
+
+function saveDiscoveredToLibrary(prompts) {
+  prompts.forEach(p => {
+    const exists = _promptLibrary.discovered.find(e => e.transcript === p.transcript);
+    if (exists) { exists.response = p.response; }
+    else { _promptLibrary.discovered.push({ ...p }); }
+  });
+  renderPromptLibrary();
+}
+
+function renderPromptLibrary() {
+  ['discovered','manual'].forEach(tab => {
+    const el = $(`lib-${tab}`);
+    if (!el) return;
+    const entries = _promptLibrary[tab];
+    if (!entries.length) {
+      el.innerHTML = `<div class="library-empty">${tab === 'discovered' ? 'No discovered prompts yet — run IVR Discovery first.' : 'No pre-set prompts yet — add one above.'}</div>`;
+      return;
+    }
+    el.innerHTML = entries.map(e => `
+      <div class="library-entry">
+        <div class="library-prompt-text">"${escapeHtml(e.transcript || e.prompt || '')}"</div>
+        <div class="library-response-text">${escapeHtml(e.response || '—')}</div>
+        <span class="library-entry-tag ${tab}">${tab === 'manual' ? 'Manual' : 'Discovered'}</span>
+      </div>
+    `).join('');
+  });
 }
 
 function renderStateDetails() {
@@ -1479,12 +1537,9 @@ function initPrepEvents() {
 }
 
 function renderOperatorConsole() {
-  if (AppState.callRunning) {
-    $('hdr-status').textContent = 'Live Session';
-    $('hdr-status').className = 'status-pill tone-accent';
-  } else {
-    $('hdr-status').textContent = 'Idle';
-    $('hdr-status').className = 'status-pill tone-warn';
+  if ($('hdr-status')) {
+    $('hdr-status').textContent = AppState.callRunning ? 'Live Session' : 'Idle';
+    $('hdr-status').className = 'status-pill ' + (AppState.callRunning ? 'tone-accent' : 'tone-warn');
   }
   renderHeaderStatus();
   renderStatusCard();
@@ -1607,19 +1662,32 @@ async function fetchMaps() {
   }
 }
 
+function setCallActiveUI(active, target) {
+  const idle = $('call-idle-screen');
+  const activeScreen = $('call-active-screen');
+  if (idle) idle.classList.toggle('is-hidden', active);
+  if (activeScreen) activeScreen.classList.toggle('is-hidden', !active);
+  const ws = $('ws-live');
+  if (ws) ws.classList.toggle('is-call-active', active);
+  const numEl = $('live-active-number');
+  if (numEl && target) numEl.textContent = target;
+  const liveNavBtn = document.querySelector('.shell-nav-live');
+  if (liveNavBtn) liveNavBtn.classList.toggle('is-on-call', active);
+}
+
 async function startCall() {
-  let target = normalizeTarget($('f-target').value);
+  const targetInput = document.querySelector('#call-number-display, #f-target');
+  let target = normalizeTarget(targetInput ? targetInput.value : '');
   if (!target) {
     addLog('[error] Please enter a target phone number');
     return;
   }
 
+  setCallActiveUI(true, target);
   addLog('[system] Starting call to ' + target + '...');
 
   const btn = $('btn-live-call');
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Calling…';
+  if (btn) { btn.disabled = true; btn.textContent = 'Calling…'; }
 
   try {
     const data = await api.startCall({
@@ -1644,8 +1712,7 @@ async function startCall() {
     addLog('[error] ' + error.message);
   } finally {
     setTimeout(() => {
-      btn.disabled = false;
-      btn.textContent = originalText;
+      if (btn) { btn.disabled = false; btn.textContent = 'Live'; }
     }, 1800);
   }
 }
@@ -1660,6 +1727,7 @@ async function endCall() {
     }
     await api.endCall();
     addLog('[system] End-session requested');
+    setCallActiveUI(false);
     fetchStatus();
     fetchRuntimeMetrics();
     fetchRuntimeDiagnostics();
@@ -1669,7 +1737,7 @@ async function endCall() {
     if (btn) {
       setTimeout(() => {
         btn.disabled = false;
-        btn.textContent = originalText;
+        btn.textContent = 'Hang Up';
       }, 1200);
     }
   }
@@ -1721,7 +1789,11 @@ function syncTimer() {
   if (AppState.callRunning && AppState.lastElapsedSyncAt) {
     elapsedMs += Date.now() - AppState.lastElapsedSyncAt;
   }
-  $('timer').textContent = formatTimer(Math.max(0, Math.floor((elapsedMs || 0) / 1000)));
+  const formatted = formatTimer(Math.max(0, Math.floor((elapsedMs || 0) / 1000)));
+  const timerEl = $('hdr-call-timer') || $('timer');
+  if (timerEl) timerEl.textContent = formatted;
+  const activeTimer = $('live-active-timer');
+  if (activeTimer) activeTimer.textContent = formatted;
 }
 
 async function setConferenceMode(mode) {
@@ -1745,8 +1817,8 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 function switchWorkspace(workspaceId) {
   AppState.currentWorkspace = workspaceId;
 
-  // Update navigation buttons
-  document.querySelectorAll('.nav-btn').forEach(btn => {
+  // Update navigation buttons (including the live call circle button)
+  document.querySelectorAll('.shell-nav-btn, .shell-nav-live').forEach(btn => {
     btn.classList.toggle('is-active', btn.dataset.workspace === workspaceId);
   });
 
@@ -1928,7 +2000,7 @@ window.selectRun = (id) => {
   renderRunWorkspace();
 };
 
-document.querySelectorAll('.nav-btn').forEach(btn => {
+document.querySelectorAll('.shell-nav-btn[data-workspace], .shell-nav-live[data-workspace]').forEach(btn => {
   btn.addEventListener('click', () => {
     switchWorkspace(btn.dataset.workspace);
   });
@@ -1937,52 +2009,55 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 $('btn-interactive-call').addEventListener('click', () => switchWorkspace('live'));
 $('btn-live-call').addEventListener('click', startCall);
 $('btn-hangup-call').addEventListener('click', endCall);
-$('btn-settings').addEventListener('click', () => openDrawer('runtime'));
-$('btn-open-runtime').addEventListener('click', () => openDrawer('runtime'));
-$('btn-open-artifacts').addEventListener('click', () => openDrawer('artifacts'));
-$('btn-open-smoke').addEventListener('click', () => openDrawer('smoke'));
-$('btn-refresh-diagnostics').addEventListener('click', () => {
-  fetchRuntimeMetrics();
-  fetchRuntimeDiagnostics();
-  fetchDiagnose(true);
-});
 $('btn-refresh-maps').addEventListener('click', fetchMaps);
-$('drawer-toggle').addEventListener('click', () => {
-  AppState.drawerOpen = !AppState.drawerOpen;
-  renderOperatorConsole();
+// Guard optional elements that may be absent in trimmed layout
+['btn-settings','btn-open-runtime','btn-open-artifacts','btn-open-smoke','btn-refresh-diagnostics','drawer-toggle'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (id === 'btn-settings' || id === 'btn-open-runtime') el.addEventListener('click', () => openDrawer('runtime'));
+  else if (id === 'btn-open-artifacts') el.addEventListener('click', () => openDrawer('artifacts'));
+  else if (id === 'btn-open-smoke') el.addEventListener('click', () => openDrawer('smoke'));
+  else if (id === 'btn-refresh-diagnostics') el.addEventListener('click', () => { fetchRuntimeMetrics(); fetchRuntimeDiagnostics(); fetchDiagnose(true); });
+  else if (id === 'drawer-toggle') el.addEventListener('click', () => { AppState.drawerOpen = !AppState.drawerOpen; renderOperatorConsole(); });
 });
-$('mode-toggle').addEventListener('click', toggleMode);
+// Guard optional legacy elements
+['mode-toggle'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('click', toggleMode); });
+const smartInputEl = document.getElementById('smart-input');
+if (smartInputEl) {
+  smartInputEl.addEventListener('input', updateInputChip);
+  smartInputEl.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendInput(); }
+  });
+}
+const sendBtnEl = document.querySelector('.send-btn');
+if (sendBtnEl) sendBtnEl.addEventListener('click', sendInput);
 
-$('smart-input').addEventListener('input', updateInputChip);
-$('smart-input').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault();
-    sendInput();
-  }
-});
-document.querySelector('.send-btn').addEventListener('click', sendInput);
-
-document.querySelectorAll('.keypad .kbtn').forEach((button) => {
+// New DTMF pad (data-digit buttons)
+document.querySelectorAll('[data-digit]').forEach((button) => {
   button.addEventListener('click', () => {
-    const digit = button.textContent.split('\n')[0].trim();
-    if (!digit) return;
+    const digit = button.dataset.digit;
     padBuffer += digit;
-    $('pad-display').textContent = padBuffer;
+    const disp = $('pad-display');
+    if (disp) disp.textContent = padBuffer;
   });
 });
 
-document.querySelector('.pad-del').addEventListener('click', () => {
+const dtmfDelBtn = document.getElementById('dtmf-del') || document.querySelector('.pad-del');
+if (dtmfDelBtn) dtmfDelBtn.addEventListener('click', () => {
   padBuffer = padBuffer.slice(0, -1);
-  $('pad-display').textContent = padBuffer || '—';
+  const disp = $('pad-display');
+  if (disp) disp.textContent = padBuffer || '—';
 });
 
-document.querySelector('.pad-send').addEventListener('click', async () => {
+const dtmfSendBtn = document.getElementById('dtmf-send') || document.querySelector('.pad-send');
+if (dtmfSendBtn) dtmfSendBtn.addEventListener('click', async () => {
   if (!padBuffer) return;
   try {
     await api.injectDtmf(padBuffer);
     addLog('[DTMF] You: ' + padBuffer);
     padBuffer = '';
-    $('pad-display').textContent = '—';
+    const disp = $('pad-display');
+    if (disp) disp.textContent = '—';
     fetchRuntimeDiagnostics();
   } catch (error) {
     addLog('[error] DTMF send failed: ' + error.message);
@@ -2051,6 +2126,63 @@ function renderTelemetryMonitor() {
 }
 
 renderOperatorConsole();
+
+// ── Dial main button (idle screen) ───────────────────────────────────────
+const dialMainBtn = $('btn-dial-main');
+if (dialMainBtn) dialMainBtn.addEventListener('click', startCall);
+
+// ── Mic toggle ───────────────────────────────────────────────────────────
+const micBtn = $('btn-mic-toggle');
+let micMuted = false;
+if (micBtn) micBtn.addEventListener('click', () => {
+  micMuted = !micMuted;
+  micBtn.classList.toggle('is-muted', micMuted);
+  micBtn.setAttribute('aria-pressed', String(!micMuted));
+  micBtn.title = micMuted ? 'Unmute microphone' : 'Mute microphone';
+  addLog(micMuted ? '[mic] Muted' : '[mic] Unmuted');
+});
+
+// ── Prompt library tabs ───────────────────────────────────────────────────
+document.querySelectorAll('.review-library-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.review-library-tab').forEach(t => t.classList.remove('is-active'));
+    document.querySelectorAll('.library-tab-content').forEach(c => c.classList.remove('is-active'));
+    tab.classList.add('is-active');
+    const content = document.getElementById(`lib-${tab.dataset.libTab}`);
+    if (content) content.classList.add('is-active');
+  });
+});
+
+// "Save All to Library" button on discover panel
+const saveAllBtn = $('btn-save-discovered');
+if (saveAllBtn) saveAllBtn.addEventListener('click', () => {
+  const prompts = AppState.discover.unknownPrompts || [];
+  if (prompts.length) { saveDiscoveredToLibrary(prompts); saveAllBtn.textContent = 'Saved ✓'; setTimeout(() => saveAllBtn.textContent = 'Save All to Library', 2000); }
+});
+
+// Manual entry button in review
+const addManualBtn = $('btn-library-add-manual');
+if (addManualBtn) addManualBtn.addEventListener('click', () => {
+  const prompt = window.prompt('Enter IVR prompt text:');
+  if (!prompt) return;
+  const response = window.prompt('Enter response for this prompt:');
+  _promptLibrary.manual.push({ prompt, response: response || '' });
+  renderPromptLibrary();
+});
+
+// ── Dropdowns ─────────────────────────────────────────────────────────────
+['btn-notifications:notif-dropdown', 'btn-settings:settings-dropdown'].forEach(pair => {
+  const [btnId, dropId] = pair.split(':');
+  const btn = $(btnId), drop = $(dropId);
+  if (!btn || !drop) return;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    drop.classList.toggle('is-open');
+  });
+});
+document.addEventListener('click', () => {
+  document.querySelectorAll('.hdr-dropdown.is-open').forEach(d => d.classList.remove('is-open'));
+});
 
 api.getConfig().then((cfg) => {
   if (cfg && cfg.target) {
