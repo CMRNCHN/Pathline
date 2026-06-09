@@ -6,6 +6,12 @@ struct PulseMenuView: View {
     @State private var expandedJobID: String?
     @State private var showingAddForm = false
 
+    private var headerSubtitle: String {
+        if store.jobs.isEmpty { return "No jobs configured" }
+        let base = "\(store.jobs.count) job\(store.jobs.count == 1 ? "" : "s")"
+        return store.malformedCount > 0 ? "\(base) · \(store.malformedCount) malformed" : base
+    }
+
     // Overall signal color — worst status wins
     private var signalColor: Color {
         let statuses = store.jobs.map { $0.status.uppercased() }
@@ -40,11 +46,9 @@ struct PulseMenuView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Pathline Pulse")
                     .font(.system(size: 13, weight: .semibold))
-                Text(store.jobs.isEmpty
-                     ? "No jobs configured"
-                     : "\(store.jobs.count) job\(store.jobs.count == 1 ? "" : "s")")
+                Text(headerSubtitle)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(store.malformedCount > 0 ? Color.purple : Color.secondary)
             }
 
             Spacer()

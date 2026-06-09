@@ -20,7 +20,6 @@ from runtime.transport.streaming_server import (
     append_stream_auth_token,
     default_stream_auth_token,
 )
-from runtime.telephony.twilio_client import TwilioTelephonyClient
 from .ui.ui_state import (
     RECORDINGS_DIR,
     REPLAYS_DIR,
@@ -495,6 +494,7 @@ def _run_session_thread(
             prior_nodes=len(prior_graph),
         )
 
+        from runtime.twilio_client import TwilioTelephonyClient
         telephony = TwilioTelephonyClient(
             account_sid=sid or None,
             auth_token=token or None,

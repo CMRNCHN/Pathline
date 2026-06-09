@@ -173,22 +173,8 @@ def run(
 
 
 def _build_telephony(target_number: str) -> Any:
-    sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-    token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    from_num = os.environ.get("TWILIO_PHONE_NUMBER", "")
-    if not all([sid, token, from_num]):
-        print(
-            "ERROR: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER "
-            "must be set for live calls.\nUse --dry-run to test without a real call.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    from runtime.telephony.twilio_client import TwilioTelephonyClient
-    return TwilioTelephonyClient(
-        account_sid=sid,
-        auth_token=token,
-        twilio_number=from_num,
-    )
+    from runtime.telephony import build_telephony
+    return build_telephony()
 
 
 def main() -> None:
