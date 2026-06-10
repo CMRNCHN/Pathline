@@ -4,7 +4,7 @@ import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from runtime.api import app_state
-from runtime.telephony.media_handler import TwilioMediaReceiver
+from runtime.telephony.media_handler import TelephonyMediaReceiver
 
 log = structlog.get_logger()
 router = APIRouter()
@@ -13,7 +13,7 @@ router = APIRouter()
 @router.websocket("/transcribe/{call_sid}")
 async def transcribe_ws(websocket: WebSocket, call_sid: str) -> None:
     """
-    Twilio Media Stream endpoint.
+    WebSocket media stream endpoint.
     Receives mulaw audio, transcribes it, stores segments, and fans them out
     to all dashboard subscribers via LiveBroadcaster.
     """
@@ -31,7 +31,7 @@ async def transcribe_ws(websocket: WebSocket, call_sid: str) -> None:
 
     try:
         async def chunk_generator():
-            async for chunk in TwilioMediaReceiver.handle_media_stream(websocket):
+            async for chunk in TelephonyMediaReceiver.handle_media_stream(websocket):
                 audio_chunks.append(chunk)
                 yield chunk
 
