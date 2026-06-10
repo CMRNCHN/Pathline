@@ -2,6 +2,8 @@ import SwiftUI
 
 struct FullWindowView: View {
     @EnvironmentObject var store: JobStore
+    @EnvironmentObject var runner: JobRunner
+    @EnvironmentObject var service: JobService
     @State private var selectedJobID: String?
 
     var body: some View {
@@ -9,7 +11,7 @@ struct FullWindowView: View {
             sidebar
         } detail: {
             if let id = selectedJobID, let job = store.jobs.first(where: { $0.id == id }) {
-                JobDetailView(job: job)
+                JobDetailView(job: job, service: service)
             } else {
                 ContentUnavailableView(
                     "Select a Job",
@@ -22,31 +24,23 @@ struct FullWindowView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    store.reload()
+                    runner.runAll(store: store)
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    if store.isRunning {
+                        ProgressView().scaleEffect(0.7)
+                    } else {
+                        Image(systemName: "play.circle")
+                    }
                 }
-                .help("Refresh")
+                .disabled(store.isRunning)
+                .help(store.isRunning ? "Running…" : "Run all jobs now")
             }
         }
     }
 
     private var sidebar: some View {
         List(store.jobs, selection: $selectedJobID) { job in
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(job.statusColor)
-                    .frame(width: 9, height: 9)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(job.name)
-                        .font(.callout)
-                    Text(job.relativeTime)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .tag(job.id)
-            .padding(.vertical, 3)
+            sidebarRow(for: job)
         }
         .listStyle(.sidebar)
         .frame(minWidth: 180)
@@ -64,24 +58,46 @@ struct FullWindowView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func sidebarRow(for job: JobResult) -> some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(job.enabled ? job.statusColor : Color.gray.opacity(0.5))
+                .frame(width: 9, height: 9)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(job.name)
+                    .font(.callout)
+                    .foregroundStyle(job.enabled ? .primary : .secondary)
+                Text(job.relativeTime)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .tag(job.id)
+        .padding(.vertical, 3)
+        .jobContextMenu(job, service: service, onDeleted: {
+            if selectedJobID == job.id { selectedJobID = nil }
+        })
+    }
 }
 
 // ── Job detail panel ──────────────────────────────────────────────────────────
 
 private struct JobDetailView: View {
     let job: JobResult
+    let service: JobService
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Status header
                 HStack(spacing: 10) {
                     Circle()
-                        .fill(job.statusColor)
+                        .fill(job.enabled ? job.statusColor : Color.gray.opacity(0.5))
                         .frame(width: 12, height: 12)
-                    Text(job.status.uppercased())
+                    Text(job.enabled ? job.status.uppercased() : "DISABLED")
                         .font(.title2.bold())
-                        .foregroundColor(job.statusColor)
+                        .foregroundColor(job.enabled ? job.statusColor : .secondary)
                     Spacer()
                     Text(job.relativeTime)
                         .font(.callout)
@@ -91,7 +107,6 @@ private struct JobDetailView: View {
 
                 Divider()
 
-                // Transcript
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Transcript")
                         .font(.caption.bold())

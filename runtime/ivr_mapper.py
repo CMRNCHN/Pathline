@@ -32,7 +32,7 @@ from __future__ import annotations
 import hashlib
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any
@@ -40,10 +40,7 @@ from typing import Any
 from schemas.ivr_models import (
     AnnouncedOption,
     EpistemicState,
-    IVREdge,
-    IVRNode,
     NodeType,
-    PromptVariant,
     StabilityClass,
 )
 import runtime.storage as _storage_module
@@ -52,7 +49,9 @@ from runtime.storage import (
     GapTaskRecord,
     IVREdge as StorageIVREdge,
     IVRNode as StorageIVRNode,
+    IVRSystem as StorageIVRSystem,
     PromptVariant as StoragePromptVariant,
+    Session as StorageSession,
     SessionObservation as StorageSessionObservation,
     StorageBackend,
 )
@@ -394,7 +393,9 @@ class IvrMapper:
         self,
         event: CallEvent,
         session_id: str,
-        storage: StorageBackend,
+        storage: StorageBackend | None = None,
+        *,
+        branch_confidence: float | None = None,  # deprecated — ignored
     ) -> ObservationResult:
         """Process a single CallEvent and update the world model.
 
@@ -408,6 +409,50 @@ class IvrMapper:
             any epistemic state transition, immediately-created gap_ids, and
             is_new_node flag.
         """
+        # Accept the legacy runtime.state.models.CallEvent (kind/text/t_ms) and
+        # upcast it to the new shape so old callers don't need to be migrated.
+        if not isinstance(event, CallEvent):
+            _kind_map = {
+                "prompt": CallEventType.PROMPT_HEARD,
+                "action": CallEventType.DTMF_INJECTED,
+                "dtmf":   CallEventType.DTMF_INJECTED,
+                "speech": CallEventType.SPEECH_INJECTED,
+                "transfer": CallEventType.TRANSFER_DETECTED,
+                "human": CallEventType.HUMAN_AGENT_REACHED,
+                "end":   CallEventType.CALL_ENDED,
+            }
+            _etype = _kind_map.get(getattr(event, "kind", "prompt"), CallEventType.PROMPT_HEARD)
+            _t_ms = getattr(event, "t_ms", 0)
+            _text = getattr(event, "text", "") or ""
+            # Strip "dtmf:" prefix used by legacy callers (e.g. "dtmf:1" → "1")
+            _dtmf_raw = getattr(event, "dtmf", None) or (_text if _etype == CallEventType.DTMF_INJECTED else None)
+            if _dtmf_raw and _dtmf_raw.startswith("dtmf:"):
+                _dtmf_raw = _dtmf_raw[5:]
+            event = CallEvent(
+                event_type=_etype,
+                timestamp=datetime.fromtimestamp(_t_ms / 1000.0, tz=timezone.utc),
+                transcript=_text if _etype == CallEventType.PROMPT_HEARD else None,
+                dtmf_value=_dtmf_raw,
+            )
+
+        if storage is None:
+            if not hasattr(self, "_ephemeral_storage"):
+                import tempfile
+                self._ephemeral_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+                self._ephemeral_db.close()
+                self._ephemeral_storage = StorageBackend(self._ephemeral_db.name)
+                self._ephemeral_system_id = str(uuid.uuid4())
+                self._ephemeral_storage.upsert_ivr_system(StorageIVRSystem(
+                    system_id=self._ephemeral_system_id, phone_number="", display_name="ephemeral",
+                ))
+                self._ephemeral_sessions: set[str] = set()
+            storage = self._ephemeral_storage
+            if session_id not in self._ephemeral_sessions:
+                storage.start_session(StorageSession(
+                    session_id=session_id, system_id=self._ephemeral_system_id,
+                ))
+                self._ephemeral_sessions.add(session_id)
+
         observation_id = str(uuid.uuid4())
         now = event.timestamp
         if now.tzinfo is None:
@@ -1032,8 +1077,8 @@ class IvrMapper:
 
     def graph(
         self,
-        system_id: str,
-        storage: StorageBackend,
+        system_id: str | None = None,
+        storage: StorageBackend | None = None,
     ) -> dict[str, Any]:
         """Return a JSON-serializable snapshot of the IVR graph for *system_id*.
 
@@ -1082,6 +1127,16 @@ class IvrMapper:
         Returns:
             A plain dict suitable for json.dumps().
         """
+        _using_defaults = storage is None and system_id is None
+        if storage is None:
+            storage = getattr(self, "_ephemeral_storage", None) or StorageBackend(":memory:")
+        if system_id is None:
+            system_id = getattr(self, "_ephemeral_system_id", "")
+
+        # Legacy callers (no args) expect {prompt_text: {observations, sessions, branches, ...}}
+        if _using_defaults:
+            return self._legacy_graph(system_id, storage)
+
         nodes: dict[str, Any] = {}
         edges: dict[str, Any] = {}
         gaps: dict[str, Any] = {}
@@ -1136,6 +1191,52 @@ class IvrMapper:
 
         return {"nodes": nodes, "edges": edges, "gaps": gaps}
 
+    def _legacy_graph(self, system_id: str, storage: StorageBackend) -> dict[str, Any]:
+        """Return the pre-refactor graph shape: {prompt_text: {observations, ...}}."""
+        raw_nodes = storage.get_nodes_by_system(system_id)
+        prompt_by_id: dict[str, str] = {n.node_id: n.display_prompt for n in raw_nodes}
+
+        # Build branch counts from resolved edges in storage
+        result: dict[str, Any] = {}
+        for node in raw_nodes:
+            obs_records = storage.get_observations_for_node(node.node_id)
+            sessions = sorted({o.session_id for o in obs_records if o.session_id})
+            opts = sorted(o.dtmf_digit for o in storage.get_announced_options(node.node_id))
+            branches: dict[str, Any] = {}
+            for edge in storage.get_edges_from_node(node.node_id):
+                dest_prompt = prompt_by_id.get(edge.to_node_id, edge.to_node_id)
+                branches[edge.dtmf_option] = {
+                    "count": edge.observation_count,
+                    "confidence": round(edge.confidence, 6),
+                    "sessions": [],
+                    "next_prompts": [dest_prompt] if dest_prompt else [],
+                }
+            result[node.display_prompt] = {
+                "observations": node.observation_count,
+                "confidence": round(node.confidence, 6),
+                "sessions": sessions,
+                "announced_options": opts,
+                "branches": branches,
+            }
+
+        # Fold in unresolved pending edges (DTMF pressed but no follow-up prompt yet)
+        for session_id, (from_node_id, trigger, _trigger_type) in self._pending_edge.items():
+            from_prompt = prompt_by_id.get(from_node_id)
+            if from_prompt and from_prompt in result:
+                br = result[from_prompt]["branches"]
+                if trigger in br:
+                    br[trigger]["count"] += 1
+                    br[trigger]["sessions"] = sorted(set(br[trigger]["sessions"]) | {session_id})
+                else:
+                    br[trigger] = {
+                        "count": 1,
+                        "confidence": 0.0,
+                        "sessions": [session_id],
+                        "next_prompts": [],
+                    }
+
+        return result
+
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -1188,3 +1289,8 @@ def _option_sort_key(dtmf: str) -> tuple[int, str]:
 def _normalize_prompt(text: str) -> str:
     """Alias for _normalize_text; retained for migration compatibility."""
     return _normalize_text(text)
+
+
+def branch_sort_key(dtmf: str) -> tuple[int, str]:
+    """Sort key for DTMF branch labels. Numerics before non-numerics, then by value."""
+    return _option_sort_key(dtmf)
