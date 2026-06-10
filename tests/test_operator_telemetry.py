@@ -151,18 +151,50 @@ def _flow_through_sink_event(tmp_path) -> dict[str, Any]:
         pass
 
 
-def test_operator_action_persists_via_existing_event_sink(tmp_path) -> None:
+def test_operator_action_persists_to_telemetry_log_not_replay_log(tmp_path) -> None:
+    """Telemetry must land in telemetry_<id>.jsonl and NEVER in the replay log.
+
+    The replay reconstructor reads session_<id>.jsonl; an OPERATOR_ACTION
+    written there would silently corrupt deterministic replay.
+    """
     import json
 
     data = _flow_through_sink_event(tmp_path)
     assert data["type"] == EventType.OPERATOR_ACTION
 
-    # Find the persisted file by scanning the temp tree.
-    written = list(tmp_path.rglob("session_sess-1.jsonl"))
-    assert written, "EventSink should have persisted the operator action"
-    with open(written[0], "r", encoding="utf-8") as fh:
-        line = fh.readline()
-    persisted = json.loads(line)
+    # Telemetry stream received the event.
+    telemetry = list(tmp_path.rglob("telemetry_sess-1.jsonl"))
+    assert telemetry, "EventSink should persist the operator action to the telemetry log"
+    persisted = json.loads(telemetry[0].read_text(encoding="utf-8").splitlines()[0])
     assert persisted["type"] == EventType.OPERATOR_ACTION
     assert persisted["payload"]["action_name"] == "replay_scrubbed"
     assert persisted["session_id"] == "sess-1"
+
+    # Replay log was NOT created/contaminated by telemetry.
+    replay_logs = list(tmp_path.rglob("session_sess-1.jsonl"))
+    assert not replay_logs, "Telemetry must not be written into the replay session log"
+
+
+def test_replay_log_guardrail_blocks_telemetry_write(tmp_path, monkeypatch) -> None:
+    """The hard guardrail rejects any telemetry event routed at the replay log.
+
+    Simulates a future regression that mis-routes telemetry to the session_
+    prefix; the invariant in persist() must raise rather than write.
+    """
+    import runtime.events.event_sink as sink_mod
+    from runtime.events.event_sink import (
+        REPLAY_LOG_PREFIX,
+        EventSink,
+        ReplayContaminationError,
+    )
+
+    sink = EventSink(base_dir=tmp_path)
+    event = record_operator_action("replay_scrubbed", session_id="sess-2")
+
+    # Force telemetry to route at the replay prefix → guardrail must fire.
+    monkeypatch.setattr(sink_mod, "TELEMETRY_LOG_PREFIX", REPLAY_LOG_PREFIX)
+    with pytest.raises(ReplayContaminationError):
+        sink.persist(event)
+
+    # No replay log should have been written.
+    assert not list(tmp_path.rglob("session_sess-2.jsonl"))
