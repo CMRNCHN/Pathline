@@ -10,20 +10,20 @@ from websockets.server import WebSocketServerProtocol
 log = structlog.get_logger()
 
 
-class TwilioMediaReceiver:
+class TelephonyMediaReceiver:
     """
-    Accepts Twilio Media Streams, extracts PCM-16 audio,
+    Accepts WebSocket media streams, extracts PCM-16 audio,
     yields as async generator for transcriber.
     """
 
-    EXPECTED_SAMPLE_RATE = 8000  # Twilio default
+    EXPECTED_SAMPLE_RATE = 8000  # mulaw default
 
     @staticmethod
     async def handle_media_stream(
         websocket: WebSocketServerProtocol,
     ) -> AsyncGenerator[bytes, None]:
         """
-        Twilio sends JSON frames with base64-encoded mulaw audio.
+        Expects JSON frames with base64-encoded mulaw audio.
         Decode → PCM-16 upsampled to 16kHz and yield.
         """
         try:
@@ -41,8 +41,8 @@ class TwilioMediaReceiver:
 
                     import base64
                     mulaw_bytes = base64.b64decode(audio_b64)
-                    pcm16 = TwilioMediaReceiver._mulaw_to_pcm16(mulaw_bytes)
-                    pcm16_upsampled = TwilioMediaReceiver._resample(pcm16, 8000, 16000)
+                    pcm16 = TelephonyMediaReceiver._mulaw_to_pcm16(mulaw_bytes)
+                    pcm16_upsampled = TelephonyMediaReceiver._resample(pcm16, 8000, 16000)
                     yield pcm16_upsampled.tobytes()
 
                 elif frame.get("event") == "connected":
