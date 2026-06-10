@@ -272,7 +272,7 @@ def iterate_map(
         )
         
         if mode == "interactive":
-            from .twilio_client import TwilioTelephonyClient
+            from runtime.telephony.twilio_client import TwilioTelephonyClient
             telephony = TwilioTelephonyClient(
                 account_sid=twilio_account_sid,
                 auth_token=twilio_auth_token,
@@ -719,7 +719,7 @@ def _get_clients_for_mode(
     """Selects the telephony client and prompt source based on the run mode."""
     if mode == "interactive":
         try:
-            from .twilio_client import TwilioTelephonyClient
+            from runtime.telephony.twilio_client import TwilioTelephonyClient
 
             telephony = TwilioTelephonyClient(
                 account_sid=twilio_sid,

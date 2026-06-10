@@ -20,7 +20,7 @@ def build_telephony():
         return AsteriskTelephonyClient()
 
     if mode == "twilio":
-        from runtime.twilio_client import TwilioTelephonyClient
+        from runtime.telephony.twilio_client import TwilioTelephonyClient
         return TwilioTelephonyClient()
 
     return MockTelephonyClient()

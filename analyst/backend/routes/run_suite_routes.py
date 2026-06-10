@@ -73,7 +73,7 @@ def run_test_suite(data: dict, stream_url_fn: Callable) -> dict:
 
     def _run():
         from analyst.telecom.test_suite import run_test_suite_from_file, save_suite_result
-        from runtime.twilio_client import TwilioTelephonyClient
+        from runtime.telephony.twilio_client import TwilioTelephonyClient
         sid   = os.environ.get("TWILIO_ACCOUNT_SID", "")
         token = os.environ.get("TWILIO_AUTH_TOKEN", "")
         tnum  = os.environ.get("TWILIO_PHONE_NUMBER", "")
