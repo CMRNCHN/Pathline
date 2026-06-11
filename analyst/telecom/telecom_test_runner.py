@@ -7,10 +7,10 @@ from runtime.events.event_types import EventType
 from runtime.events.event_bus import bus as EventBus
 from runtime.events.event_models import OperationalEvent, EventMetadata
 from analyst.backend.ui.ui_state import STATE
-from tests.telecom_test_plan import TelecomTestPlan
-from tests.telecom_test_result import TelecomTestResult, TestOutcome
-from tests.safety_guards import SafetyGuards
-from tests.evidence_manifest import EvidenceManifest
+from analyst.telecom.telecom_test_plan import TelecomTestPlan
+from analyst.telecom.telecom_test_result import TelecomTestResult, TestOutcome
+from analyst.telecom.safety_guards import SafetyGuards
+from analyst.telecom.evidence_manifest import EvidenceManifest
 
 class TelecomTestRunner:
     def __init__(self, plan: TelecomTestPlan):

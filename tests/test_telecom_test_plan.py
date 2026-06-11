@@ -1,6 +1,6 @@
 import unittest
-from tests.telecom_test_plan import TelecomTestPlan
-from tests.telecom_test_result import TelecomTestResult, TestOutcome
+from analyst.telecom.telecom_test_plan import TelecomTestPlan
+from analyst.telecom.telecom_test_result import TelecomTestResult, TestOutcome
 
 class TestTelecomModels(unittest.TestCase):
     def test_test_plan_serialization(self):

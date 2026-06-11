@@ -1,8 +1,8 @@
 import time
 import threading
-from tests.telecom_test_plan import TelecomTestPlan
-from tests.telecom_test_runner import TelecomTestRunner
-from tests.telecom_test_result import TestOutcome
+from analyst.telecom.telecom_test_plan import TelecomTestPlan
+from analyst.telecom.telecom_test_runner import TelecomTestRunner
+from analyst.telecom.telecom_test_result import TestOutcome
 from analyst.backend.ui.ui_state import STATE
 
 def test_runner_initialization():
@@ -33,7 +33,7 @@ def test_runner_abort():
     runner = TelecomTestRunner(plan)
     
     # Mocking result for abort to work without full run
-    from tests.telecom_test_result import TelecomTestResult
+    from analyst.telecom.telecom_test_result import TelecomTestResult
     runner.result = TelecomTestResult(test_id=plan.test_id, session_id="sess-1", started_at=time.time())
     
     runner.abort()
