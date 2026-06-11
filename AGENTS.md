@@ -161,6 +161,53 @@ When you finish (or stop for review), produce:
 
 ---
 
+## Post-Merge Operational Rules
+
+This is a governance layer, not a code layer. It encodes how branches/worktrees
+are retired and which invariants must survive every merge.
+
+### Branch & worktree lifecycle
+
+- A branch exists only while its PR is open, maps to exactly **one** PR, and is
+  **not reused** after merge.
+- A worktree maps to exactly one active branch. No long-lived "utility"
+  worktrees. Detached HEAD is for inspection only, never development.
+- **Cleanup order is strict — re-home the worktree BEFORE deleting the branch.**
+  Git refuses to delete a branch checked out in any worktree, so deleting first
+  fails. Correct sequence after a PR merges:
+
+  1. Re-home / detach the worktree off the merged branch
+     (`git switch --detach origin/main` inside the worktree).
+  2. Remove the worktree if it was PR-specific: `git worktree remove <path>`.
+  3. Delete the remote branch, then the local branch:
+     `git branch -d <branch>`.
+  4. Prune: `git worktree prune && git fetch --prune`.
+
+### Invariants to re-verify after every merge
+
+These are enforced statically by `tests/test_architecture.py` and the
+event/replay tests — re-run them, don't eyeball:
+
+- **No `production → tests/` imports.** Production domains (`runtime`, `replay`,
+  `analyst`, `agents`, …) must never import from `tests/`. The allow-list in
+  `tests/test_architecture.py` is intentionally empty; any such import is a hard
+  failure. (Telecom validation framework lives in `analyst/telecom/`, not
+  `tests/`.)
+- **Replay log stays exclusive.** Replay reconstructs only from
+  `session_*.jsonl`; telemetry is isolated to `telemetry_*.jsonl`. Never route a
+  telemetry event at the replay-log prefix.
+- **Event model stays append-only.** No in-place mutation or structural rewrite
+  of persisted events.
+- **No direct SDK use outside adapters.** Telephony clients are constructed via
+  `build_telephony()`; no direct vendor-client construction or hidden fallback
+  constructors outside the adapter layer.
+
+If a *new* structural/correctness change becomes necessary in an area these
+invariants already cover, treat it as a signal of incomplete invariant
+enforcement or hidden coupling — surface that, don't just patch.
+
+---
+
 ## Role definitions
 
 ### Agent 1 — schema + service
