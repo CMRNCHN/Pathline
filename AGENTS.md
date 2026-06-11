@@ -202,9 +202,9 @@ event/replay tests — re-run them, don't eyeball:
   `build_telephony()`; no direct vendor-client construction or hidden fallback
   constructors outside the adapter layer.
 
-If a *new* structural/correctness PR becomes necessary in an area already
-corrected here, treat it as a signal of incomplete invariant enforcement or
-hidden coupling — surface that, don't just patch.
+If a *new* structural/correctness change becomes necessary in an area these
+invariants already cover, treat it as a signal of incomplete invariant
+enforcement or hidden coupling — surface that, don't just patch.
 
 ---
 
