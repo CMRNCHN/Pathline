@@ -33,6 +33,17 @@ final class AsteriskClient: NSObject {
     /// adds latency before each DTMF send. (Asterisk default is 2500.)
     private let talkSilenceMs = 1500
 
+    /// A real prompt is a sustained speech segment. Multi-sentence prompts
+    /// ("Enter your card number." <pause> "Followed by pound.") can make
+    /// TALK_DETECT fire ChannelTalkingFinished after the first short sentence —
+    /// which would send DTMF before the IVR is ready. We only advance the FSM
+    /// when the talking segment lasted at least this long; shorter blips are
+    /// ignored as mid-prompt pauses. NEEDS CALIBRATION against real traffic.
+    private let minimumPromptDurationMs: Double = 2000
+
+    /// channel.id → when its current talking segment began (ChannelTalkingStarted).
+    private var talkingStartedAt: [String: Date] = [:]
+
     private var socket: URLSessionWebSocketTask?
     private let state: PulseState
 
@@ -82,15 +93,29 @@ final class AsteriskClient: NSObject {
         case "StasisStart":
             state.enterStasis(channelId: id)
             enableTalkDetect(channelId: id)      // arm prompt-end detection
+        case "ChannelTalkingStarted":
+            talkingStartedAt[id] = Date()
         case "ChannelTalkingFinished":
-            perform(state.advance(channelId: id), on: id)
+            if promptWasLongEnough(id) {
+                perform(state.advance(channelId: id), on: id)
+            }
         case "ChannelDtmfReceived":
             if let digit = event.digit { state.noteDTMF(channelId: id, digit: digit) }
         case "ChannelDestroyed":
+            talkingStartedAt[id] = nil
             state.finish(channelId: id)
         default:
             break
         }
+    }
+
+    /// True if the talking segment that just ended was a real prompt, not a
+    /// mid-prompt pause. Fails open: if we never saw the matching Started, we
+    /// advance rather than stall the probe.
+    private func promptWasLongEnough(_ channelId: String) -> Bool {
+        defer { talkingStartedAt[channelId] = nil }
+        guard let started = talkingStartedAt[channelId] else { return true }
+        return Date().timeIntervalSince(started) * 1000 >= minimumPromptDurationMs
     }
 
     private func perform(_ action: ProbeAction, on channelId: String) {

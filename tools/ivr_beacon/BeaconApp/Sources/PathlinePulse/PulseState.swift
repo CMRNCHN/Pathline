@@ -9,18 +9,15 @@ enum CallStatus: String {
     case error
 }
 
-/// Resting states of the probe FSM — "what we are waiting for".
-///
-/// The user's spec also listed `sendMenuDTMF` / `sendCard`. In an event-driven
-/// model a send is a *transition action*, not a state you rest in: each
-/// `ChannelTalkingFinished` performs the pending send and settles into the next
-/// `wait`. Those two are therefore `ProbeAction` cases, not `ProbeStep` cases.
-enum ProbeStep: String {
-    case start
-    case waitGreeting       // call answered, IVR greeting playing
-    case waitCardPrompt     // menu selection sent, awaiting card prompt
-    case waitResult         // card sent, awaiting result prompt
-    case end
+/// The four phases of a card-status probe — "what we are waiting for".
+/// Not a general workflow engine: call → greeting → card prompt → result → done.
+/// Sends (menu DTMF, card DTMF) are `ProbeAction`s, not phases — in an
+/// event-driven model a send is the transition between two waits, not a state.
+enum ProbePhase: String {
+    case waitingForGreeting     // call placed; awaiting answer + IVR greeting
+    case waitingForCardPrompt   // menu selection sent; awaiting card prompt
+    case waitingForResult       // card sent; awaiting result prompt
+    case done
 }
 
 /// The side effect a transition asks the client to perform. Pure data — the
@@ -37,7 +34,7 @@ struct CallProbe: Identifiable {
     let menuDigits: String   // DTMF sent after the greeting
     let cardDigits: String   // DTMF sent after the card prompt
     var status: CallStatus = .connecting
-    var step: ProbeStep = .start
+    var phase: ProbePhase = .waitingForGreeting
     var transcript: String = ""
 }
 
@@ -71,32 +68,31 @@ final class PulseState: ObservableObject {
     /// Do we own this channel? Used to ignore foreign channels (bridges/transfers).
     func owns(_ channelId: String) -> Bool { channelMap[channelId] != nil }
 
-    /// StasisStart: the call is up and in our Stasis app.
+    /// StasisStart: the call is up and in our Stasis app. Phase is already
+    /// `.waitingForGreeting` from creation — we just mark it in-call.
     func enterStasis(channelId: String) {
         guard let i = index(for: channelId) else { return }
         probes[i].status = .inCall
-        probes[i].step = .waitGreeting
     }
 
-    /// ChannelTalkingFinished: a prompt just ended → advance the FSM and tell the
-    /// client what I/O to perform. Pure transition; the only timing assumption
-    /// (silence threshold) lives in TALK_DETECT, not here.
+    /// A prompt just ended (and passed the duration guard) → advance the FSM and
+    /// tell the client what I/O to perform. Pure transition; no timing here.
     func advance(channelId: String) -> ProbeAction {
         guard let i = index(for: channelId) else { return .none }
-        switch probes[i].step {
-        case .waitGreeting:
-            probes[i].step = .waitCardPrompt
+        switch probes[i].phase {
+        case .waitingForGreeting:
+            probes[i].phase = .waitingForCardPrompt
             appendTranscript(&probes[i], "→ menu \(probes[i].menuDigits)")
             return .sendDTMF(probes[i].menuDigits)
-        case .waitCardPrompt:
-            probes[i].step = .waitResult
+        case .waitingForCardPrompt:
+            probes[i].phase = .waitingForResult
             appendTranscript(&probes[i], "→ card (\(probes[i].cardDigits.count) digits)")
             return .sendDTMF(probes[i].cardDigits)
-        case .waitResult:
-            probes[i].step = .end
+        case .waitingForResult:
+            probes[i].phase = .done
             appendTranscript(&probes[i], "→ hangup")
             return .hangup
-        case .start, .end:
+        case .done:
             return .none
         }
     }
@@ -110,7 +106,7 @@ final class PulseState: ObservableObject {
     func finish(channelId: String) {
         guard let i = index(for: channelId) else { return }
         probes[i].status = .completed
-        probes[i].step = .end
+        probes[i].phase = .done
     }
 
     // MARK: - Internals

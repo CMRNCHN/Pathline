@@ -31,7 +31,7 @@ struct PulseApp: App {
                     ForEach(state.probes) { probe in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(probe.targetNumber).font(.headline)
-                            Text("\(probe.status.rawValue) · \(probe.step.rawValue)")
+                            Text("\(probe.status.rawValue) · \(probe.phase.rawValue)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             if !probe.transcript.isEmpty {
