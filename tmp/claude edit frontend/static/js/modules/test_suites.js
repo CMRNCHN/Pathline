@@ -296,6 +296,9 @@
     }
     try {
       await api.saveSuite(filename, data);
+      if (window.Telemetry) {
+        window.Telemetry.track('map_saved', { filename, case_count: data.cases.length });
+      }
     } catch(e) {
       alert(e.message || 'Failed to save the reusable suite.');
       return false;
