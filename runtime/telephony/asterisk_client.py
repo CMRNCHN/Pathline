@@ -44,8 +44,8 @@ class AsteriskTelephonyClient:
         Returns a session_id usable with send_dtmf / hangup.
 
         Local/1000@ivr-test/n creates two legs (no SIP registration needed):
-          ;1 = IVR leg  — runs the dialplan
-          ;2 = caller leg — we send DTMF to this one
+          ;2 = IVR leg  — runs the dialplan (Playback / WaitExten / etc.)
+          ;1 = caller leg — DTMF sent here propagates into ;2's dialplan
         """
         action_id = uuid.uuid4().hex[:12]
         # /n flag keeps both legs alive independently so PlayDTMF works
@@ -67,8 +67,8 @@ class AsteriskTelephonyClient:
             channel_name = self._wait_for_originate(reader, action_id)
 
         session_id = f"asterisk::{target_number}::{action_id}"
-        ivr_ch  = f"{channel_name};1"   # IVR leg
-        call_ch = f"{channel_name};2"   # caller leg (receives our DTMF)
+        ivr_ch  = f"{channel_name};2"   # runs dialplan (Playback / WaitExten)
+        call_ch = f"{channel_name};1"   # receives DTMF injection → propagates into ;2
         self._sessions[session_id] = (ivr_ch, call_ch)
 
         log.info("[ASTERISK] dial to=%s channel=%s session=%s", target_number, channel_name, session_id)
