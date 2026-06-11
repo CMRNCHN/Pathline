@@ -1,122 +1,84 @@
 #!/bin/bash
-# IVR Beacon — one-time setup for macOS
+# Pathline Pulse — build & preflight for macOS.
+#
+# Pulse is an interactive menu bar app that probes an IVR through a local
+# Asterisk instance over ARI. It is not a scheduled job, so this script does
+# not install a LaunchAgent or any cloud credentials — it builds the app and
+# checks that Asterisk ARI is reachable, then tells you how to run it.
+#
 # Run from the Pathline repo root:
 #   bash tools/ivr_beacon/setup.sh
+#
+# Configure the probe (optional) before running the app, via env vars:
+#   PULSE_TARGET           IVR number to dial            (default +18009505114)
+#   PULSE_MENU_DIGITS      DTMF after the greeting       (default **11)
+#   PULSE_CARD_DIGITS      DTMF after the card prompt    (override with a test card)
+#   PULSE_ARI_HOST/PORT    Asterisk ARI host/port        (default 127.0.0.1:8088)
+#   PULSE_ARI_API_KEY      ARI user:pass                 (default ari:ari)
+#   PULSE_ARI_APP          Stasis app name               (default pulse)
+#   PULSE_TALK_SILENCE_MS  TALK_DETECT silence threshold (default 1500, NEEDS CALIBRATION)
+#   PULSE_MIN_PROMPT_MS    minimum real-prompt duration  (default 2000, NEEDS CALIBRATION)
+#
+# See tools/ivr_beacon/README.md for Asterisk setup and the testing checklist.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-BEACON_DIR="$REPO_DIR/tools/ivr_beacon"
-PROBE_DIR="$REPO_DIR/tools/ivr_probe"
-IVR_DIR="$HOME/ivr"
-AGENTS_DIR="$HOME/Library/LaunchAgents"
-PLIST_ID="com.ivr.probe.hourly"
-PLIST_DST="$AGENTS_DIR/$PLIST_ID.plist"
+APP_DIR="$REPO_DIR/tools/ivr_beacon/BeaconApp"
+BINARY="$APP_DIR/.build/release/PathlinePulse"
 
-green()  { echo "$(tput setaf 2)✓ $*$(tput sgr0)"; }
-yellow() { echo "$(tput setaf 3)→ $*$(tput sgr0)"; }
-red()    { echo "$(tput setaf 1)✗ $*$(tput sgr0)"; }
+ARI_HOST="${PULSE_ARI_HOST:-127.0.0.1}"
+ARI_PORT="${PULSE_ARI_PORT:-8088}"
+ARI_API_KEY="${PULSE_ARI_API_KEY:-ari:ari}"
+
+green()  { echo "$(tput setaf 2 2>/dev/null)✓ $*$(tput sgr0 2>/dev/null)"; }
+yellow() { echo "$(tput setaf 3 2>/dev/null)→ $*$(tput sgr0 2>/dev/null)"; }
+red()    { echo "$(tput setaf 1 2>/dev/null)✗ $*$(tput sgr0 2>/dev/null)"; }
 
 echo ""
-echo "IVR Beacon Setup"
-echo "━━━━━━━━━━━━━━━━"
-echo "Repo:   $REPO_DIR"
-echo "IVR:    $IVR_DIR"
+echo "Pathline Pulse Setup"
+echo "━━━━━━━━━━━━━━━━━━━━"
+echo "Repo: $REPO_DIR"
+echo "App:  $APP_DIR"
 echo ""
 
-# ── 1. Twilio credentials ──────────────────────────────────────────────────────
+# ── 1. Build the app ──────────────────────────────────────────────────────────
 
-if [[ -z "${TWILIO_ACCOUNT_SID:-}" ]]; then
-    read -rp "TWILIO_ACCOUNT_SID:   " TWILIO_ACCOUNT_SID
-fi
-if [[ -z "${TWILIO_AUTH_TOKEN:-}" ]]; then
-    read -rsp "TWILIO_AUTH_TOKEN:    " TWILIO_AUTH_TOKEN; echo ""
-fi
-if [[ -z "${TWILIO_PHONE_NUMBER:-}" ]]; then
-    read -rp "TWILIO_PHONE_NUMBER:  " TWILIO_PHONE_NUMBER
+if ! command -v swift &>/dev/null; then
+    red "Swift not found. Install Xcode Command Line Tools (xcode-select --install), then:"
+    echo "    cd $APP_DIR && swift build -c release"
+    exit 1
 fi
 
-# ── 2. Create ~/ivr/ directory structure ───────────────────────────────────────
-
-mkdir -p "$IVR_DIR/results"
-green "Created $IVR_DIR/"
-
-# ── 3. Copy probe files ────────────────────────────────────────────────────────
-
-cp "$PROBE_DIR/probe.py"  "$IVR_DIR/probe.py"
-cp "$PROBE_DIR/suite.json" "$IVR_DIR/suite.json"
-green "Copied probe.py and suite.json → $IVR_DIR/"
-
-# ── 4. Install jobs.json (skip if user already has one) ───────────────────────
-
-if [[ ! -f "$IVR_DIR/jobs.json" ]]; then
-    cp "$BEACON_DIR/ivr/jobs.json" "$IVR_DIR/jobs.json"
-    green "Installed default jobs.json → $IVR_DIR/jobs.json"
-    yellow "Edit $IVR_DIR/jobs.json to set your real card numbers"
+echo "Building Pulse (release)..."
+if (cd "$APP_DIR" && swift build -c release); then
+    green "Built: $BINARY"
 else
-    yellow "Skipped jobs.json (already exists at $IVR_DIR/jobs.json)"
+    red "swift build failed — see output above"
+    exit 1
 fi
 
-# ── 5. Generate run_ivr_batch.sh with repo path baked in ──────────────────────
+# ── 2. Preflight: is Asterisk ARI reachable? ─────────────────────────────────
 
-sed "s|__REPO_PATH__|$REPO_DIR|g" \
-    "$BEACON_DIR/ivr/run_ivr_batch.sh" > "$IVR_DIR/run_ivr_batch.sh"
-chmod +x "$IVR_DIR/run_ivr_batch.sh"
-green "Generated $IVR_DIR/run_ivr_batch.sh (PYTHONPATH → $REPO_DIR)"
-
-# ── 6. Generate and install launchd plist ─────────────────────────────────────
-
-mkdir -p "$AGENTS_DIR"
-
-sed \
-    -e "s|HOME_DIR|$HOME|g" \
-    -e "s|TWILIO_SID_VALUE|$TWILIO_ACCOUNT_SID|g" \
-    -e "s|TWILIO_TOKEN_VALUE|$TWILIO_AUTH_TOKEN|g" \
-    -e "s|TWILIO_NUMBER_VALUE|$TWILIO_PHONE_NUMBER|g" \
-    "$BEACON_DIR/launchd/com.ivr.probe.hourly.plist" > "$PLIST_DST"
-
-green "Installed launchd plist → $PLIST_DST"
-
-# ── 7. Load the LaunchAgent ────────────────────────────────────────────────────
-
-if launchctl list "$PLIST_ID" &>/dev/null; then
-    launchctl unload "$PLIST_DST" 2>/dev/null || true
-fi
-launchctl load "$PLIST_DST"
-green "Loaded LaunchAgent ($PLIST_ID) — runs every hour, also at load"
-
-# ── 8. Build the dashboard app ────────────────────────────────────────────────
-
-APP_DIR="$BEACON_DIR/BeaconApp"
 echo ""
-echo "Building IVR Beacon dashboard..."
-if command -v swift &>/dev/null; then
-    (cd "$APP_DIR" && swift build -c release 2>&1) && \
-        green "Dashboard built: $APP_DIR/.build/release/IVRBeacon" || \
-        { red "swift build failed — see output above"; }
-    echo ""
-    yellow "To run the dashboard:"
-    echo "  $APP_DIR/.build/release/IVRBeacon"
+echo "Checking Asterisk ARI at $ARI_HOST:$ARI_PORT ..."
+ARI_URL="http://$ARI_HOST:$ARI_PORT/ari/asterisk/info?api_key=$ARI_API_KEY"
+if curl -fsS --max-time 5 "$ARI_URL" >/dev/null 2>&1; then
+    green "ARI reachable — Asterisk is up and the credentials work."
 else
-    yellow "Swift not found — install Xcode Command Line Tools, then:"
-    echo "  cd $APP_DIR && swift build -c release"
+    yellow "ARI not reachable at $ARI_HOST:$ARI_PORT (or credentials rejected)."
+    echo "    Pulse needs a local Asterisk with ARI/HTTP enabled before it can probe."
+    echo "    See the 'Asterisk prerequisites' section of tools/ivr_beacon/README.md."
 fi
 
-# ── Done ──────────────────────────────────────────────────────────────────────
+# ── Done ─────────────────────────────────────────────────────────────────────
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-green "IVR Beacon installed."
+green "Pulse is built."
 echo ""
-echo "  Jobs config:  $IVR_DIR/jobs.json"
-echo "  Results:      $IVR_DIR/results/<job_name>/latest.json"
-echo "  Logs:         /tmp/ivr_probe.log"
-echo "  Schedule:     every 3600s (launchd)"
+yellow "Run it (override PULSE_* env vars first to target your own IVR):"
+echo "    $BINARY"
 echo ""
-yellow "Next: edit $IVR_DIR/jobs.json with your real card numbers"
-echo ""
-echo "Test a single run now:"
-echo "  bash $IVR_DIR/run_ivr_batch.sh"
-echo ""
-echo "Tail the log:"
-echo "  tail -f /tmp/ivr_probe.log"
+echo "Then click the waveform icon in the menu bar → 'Run Probe'."
+echo "Full testing checklist: tools/ivr_beacon/README.md"
 echo ""

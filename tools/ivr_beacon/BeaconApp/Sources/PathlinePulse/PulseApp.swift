@@ -10,11 +10,12 @@ struct PulseApp: App {
     @StateObject private var state = PulseState()
     @State private var client: AsteriskClient?
 
-    // Hard-coded probe definition (intentional — the IVR suite-as-script engine
-    // is a deliberate non-goal until this runs against real Asterisk traffic).
-    private let target = "+18009505114"
-    private let menuDigits = "**11"
-    private let cardDigits = "5189410161261964"
+    // Probe definition. Defaults run against a stock setup; override via the
+    // PULSE_* environment variables (see PulseConfig / README) to point at your
+    // own IVR without recompiling. The suite-as-script engine remains a non-goal.
+    private let target = PulseConfig.target
+    private let menuDigits = PulseConfig.menuDigits
+    private let cardDigits = PulseConfig.cardDigits
 
     var body: some Scene {
         MenuBarExtra("Pulse", systemImage: "waveform.path.ecg") {

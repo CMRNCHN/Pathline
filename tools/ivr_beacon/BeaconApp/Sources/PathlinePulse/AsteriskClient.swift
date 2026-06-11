@@ -20,18 +20,21 @@ private struct ARIEvent: Decodable {
 
 final class AsteriskClient: NSObject {
 
-    // Local Asterisk ARI. `ari:ari` is the stock dev user:pass.
-    private let host = "127.0.0.1"
-    private let port = 8088
-    private let apiKey = "ari:ari"
-    private let app = "pulse"
+    // Local Asterisk ARI. `ari:ari` is the stock dev user:pass. All four are
+    // overridable via PULSE_ARI_* env vars (see PulseConfig) so Pulse can target
+    // a remote or non-default Asterisk without a rebuild.
+    private let host = PulseConfig.host
+    private let port = PulseConfig.port
+    private let apiKey = PulseConfig.apiKey
+    private let app = PulseConfig.app
 
     /// Silence (ms) before TALK_DETECT decides a prompt has ended and fires
     /// ChannelTalkingFinished. This is the FSM's one timing knob — it relocates
     /// the old hard-coded delays into a DSP threshold. NEEDS CALIBRATION against
     /// real IVR traffic: too low trips mid-prompt on natural pauses, too high
     /// adds latency before each DTMF send. (Asterisk default is 2500.)
-    private let talkSilenceMs = 1500
+    /// Override at runtime with PULSE_TALK_SILENCE_MS.
+    private let talkSilenceMs = PulseConfig.talkSilenceMs
 
     /// A real prompt is a sustained speech segment. Multi-sentence prompts
     /// ("Enter your card number." <pause> "Followed by pound.") can make
@@ -39,7 +42,8 @@ final class AsteriskClient: NSObject {
     /// which would send DTMF before the IVR is ready. We only advance the FSM
     /// when the talking segment lasted at least this long; shorter blips are
     /// ignored as mid-prompt pauses. NEEDS CALIBRATION against real traffic.
-    private let minimumPromptDurationMs: Double = 2000
+    /// Override at runtime with PULSE_MIN_PROMPT_MS.
+    private let minimumPromptDurationMs: Double = PulseConfig.minimumPromptDurationMs
 
     /// channel.id → when its current talking segment began (ChannelTalkingStarted).
     private var talkingStartedAt: [String: Date] = [:]
