@@ -1,206 +1,158 @@
-"""runtime/telephony/twilio_client.py — Twilio outbound call management.
+"""runtime/telephony/twilio_client.py — Twilio call-control client.
 
-Handles:
-  - Placing outbound calls with Media Streams TwiML
-  - Hanging up calls
-  - Injecting DTMF tones mid-call
-  - Receiving Twilio Media Stream WebSocket frames → audio queue
+Home of TwilioTelephonyClient, the live-call adapter that satisfies the
+TelephonyClient protocol (dial / send_dtmf / play_clip / say / hangup). It is
+constructed via runtime.telephony.build_telephony() when TELEPHONY_MODE=twilio,
+and directly by CLI/GUI flows with explicit credentials.
 
-Requirements:
-    pip install twilio>=8.0.0
-    Environment: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_CALLER_ID
-
-The WebSocket handler (handle_media_stream) is the integration point between
-Twilio's real-time audio and the DeepgramStreamClient.
-
-Twilio sends mulaw-encoded audio at 8kHz in base64-encoded JSON frames.
-This module decodes them and pushes raw mulaw bytes into an asyncio.Queue
-for the STT client to consume.
+This is distinct from runtime/telephony/twilio_media_client.py, which holds the
+Media Streams WebSocket client (TwilioMediaClient) used by session_manager.
 """
 from __future__ import annotations
 
-import asyncio
-import base64
-import json
-import logging
 import os
-from dataclasses import dataclass
+import random
 from typing import Any
-
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class CallRecord:
-    """Minimal record of an active call."""
-    call_sid: str
-    to_number: str
-    from_number: str
-    status: str = 'initiated'
+from xml.sax.saxutils import escape, quoteattr
 
 
-class TwilioClient:
-    """Manage outbound IVR calls and real-time audio streaming.
+def pick_caller_id(twilio_number: str | None = None) -> str:
+    """Return a random number from TWILIO_PHONE_NUMBERS pool, or fall back to TWILIO_PHONE_NUMBER."""
+    pool_raw = os.environ.get("TWILIO_PHONE_NUMBERS", "")
+    pool = [n.strip() for n in pool_raw.split(",") if n.strip()]
+    if pool:
+        return random.choice(pool)
+    return twilio_number or os.environ.get("TWILIO_PHONE_NUMBER", "")
 
-    Args:
-        account_sid: Twilio account SID.
-        auth_token: Twilio auth token.
-        caller_id: The phone number to call from (must be a Twilio number).
-        stream_host: Public host where Twilio will send the Media Stream
-                     WebSocket (e.g. 'yourserver.ngrok.io').
-    """
+
+class TwilioTelephonyClient:
+    """A telephony client that uses the Twilio API for live calls."""
 
     def __init__(
         self,
-        account_sid: str,
-        auth_token: str,
-        caller_id: str,
-        stream_host: str,
+        account_sid: str | None = None,
+        auth_token: str | None = None,
+        twilio_number: str | None = None,
+        user_phone_number: str | None = None,
+        stream_url: str | None = None,
+        recording_status_callback: str | None = None,
     ) -> None:
         try:
-            import twilio.rest  # noqa: F401 — availability check
-        except ImportError as e:
-            raise RuntimeError("twilio is required: pip install twilio>=8.0.0") from e
+            from twilio.rest import Client
+        except ImportError as exc:
+            raise ImportError("Twilio client not installed. Please run 'pip install twilio'.") from exc
 
-        self._client = __import__('twilio').rest.Client(account_sid, auth_token)
-        self._caller_id = caller_id
-        self._stream_host = stream_host
+        self._sid = account_sid or os.environ.get("TWILIO_ACCOUNT_SID")
+        self._token = auth_token or os.environ.get("TWILIO_AUTH_TOKEN")
+        self._from = pick_caller_id(twilio_number)
+        self._user_phone_number = user_phone_number
+        self._stream_url = stream_url
+        self._recording_status_callback = recording_status_callback or os.environ.get("TWILIO_RECORDING_STATUS_CALLBACK")
+        self._sessions: dict[str, str] = {}  # session_id -> conference_name
 
-    # ── Call lifecycle ──────────────────────────────────────────────────────
+        if not all([self._sid, self._token, self._from]):
+            raise ValueError(
+                "Twilio credentials not found. Set TWILIO_ACCOUNT_SID, "
+                "TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER environment variables."
+            )
 
-    def place_call(
-        self,
-        to: str,
-        session_id: str,
-        status_callback: str | None = None,
-    ) -> CallRecord:
-        """Place an outbound call and set up Media Streams.
+        self._client = Client(self._sid, self._token)
 
-        Args:
-            to: The IVR phone number to call.
-            session_id: Used to correlate the stream WebSocket with the session.
-            status_callback: URL for Twilio to POST call status updates to.
+    def dial(self, target_number: str) -> str:
+        """Dials the target number and returns a call SID."""
+        # Re-pick caller ID each call so a pool rotates across cases in a suite.
+        caller = pick_caller_id(self._from)
+        if caller != self._from:
+            import logging
+            logging.getLogger(__name__).info("[caller-id] using %s", caller)
+        self._from = caller
 
-        Returns:
-            CallRecord with the call SID.
-        """
-        stream_url = f'wss://{self._stream_host}/media-stream/{session_id}'
-        twiml = self._stream_twiml(stream_url)
+        if self._user_phone_number:
+            import uuid
+            conference_name = f"ivr-{uuid.uuid4().hex[:8]}"
+            # IVR leg: <Start><Stream> is non-blocking so the call also joins the conference.
+            # <Connect><Stream> is terminal and would prevent <Dial> from executing.
+            stream_start = ""
+            if self._stream_url:
+                stream_start = f'<Start><Stream url={quoteattr(self._stream_url)} /></Start>'
+            ivr_twiml = f'<Response>{stream_start}<Dial><Conference record="record-from-start">{escape(conference_name)}</Conference></Dial></Response>'
 
-        logger.info('Placing call to %s for session %s', to, session_id)
+            kwargs: dict[str, Any] = {"to": target_number, "from_": self._from, "twiml": ivr_twiml, "record": True}
+            if self._recording_status_callback:
+                kwargs["recording_status_callback"] = self._recording_status_callback
+                kwargs["recording_status_callback_event"] = ["completed"]
 
-        call = self._client.calls.create(
-            to=to,
-            from_=self._caller_id,
-            twiml=twiml,
-            **(({'status_callback': status_callback,
-                 'status_callback_method': 'POST',
-                 'status_callback_event': ['initiated', 'ringing', 'answered', 'completed']})
-               if status_callback else {}),
-        )
+            user_twiml = f'<Response><Dial><Conference>{escape(conference_name)}</Conference></Dial></Response>'
+            self._client.calls.create(to=self._user_phone_number, from_=self._from, twiml=user_twiml)
+            call = self._client.calls.create(**kwargs)
+            self._sessions[call.sid] = conference_name
+            return call.sid
+        else:
+            stream_twiml = ""
+            if self._stream_url:
+                stream_twiml = f'<Start><Stream url={quoteattr(self._stream_url)} /></Start>'
+            twiml = f'<Response>{stream_twiml}{self._KEEPALIVE_PAUSE}</Response>'
 
-        logger.info('Call placed: SID=%s', call.sid)
-        return CallRecord(
-            call_sid=call.sid,
-            to_number=to,
-            from_number=self._caller_id,
-            status=call.status,
-        )
+            kwargs: dict[str, Any] = {"to": target_number, "from_": self._from, "twiml": twiml, "record": True}
+            if self._recording_status_callback:
+                kwargs["recording_status_callback"] = self._recording_status_callback
+                kwargs["recording_status_callback_event"] = ["completed"]
 
-    def hangup(self, call_sid: str) -> None:
-        """Hang up an active call immediately."""
-        logger.info('Hanging up call %s', call_sid)
+            call = self._client.calls.create(**kwargs)
+            return call.sid
+
+    # Twilio's <Pause length> caps at 60s. Chain 30 pauses (= 30 minutes) so the
+    # call leg stays alive long enough for any reasonable IVR session. The
+    # <Start><Stream> kicked off at dial time persists across TwiML updates and
+    # keeps streaming the entire time, regardless of which Play/Say/Pause TwiML
+    # is currently executing.
+    _KEEPALIVE_PAUSE = '<Pause length="60"/>' * 30
+
+    def send_dtmf(self, session_id: str, digits: str) -> None:
+        """Sends DTMF tones to an in-progress call."""
+        safe_digits = quoteattr(digits)
+        if session_id in self._sessions:
+            conf_name = self._sessions[session_id]
+            twiml = f'<Response><Play digits={safe_digits}></Play><Dial><Conference>{escape(conf_name)}</Conference></Dial></Response>'
+        else:
+            twiml = f'<Response><Play digits={safe_digits}></Play>{self._KEEPALIVE_PAUSE}</Response>'
+        self._client.calls(session_id).update(twiml=twiml)
+
+    def play_clip(self, session_id: str, file_path: str) -> None:
+        safe_path = escape(file_path)
+        if session_id in self._sessions:
+            conf_name = self._sessions[session_id]
+            twiml = f'<Response><Play>{safe_path}</Play><Dial><Conference>{escape(conf_name)}</Conference></Dial></Response>'
+        else:
+            twiml = f'<Response><Play>{safe_path}</Play>{self._KEEPALIVE_PAUSE}</Response>'
+        self._client.calls(session_id).update(twiml=twiml)
+
+    def say(self, session_id: str, text: str) -> None:
+        """Speaks text using Twilio TTS."""
+        safe_text = escape(text)
+        if session_id in self._sessions:
+            conf_name = self._sessions[session_id]
+            twiml = f'<Response><Say>{safe_text}</Say><Dial><Conference>{escape(conf_name)}</Conference></Dial></Response>'
+        else:
+            twiml = f'<Response><Say>{safe_text}</Say>{self._KEEPALIVE_PAUSE}</Response>'
+        self._client.calls(session_id).update(twiml=twiml)
+
+    def hangup(self, session_id: str) -> None:
+        """Hangs up the IVR call and any associated conference legs."""
         try:
-            self._client.calls(call_sid).update(status='completed')
-        except Exception as e:
-            logger.error('Hangup failed for %s: %s', call_sid, e)
-
-    def inject_dtmf(self, call_sid: str, digits: str) -> None:
-        """Inject DTMF tones into an active call.
-
-        Args:
-            call_sid: The SID of the active call.
-            digits: DTMF digit(s) to send (e.g. '1', '##', '1234').
-        """
-        logger.info('Injecting DTMF "%s" into call %s', digits, call_sid)
-        # Escape digits for TwiML
-        safe_digits = digits.replace('&', '&amp;').replace('<', '&lt;')
-        self._client.calls(call_sid).update(
-            twiml=f'<Response><Play digits="{safe_digits}"/><Pause length="30"/></Response>'
-        )
-
-    # ── Media stream WebSocket handler ──────────────────────────────────────
-
-    async def handle_media_stream(
-        self,
-        websocket: Any,
-        audio_queue: asyncio.Queue,
-    ) -> None:
-        """Process Twilio Media Stream WebSocket frames into audio_queue.
-
-        Call this in a task alongside DeepgramStreamClient.stream().
-        When the WebSocket closes, pushes None sentinel to audio_queue.
-
-        Twilio frame format:
-          {"event": "media", "media": {"payload": "<base64 mulaw audio>"}}
-          {"event": "stop", ...}
-
-        Args:
-            websocket: The WebSocket connection from Twilio.
-            audio_queue: Queue to push raw mulaw audio bytes into.
-        """
-        try:
-            async for raw_message in websocket:
-                try:
-                    msg = json.loads(raw_message)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-
-                event = msg.get('event', '')
-
-                if event == 'media':
-                    payload = msg.get('media', {}).get('payload', '')
-                    if payload:
-                        audio_bytes = base64.b64decode(payload)
-                        await audio_queue.put(audio_bytes)
-
-                elif event == 'stop':
-                    logger.info('Twilio Media Stream stopped')
-                    break
-
-                elif event == 'connected':
-                    logger.info('Twilio Media Stream connected')
-
-        except Exception as e:
-            logger.error('Media stream error: %s', e)
-        finally:
-            await audio_queue.put(None)  # sentinel — signals Deepgram to stop
-
-    # ── TwiML helpers ───────────────────────────────────────────────────────
-
-    @staticmethod
-    def _stream_twiml(stream_url: str) -> str:
-        """Generate TwiML that connects a call to a Media Stream."""
-        return (
-            '<Response>'
-            '<Connect>'
-            f'<Stream url="{stream_url}" track="inbound_track"/>'
-            '</Connect>'
-            '</Response>'
-        )
-
-
-def client_from_env(stream_host: str) -> TwilioClient:
-    """Construct a TwilioClient from environment variables.
-
-    Required env vars:
-        TWILIO_ACCOUNT_SID
-        TWILIO_AUTH_TOKEN
-        TWILIO_CALLER_ID
-    """
-    return TwilioClient(
-        account_sid=os.environ['TWILIO_ACCOUNT_SID'],
-        auth_token=os.environ['TWILIO_AUTH_TOKEN'],
-        caller_id=os.environ['TWILIO_CALLER_ID'],
-        stream_host=stream_host,
-    )
+            self._client.calls(session_id).update(status="completed")
+        except Exception:
+            pass
+        # Also terminate the user's leg if it was bridged into a conference
+        if session_id in self._sessions:
+            conf_name = self._sessions.pop(session_id)
+            try:
+                participants = self._client.conferences.list(friendly_name=conf_name, status="in-progress")
+                for conf in participants:
+                    for p in self._client.conferences(conf.sid).participants.list():
+                        try:
+                            self._client.calls(p.call_sid).update(status="completed")
+                        except Exception:
+                            pass
+            except Exception:
+                pass

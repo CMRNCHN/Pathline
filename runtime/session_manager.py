@@ -43,7 +43,7 @@ from runtime.observation_quality import assess as assess_quality
 from runtime.pii_scrubber import scrub
 from runtime.stt.deepgram_client import DeepgramStreamClient, TranscriptEvent
 from runtime.storage import Session, SessionObservation, StorageBackend
-from runtime.telephony.twilio_client import TwilioClient
+from runtime.telephony.twilio_media_client import TwilioMediaClient
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class SessionManager:
 
     Args:
         storage: Persistent storage backend.
-        twilio: TwilioClient for call control.
+        twilio: TwilioMediaClient for call control and media streaming.
         deepgram: DeepgramStreamClient for STT.
         mapper: IvrMapper for world model updates.
         gap_queue: GapTaskQueue for gap accumulation.
@@ -74,7 +74,7 @@ class SessionManager:
     def __init__(
         self,
         storage: StorageBackend,
-        twilio: TwilioClient,
+        twilio: TwilioMediaClient,
         deepgram: DeepgramStreamClient,
         mapper: IvrMapper,
         gap_queue: GapTaskQueue,

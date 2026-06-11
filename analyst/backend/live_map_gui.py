@@ -494,7 +494,7 @@ def _run_session_thread(
             prior_nodes=len(prior_graph),
         )
 
-        from runtime.twilio_client import TwilioTelephonyClient
+        from runtime.telephony.twilio_client import TwilioTelephonyClient
         telephony = TwilioTelephonyClient(
             account_sid=sid or None,
             auth_token=token or None,
