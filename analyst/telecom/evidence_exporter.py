@@ -14,12 +14,12 @@ from analyst.backend.ui.ui_state import (
     WAVEFORMS_DIR,
     ANNOTATIONS_DIR
 )
-from tests.evidence_bundle import EvidenceBundle, EvidenceBundleMetadata
-from tests.integrity_manifest import IntegrityManifest
-from tests.qa_scorer import QAScorer
-from tests.failure_classifier import FailureClassifier
-from tests.benchmark_overlay import BenchmarkOverlay
-from tests.report_generator import ReportGenerator
+from analyst.telecom.evidence_bundle import EvidenceBundle, EvidenceBundleMetadata
+from analyst.telecom.integrity_manifest import IntegrityManifest
+from analyst.telecom.qa_scorer import QAScorer
+from analyst.telecom.failure_classifier import FailureClassifier
+from analyst.telecom.benchmark_overlay import BenchmarkOverlay
+from analyst.telecom.report_generator import ReportGenerator
 
 class EvidenceExporter:
     def __init__(self, output_base_dir: Path = EVIDENCE_BUNDLES_DIR):

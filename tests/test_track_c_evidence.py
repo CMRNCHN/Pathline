@@ -1,6 +1,6 @@
 import os
 import json
-from tests.evidence_exporter import EvidenceExporter
+from analyst.telecom.evidence_exporter import EvidenceExporter
 
 def test_evidence_exporter_basic(tmp_path):
     # Setup mock environment
@@ -19,7 +19,7 @@ def test_evidence_exporter_basic(tmp_path):
         f.write(json.dumps({"kind": "dtmf_sent", "payload": {"digits": "1"}, "t_ms": 2000}) + "\n")
 
     # Monkeypatch EVENTS_DIR for this test
-    import tests.evidence_exporter as ee
+    import analyst.telecom.evidence_exporter as ee
     old_events_dir = ee.EVENTS_DIR
     ee.EVENTS_DIR = tmp_path / "events"
     

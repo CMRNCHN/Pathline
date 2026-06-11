@@ -1,11 +1,11 @@
 import threading
 import uuid
 from typing import Callable
-from tests.evidence_manifest import EvidenceManifest
-from tests.evidence_exporter import EvidenceExporter
+from analyst.telecom.evidence_manifest import EvidenceManifest
+from analyst.telecom.evidence_exporter import EvidenceExporter
 from analyst.backend.ui.ui_state import STATE, EVIDENCE_BUNDLES_DIR
-from tests.telecom_test_plan import TelecomTestPlan
-from tests.telecom_test_runner import TelecomTestRunner
+from analyst.telecom.telecom_test_plan import TelecomTestPlan
+from analyst.telecom.telecom_test_runner import TelecomTestRunner
 
 # Global state for active telecom test
 _active_runner: TelecomTestRunner | None = None

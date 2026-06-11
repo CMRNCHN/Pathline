@@ -85,17 +85,11 @@ _TOLERATED_EDGES: dict[tuple[str, str], str] = {
     ("tests", "infrastructure"): "EXPECTED: test suite imports infrastructure config",
 }
 
-# Known analyst→tests violations pending migration to analyst/telecom/.
-# These are telecom validation framework modules misclassified as test utilities.
-# Hard fail if ANY NEW analyst→tests import appears beyond this exact set.
-_KNOWN_ANALYST_TEST_IMPORTS: dict[str, frozenset[str]] = {
-    "analyst/backend/routes/telecom_test_routes.py": frozenset({
-        "tests.evidence_manifest",
-        "tests.evidence_exporter",
-        "tests.telecom_test_plan",
-        "tests.telecom_test_runner",
-    }),
-}
+# Production→tests imports are now fully forbidden: the telecom validation
+# framework (EvidenceManifest, TelecomTestRunner, etc.) was migrated out of
+# tests/ into analyst/telecom/. This allow-list is intentionally empty —
+# ANY production→tests import is now a hard failure.
+_KNOWN_ANALYST_TEST_IMPORTS: dict[str, frozenset[str]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -222,11 +216,9 @@ def test_no_production_imports_tests_domain() -> None:
     """
     Production code must not import from the tests domain.
 
-    Known exception: analyst/backend/routes/telecom_test_routes.py imports
-    telecom validation framework (EvidenceManifest, TelecomTestRunner, etc.)
-    that lives in tests/ pending migration to analyst/telecom/.
-
-    Hard fail on ANY new production→tests import not in the known set.
+    The telecom validation framework (EvidenceManifest, TelecomTestRunner, etc.)
+    was migrated from tests/ to analyst/telecom/, so the previously-tracked
+    exception is gone. Hard fail on ANY production→tests import.
     """
     violations: list[str] = []
     for imp in _collect_cross_domain_imports(PRODUCTION_DOMAINS):

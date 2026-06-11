@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
-from tests.telecom_test_plan import TelecomTestPlan
-from tests.safety_guards import SafetyGuards
+from analyst.telecom.telecom_test_plan import TelecomTestPlan
+from analyst.telecom.safety_guards import SafetyGuards
 from runtime.events.event_types import EventType
 
 class TestSafetyGuards(unittest.TestCase):
