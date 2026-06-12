@@ -1,0 +1,71 @@
+; ── Outbound SIP trunk — rendered at container start from TRUNK_* env vars ─────
+;
+; entrypoint.sh fills the ${...} placeholders from the environment (your .env)
+; and writes the result to /etc/asterisk/pjsip_trunk.conf, which pjsip.conf
+; #includes. If no TRUNK_* creds are set, the rendered file is empty and no
+; trunk exists — so this is inert until you provide credentials.
+;
+; Pulse dials a real line by originating PJSIP/<number>@trunk, e.g.:
+;   PULSE_ENDPOINT="PJSIP/18009505114@trunk"
+
+; ── Option B (active): privacy-respecting ITSP, registration-based ────────────
+[trunk]
+type=endpoint
+context=from-trunk
+disallow=all
+allow=ulaw
+allow=alaw
+outbound_auth=trunk-auth
+aors=trunk-aor
+from_user=${TRUNK_FROM_USER}
+from_domain=${TRUNK_HOST}
+direct_media=no
+rtp_symmetric=yes
+force_rport=yes
+rewrite_contact=yes
+
+[trunk-auth]
+type=auth
+auth_type=userpass
+username=${TRUNK_USER}
+password=${TRUNK_PASS}
+
+[trunk-aor]
+type=aor
+contact=sip:${TRUNK_HOST}
+qualify_frequency=60
+
+[trunk-reg]
+type=registration
+transport=transport-udp
+outbound_auth=trunk-auth
+server_uri=sip:${TRUNK_HOST}
+client_uri=sip:${TRUNK_USER}@${TRUNK_HOST}
+retry_interval=60
+forbidden_retry_interval=300
+expiration=3600
+
+[trunk-identify]
+type=identify
+endpoint=trunk
+match=${TRUNK_HOST}
+
+; ── Option A (placeholder): local GSM/analog gateway, IP-auth, most private ────
+; No provider, no registration — a SIM/POTS box on your LAN. Set GATEWAY_IP in
+; your .env, uncomment this block, then dial via:
+;   PULSE_ENDPOINT="PJSIP/18009505114@gateway"
+;[gateway]
+;type=endpoint
+;context=from-trunk
+;disallow=all
+;allow=ulaw
+;aors=gateway-aor
+;
+;[gateway-aor]
+;type=aor
+;contact=sip:${GATEWAY_IP}
+;
+;[gateway-identify]
+;type=identify
+;endpoint=gateway
+;match=${GATEWAY_IP}

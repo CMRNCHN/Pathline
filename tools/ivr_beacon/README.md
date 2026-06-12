@@ -76,21 +76,47 @@ before you ever place a carrier call.
 > live run; the in-app diagnostics above are how you confirm it (you should see
 > `▸ prompt started` lines appear).
 
-### Tier A — real carrier call
+### Tier A — real call over a SIP trunk
 
 The loopback proves connect → originate → prompt-detection → DTMF → hangup
-mechanics. A *true* end-to-end test against a real IVR needs audio flowing over
-the network, which means an outbound **SIP trunk** to a carrier (Twilio SIP,
-Telnyx, etc.) configured in the container's `pjsip.conf`, then:
+mechanics, but its synthesized audio doesn't reach the control leg, so the only
+*true* end-to-end test is a real call — which needs an outbound **SIP trunk**.
+The container ships one, rendered at startup from env vars so no credentials are
+ever committed (`infrastructure/.env` is gitignored).
+
+You bring the trunk. Two privacy-focused shapes are supported:
+
+- **Privacy-respecting ITSP (registration) — active.** Sign up with a small
+  BYO-SIP provider. Calling a **toll-free** line (like `+18009505114`) is free
+  to originate, so a free-tier account can do it. Put the creds in
+  `infrastructure/.env`:
+  ```bash
+  TRUNK_HOST=sip.your-provider.example
+  TRUNK_USER=your-account
+  TRUNK_PASS=your-secret
+  # TRUNK_FROM_USER=your-account   # optional, defaults to TRUNK_USER
+  ```
+- **Local GSM/analog gateway (IP-auth) — placeholder.** A SIM/POTS box on your
+  LAN; the most private option, no provider. Uncomment the `[gateway]` block in
+  `infrastructure/docker/asterisk/pjsip_trunk.conf.template`, set `GATEWAY_IP` in
+  `.env`, and dial via `@gateway` below.
+
+Then rebuild the container and dial a real number through the trunk by selecting
+the *Environment (PULSE_\*)* template (or any template whose endpoint routes the
+trunk):
 
 ```bash
-PULSE_TARGET="+18005551234" PULSE_CARD_DIGITS="<real test card>" \
+docker compose -f infrastructure/docker-compose.yml up asterisk -d --build
+# container log should show: "SIP trunk enabled for <host>"
+
+PULSE_ENDPOINT="PJSIP/18009505114@trunk" \
   ./tools/ivr_beacon/BeaconApp/.build/release/PathlinePulse
 ```
 
-With a real call, `PULSE_ENDPOINT` keeps its `PJSIP/<target>` default and the
-mixing bridge is harmless (media already flows from the far end). The trunk is
-the one piece this repo can't provide for you.
+Enter your real test card in the menu bar, Run Probe, and the full loop fires
+against the live IVR. On a real call the mixing bridge is harmless — media
+already flows from the far end, so TALK_DETECT works. With no `TRUNK_*` set the
+trunk is inert and the container behaves exactly as before.
 
 ## Asterisk prerequisites
 
