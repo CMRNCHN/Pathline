@@ -64,6 +64,6 @@ struct PulseApp: App {
     /// event stream is bound to this probe from the first frame.
     private func runProbe() {
         let channelId = state.startProbe(number: target, menu: menuDigits, card: cardDigits)
-        client?.placeCall(to: target, channelId: channelId)
+        client?.placeCall(endpoint: PulseConfig.endpoint, channelId: channelId)
     }
 }

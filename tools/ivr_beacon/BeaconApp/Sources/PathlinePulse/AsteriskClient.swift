@@ -132,10 +132,12 @@ final class AsteriskClient: NSObject {
 
     // MARK: - Actions (ARI HTTP control)
 
-    /// Originate, assigning our pre-reserved channel id so events route deterministically.
-    func placeCall(to number: String, channelId: String) {
+    /// Originate, assigning our pre-reserved channel id so events route
+    /// deterministically. `endpoint` is the full ARI endpoint string (e.g.
+    /// "PJSIP/+18005551234" or "Local/1000@ivr-test"); see PulseConfig.endpoint.
+    func placeCall(endpoint: String, channelId: String) {
         fire("/ari/channels", method: "POST", query: [
-            "endpoint": "PJSIP/\(number)",
+            "endpoint": endpoint,
             "app": app,
             "channelId": channelId,
         ])

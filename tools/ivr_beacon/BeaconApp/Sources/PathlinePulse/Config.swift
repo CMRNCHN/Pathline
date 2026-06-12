@@ -38,6 +38,12 @@ enum PulseConfig {
     static var menuDigits: String { string("PULSE_MENU_DIGITS", "**11") }
     static var cardDigits: String { string("PULSE_CARD_DIGITS", "4111111111111111") }
 
+    /// The ARI originate endpoint. Defaults to a PJSIP trunk call to `target`
+    /// (the production path), so behavior is unchanged when unset. Override with
+    /// PULSE_ENDPOINT to dial something else — e.g. "Local/1000@ivr-test" to loop
+    /// against the test container's built-in IVR with no carrier or trunk.
+    static var endpoint: String { string("PULSE_ENDPOINT", "PJSIP/\(target)") }
+
     // ── Asterisk ARI connection ───────────────────────────────────────────────
     // `ari:ari` is the stock dev user:pass; override for any real instance.
     static var host: String { string("PULSE_ARI_HOST", "127.0.0.1") }

@@ -71,7 +71,8 @@ services:
       dockerfile: docker/asterisk/Dockerfile
     ports:
       - "5060:5060/udp"   # SIP
-      - "5038:5038"        # AMI (control plane)
+      - "5038:5038"        # AMI (control plane, Python test harness)
+      - "8088:8088"        # ARI HTTP + event WebSocket (Pathline Pulse)
       - "10000-10020:10000-10020/udp"  # RTP media
     environment:
       ASTERISK_AMI_HOST: "127.0.0.1"

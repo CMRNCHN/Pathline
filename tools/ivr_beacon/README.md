@@ -33,6 +33,39 @@ Run Probe ─▶ reserve channel id ─▶ ARI originate(channelId)
 All progression is driven by ARI events — there are no timers in the app. The
 one timing knob is `TALK_DETECT`'s silence threshold (see calibration below).
 
+## Quick start with Docker (no carrier, no real call)
+
+The repo ships an Asterisk container with ARI enabled and a built-in test IVR
+(extension `1000`). This is the fastest way to exercise the full
+`originate → Stasis → TALK_DETECT → DTMF → hangup` loop without a SIP trunk or
+a real phone call — point Pulse at a `Local` channel that runs that IVR:
+
+```bash
+# 1. Build & start the ARI-capable Asterisk container (from infrastructure/)
+docker compose -f infrastructure/docker-compose.yml up asterisk -d
+
+# 2. Confirm ARI is up (and the ari:ari credentials work)
+curl -fsS "http://127.0.0.1:8088/ari/asterisk/info?api_key=ari:ari"
+
+# 3. Build Pulse
+bash tools/ivr_beacon/setup.sh
+
+# 4. Loop against the container's IVR — no carrier involved
+PULSE_ENDPOINT="Local/1000@ivr-test" \
+PULSE_MENU_DIGITS="2" \
+PULSE_CARD_DIGITS="5" \
+  ./tools/ivr_beacon/BeaconApp/.build/release/PathlinePulse
+```
+
+Click the menu-bar icon → **Run Probe** and watch the row advance. The
+container IVR's prompt semantics don't match a real card IVR — that's fine; the
+point is to verify the event loop fires end to end and to calibrate
+`PULSE_TALK_SILENCE_MS` / `PULSE_MIN_PROMPT_MS` against real spoken prompts
+before you ever place a carrier call.
+
+> This Local-channel loopback has **not** been run end to end yet; it is the
+> first thing the container change is meant to let you (or us) verify.
+
 ## Asterisk prerequisites
 
 Pulse needs a reachable Asterisk (local by default) with ARI/HTTP enabled and a
@@ -82,6 +115,7 @@ of them in the environment **before launching the app** — no recompile needed.
 | Variable | Default | Purpose |
 |---|---|---|
 | `PULSE_TARGET` | `+18009505114` | IVR number to dial |
+| `PULSE_ENDPOINT` | `PJSIP/<PULSE_TARGET>` | full ARI originate endpoint; override to e.g. `Local/1000@ivr-test` for a no-carrier loopback test |
 | `PULSE_MENU_DIGITS` | `**11` | DTMF sent after the greeting |
 | `PULSE_CARD_DIGITS` | `4111111111111111` (Visa test card placeholder) | DTMF sent after the card prompt — **override with the card you want to probe** |
 | `PULSE_ARI_HOST` | `127.0.0.1` | Asterisk ARI host |
