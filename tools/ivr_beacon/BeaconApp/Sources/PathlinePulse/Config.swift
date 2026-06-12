@@ -31,11 +31,12 @@ enum PulseConfig {
     }
 
     // ── Probe definition ──────────────────────────────────────────────────────
-    // The card number default is a placeholder; override PULSE_CARD_DIGITS with a
-    // real test card before probing a live IVR.
+    // cardDigits defaults to the canonical Visa test number (4111…1111) as a
+    // placeholder — never a real card in source. Override PULSE_CARD_DIGITS with
+    // the card you actually want to probe before running against a live IVR.
     static var target: String { string("PULSE_TARGET", "+18009505114") }
     static var menuDigits: String { string("PULSE_MENU_DIGITS", "**11") }
-    static var cardDigits: String { string("PULSE_CARD_DIGITS", "5189410161261964") }
+    static var cardDigits: String { string("PULSE_CARD_DIGITS", "4111111111111111") }
 
     // ── Asterisk ARI connection ───────────────────────────────────────────────
     // `ari:ari` is the stock dev user:pass; override for any real instance.

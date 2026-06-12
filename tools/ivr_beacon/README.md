@@ -83,7 +83,7 @@ of them in the environment **before launching the app** — no recompile needed.
 |---|---|---|
 | `PULSE_TARGET` | `+18009505114` | IVR number to dial |
 | `PULSE_MENU_DIGITS` | `**11` | DTMF sent after the greeting |
-| `PULSE_CARD_DIGITS` | *(placeholder)* | DTMF sent after the card prompt — **set a real test card** |
+| `PULSE_CARD_DIGITS` | `4111111111111111` (Visa test card placeholder) | DTMF sent after the card prompt — **override with the card you want to probe** |
 | `PULSE_ARI_HOST` | `127.0.0.1` | Asterisk ARI host |
 | `PULSE_ARI_PORT` | `8088` | Asterisk ARI port |
 | `PULSE_ARI_API_KEY` | `ari:ari` | ARI `user:pass` |
