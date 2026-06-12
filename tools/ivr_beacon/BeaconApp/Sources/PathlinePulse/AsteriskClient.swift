@@ -48,7 +48,14 @@ final class AsteriskClient: NSObject {
     /// channel.id → when its current talking segment began (ChannelTalkingStarted).
     private var talkingStartedAt: [String: Date] = [:]
 
+    /// channel.id → the mixing bridge we created to hold it. The control channel
+    /// must be in a bridge for its media to be pumped, otherwise TALK_DETECT never
+    /// sees audio on a loopback (Local) call and the FSM stalls. See enterStasis.
+    private var bridges: [String: String] = [:]
+
     private var socket: URLSessionWebSocketTask?
+    private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+    private var reconnecting = false
     private let state: PulseState
 
     init(state: PulseState) {
@@ -58,8 +65,9 @@ final class AsteriskClient: NSObject {
     // MARK: - Connect ARI WebSocket
 
     func connect() {
+        Task { @MainActor in self.state.setConnection(.connecting) }
         let url = URL(string: "ws://\(host):\(port)/ari/events?api_key=\(apiKey)&app=\(app)")!
-        let task = URLSession(configuration: .default).webSocketTask(with: url)
+        let task = session.webSocketTask(with: url)
         socket = task
         task.resume()
         listen()
@@ -68,11 +76,28 @@ final class AsteriskClient: NSObject {
     private func listen() {
         socket?.receive { [weak self] result in
             guard let self else { return }
-            if case .success(let message) = result {
+            switch result {
+            case .success(let message):
                 self.handle(message)
                 self.listen()   // re-arm for the next frame
+            case .failure:
+                // The read failed (ARI down, dropped). Surface it and retry —
+                // the old client died silently here, which is why a probe could
+                // look frozen with no explanation.
+                Task { @MainActor in self.state.setConnection(.disconnected) }
+                self.scheduleReconnect()
             }
-            // On failure we stop listening (no retry — intentional).
+        }
+    }
+
+    /// Reconnect once after a short delay. Guarded so the delegate's close/error
+    /// callbacks and a failed read don't stack up multiple reconnect loops.
+    private func scheduleReconnect() {
+        guard !reconnecting else { return }
+        reconnecting = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.reconnecting = false
+            self?.connect()
         }
     }
 
@@ -96,17 +121,29 @@ final class AsteriskClient: NSObject {
         switch event.type {
         case "StasisStart":
             state.enterStasis(channelId: id)
-            enableTalkDetect(channelId: id)      // arm prompt-end detection
+            // Hold the channel in a mixing bridge so Asterisk pumps its media —
+            // without this, TALK_DETECT gets no audio on a Local loopback call and
+            // no prompt-end ever fires. Then arm prompt-end detection.
+            let bridgeId = "\(id)-bridge"
+            bridges[id] = bridgeId
+            createBridge(bridgeId)
+            addToBridge(bridgeId: bridgeId, channelId: id)
+            enableTalkDetect(channelId: id)
+            state.note(channelId: id, "⚙ stasis · bridged · talk-detect \(talkSilenceMs)ms")
         case "ChannelTalkingStarted":
             talkingStartedAt[id] = Date()
+            state.note(channelId: id, "▸ prompt started")
         case "ChannelTalkingFinished":
             if promptWasLongEnough(id) {
                 perform(state.advance(channelId: id), on: id)
+            } else {
+                state.note(channelId: id, "· short blip ignored")
             }
         case "ChannelDtmfReceived":
             if let digit = event.digit { state.noteDTMF(channelId: id, digit: digit) }
         case "ChannelDestroyed":
             talkingStartedAt[id] = nil
+            if let bridgeId = bridges.removeValue(forKey: id) { destroyBridge(bridgeId) }
             state.finish(channelId: id)
         default:
             break
@@ -159,6 +196,22 @@ final class AsteriskClient: NSObject {
         fire("/ari/channels/\(channelId)", method: "DELETE")
     }
 
+    // MARK: - Bridge (media pumping for TALK_DETECT)
+
+    /// Create a mixing bridge with a pre-chosen id (so we never need to parse the
+    /// POST response — same trick as the pre-reserved channel id).
+    private func createBridge(_ bridgeId: String) {
+        fire("/ari/bridges/\(bridgeId)", method: "POST", query: ["type": "mixing"])
+    }
+
+    private func addToBridge(bridgeId: String, channelId: String) {
+        fire("/ari/bridges/\(bridgeId)/addChannel", method: "POST", query: ["channel": channelId])
+    }
+
+    private func destroyBridge(_ bridgeId: String) {
+        fire("/ari/bridges/\(bridgeId)", method: "DELETE")
+    }
+
     // MARK: - Request builder
 
     /// Fire-and-forget HTTP. Uses URLComponents so values like `TALK_DETECT(set)`
@@ -178,5 +231,23 @@ final class AsteriskClient: NSObject {
         var req = URLRequest(url: url)
         req.httpMethod = method
         URLSession.shared.dataTask(with: req).resume()
+    }
+}
+
+// MARK: - WebSocket lifecycle → connection state
+
+extension AsteriskClient: URLSessionWebSocketDelegate {
+    func urlSession(_ session: URLSession,
+                    webSocketTask: URLSessionWebSocketTask,
+                    didOpenWithProtocol protocol: String?) {
+        Task { @MainActor in self.state.setConnection(.connected) }
+    }
+
+    func urlSession(_ session: URLSession,
+                    webSocketTask: URLSessionWebSocketTask,
+                    didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+                    reason: Data?) {
+        Task { @MainActor in self.state.setConnection(.disconnected) }
+        scheduleReconnect()
     }
 }

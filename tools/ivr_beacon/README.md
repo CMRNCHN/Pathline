@@ -57,14 +57,40 @@ PULSE_CARD_DIGITS="5" \
   ./tools/ivr_beacon/BeaconApp/.build/release/PathlinePulse
 ```
 
-Click the menu-bar icon → **Run Probe** and watch the row advance. The
-container IVR's prompt semantics don't match a real card IVR — that's fine; the
-point is to verify the event loop fires end to end and to calibrate
+The menu bar shows an **ARI status line** (green = connected) and **Run Probe**
+is disabled until the WebSocket is up — so a down/misconfigured Asterisk is
+visible immediately instead of looking frozen. Click **Run Probe** and watch the
+row advance; the transcript shows diagnostics (`⚙ stasis · bridged`, `▸ prompt
+started`, `→ menu`, `‹dtmf …›`) so you can see exactly why the FSM does or
+doesn't move.
+
+The container IVR's prompt semantics don't match a real card IVR — that's fine;
+the point is to verify the event loop fires end to end and to calibrate
 `PULSE_TALK_SILENCE_MS` / `PULSE_MIN_PROMPT_MS` against real spoken prompts
 before you ever place a carrier call.
 
-> This Local-channel loopback has **not** been run end to end yet; it is the
-> first thing the container change is meant to let you (or us) verify.
+> **Loopback media note.** On a `Local` loopback the control leg has no audio
+> unless it is bridged, so Pulse puts the channel into a mixing bridge on
+> StasisStart — without it, TALK_DETECT never fires and the probe stalls in
+> `waitingForGreeting`. This bridge path is new and not yet confirmed against a
+> live run; the in-app diagnostics above are how you confirm it (you should see
+> `▸ prompt started` lines appear).
+
+### Tier A — real carrier call
+
+The loopback proves connect → originate → prompt-detection → DTMF → hangup
+mechanics. A *true* end-to-end test against a real IVR needs audio flowing over
+the network, which means an outbound **SIP trunk** to a carrier (Twilio SIP,
+Telnyx, etc.) configured in the container's `pjsip.conf`, then:
+
+```bash
+PULSE_TARGET="+18005551234" PULSE_CARD_DIGITS="<real test card>" \
+  ./tools/ivr_beacon/BeaconApp/.build/release/PathlinePulse
+```
+
+With a real call, `PULSE_ENDPOINT` keeps its `PJSIP/<target>` default and the
+mixing bridge is harmless (media already flows from the far end). The trunk is
+the one piece this repo can't provide for you.
 
 ## Asterisk prerequisites
 

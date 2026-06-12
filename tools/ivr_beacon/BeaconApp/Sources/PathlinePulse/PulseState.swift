@@ -9,6 +9,15 @@ enum CallStatus: String {
     case error
 }
 
+/// Liveness of the ARI WebSocket. Surfaced in the menu bar so a failed or
+/// dropped connection is visible instead of silent — the app used to connect
+/// once and show nothing, which made "why isn't anything happening?" unanswerable.
+enum ConnectionState: String {
+    case connecting = "connecting…"
+    case connected = "connected"
+    case disconnected = "disconnected"
+}
+
 /// The four phases of a card-status probe — "what we are waiting for".
 /// Not a general workflow engine: call → greeting → card prompt → result → done.
 /// Sends (menu DTMF, card DTMF) are `ProbeAction`s, not phases — in an
@@ -50,8 +59,23 @@ struct CallProbe: Identifiable {
 final class PulseState: ObservableObject {
     @Published private(set) var probes: [CallProbe] = []
 
+    /// ARI WebSocket liveness, for the menu bar status line.
+    @Published private(set) var connection: ConnectionState = .connecting
+
     /// ARI channel.id → CallProbe.id. The one source of channel ownership.
     private(set) var channelMap: [String: UUID] = [:]
+
+    /// Update the displayed ARI connection state. Called by AsteriskClient as the
+    /// WebSocket opens, closes, or drops.
+    func setConnection(_ state: ConnectionState) { connection = state }
+
+    /// Append a diagnostic line to a probe's transcript — armed TALK_DETECT,
+    /// prompt boundaries, ignored blips — so the operator can see *why* the FSM
+    /// is (or isn't) advancing, not just its final state.
+    func note(channelId: String, _ line: String) {
+        guard let i = index(for: channelId) else { return }
+        appendTranscript(&probes[i], line)
+    }
 
     /// Create a probe and reserve its channel id up front. We hand this id to
     /// ARI on originate (`channelId`), so the binding exists *before* any event

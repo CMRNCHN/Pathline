@@ -20,7 +20,17 @@ struct PulseApp: App {
     var body: some Scene {
         MenuBarExtra("Pulse", systemImage: "waveform.path.ecg") {
             VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(state.connection == .connected ? Color.green : Color.orange)
+                        .frame(width: 8, height: 8)
+                    Text("ARI: \(state.connection.rawValue)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Button("Run Probe") { runProbe() }
+                    .disabled(state.connection != .connected)
 
                 Divider()
 
