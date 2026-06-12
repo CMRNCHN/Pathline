@@ -157,6 +157,29 @@ PULSE_TARGET="+18005551234" PULSE_MENU_DIGITS="1" PULSE_CARD_DIGITS="41111111111
   ./tools/ivr_beacon/BeaconApp/.build/release/PathlinePulse
 ```
 
+## Templates & card entry (menu bar)
+
+The dropdown has a **template picker** and a **card-number field**, so you don't
+need env vars for routine runs:
+
+- **Template** — selects where to call and how to reach the card prompt
+  (endpoint + menu digits). Built-ins: *Environment (PULSE_\*)* (mirrors your env
+  vars), *Local test IVR (container)*, *Card status line*.
+- **Card number** — typed per run; never stored in a template. Run Probe is
+  disabled until it's filled in.
+
+Define your own templates by dropping a JSON array at `~/.pulse/templates.json`
+(or point `PULSE_TEMPLATES` at a file). Each entry:
+
+```json
+[
+  { "id": "acme", "name": "Acme card line", "endpoint": "PJSIP/+18005551234",
+    "target": "+18005551234", "menuDigits": "**11" }
+]
+```
+
+The env vars still work and show up as the *Environment* template.
+
 ## Calibration (do this with real traffic)
 
 `PULSE_TALK_SILENCE_MS` and `PULSE_MIN_PROMPT_MS` are uncalibrated defaults:

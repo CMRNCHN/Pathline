@@ -8,14 +8,8 @@ import SwiftUI
 @main
 struct PulseApp: App {
     @StateObject private var state = PulseState()
+    @StateObject private var form = ProbeForm()
     @State private var client: AsteriskClient?
-
-    // Probe definition. Defaults run against a stock setup; override via the
-    // PULSE_* environment variables (see PulseConfig / README) to point at your
-    // own IVR without recompiling. The suite-as-script engine remains a non-goal.
-    private let target = PulseConfig.target
-    private let menuDigits = PulseConfig.menuDigits
-    private let cardDigits = PulseConfig.cardDigits
 
     var body: some Scene {
         MenuBarExtra("Pulse", systemImage: "waveform.path.ecg") {
@@ -29,8 +23,21 @@ struct PulseApp: App {
                         .foregroundStyle(.secondary)
                 }
 
+                Picker("Template", selection: $form.template) {
+                    ForEach(ProbeTemplates.all) { template in
+                        Text(template.name).tag(template)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                HStack(spacing: 6) {
+                    Text("Card").font(.caption).foregroundStyle(.secondary)
+                    TextField("card number", text: $form.card)
+                        .textFieldStyle(.roundedBorder)
+                }
+
                 Button("Run Probe") { runProbe() }
-                    .disabled(state.connection != .connected)
+                    .disabled(state.connection != .connected || form.card.isEmpty)
 
                 Divider()
 
@@ -70,10 +77,12 @@ struct PulseApp: App {
         client = c
     }
 
-    /// Start one probe. The channel id is reserved here and handed to ARI, so the
-    /// event stream is bound to this probe from the first frame.
+    /// Start one probe from the selected template + typed card number. The channel
+    /// id is reserved here and handed to ARI, so the event stream is bound to this
+    /// probe from the first frame.
     private func runProbe() {
-        let channelId = state.startProbe(number: target, menu: menuDigits, card: cardDigits)
-        client?.placeCall(endpoint: PulseConfig.endpoint, channelId: channelId)
+        let t = form.template
+        let channelId = state.startProbe(number: t.target, menu: t.menuDigits, card: form.card)
+        client?.placeCall(endpoint: t.endpoint, channelId: channelId)
     }
 }
