@@ -195,7 +195,16 @@ final class AsteriskClient: NSObject {
     /// ARI reads `dtmf` from the JSON body via its generated body parser, so the
     /// card number never appears in any URL anywhere in the request path.
     func sendDTMF(channelId: String, digits: String) {
-        fire("/ari/channels/\(channelId)/dtmf", method: "POST", body: ["dtmf": digits])
+        send(dtmfRequest(channelId: channelId, digits: digits))
+    }
+
+    /// The exact request `sendDTMF` issues, exposed (internal, not private) so the
+    /// leak tests can assert the PAN is carried in the body and is absent from the
+    /// URL — without performing any network I/O. Keeping this the *same* code path
+    /// `sendDTMF` uses is what makes the URL-leak test a real guard rather than a
+    /// parallel reimplementation that could drift from production.
+    func dtmfRequest(channelId: String, digits: String) -> URLRequest? {
+        makeRequest("/ari/channels/\(channelId)/dtmf", method: "POST", body: ["dtmf": digits])
     }
 
     func hangup(channelId: String) {
@@ -220,17 +229,30 @@ final class AsteriskClient: NSObject {
 
     // MARK: - Request builder
 
-    /// Fire-and-forget HTTP. Uses URLComponents so values like `TALK_DETECT(set)`
-    /// and `**11` are percent-encoded correctly. Every call carries api_key, or
-    /// Asterisk answers 401.
+    /// Fire-and-forget HTTP: build the request, then send it.
+    private func fire(_ path: String, method: String,
+                      query: [String: String] = [:],
+                      body: [String: String]? = nil) {
+        send(makeRequest(path, method: method, query: query, body: body))
+    }
+
+    private func send(_ request: URLRequest?) {
+        guard let request else { return }
+        URLSession.shared.dataTask(with: request).resume()
+    }
+
+    /// Build (but don't send) an ARI request. Uses URLComponents so values like
+    /// `TALK_DETECT(set)` and `**11` are percent-encoded correctly. Every call
+    /// carries api_key, or Asterisk answers 401.
     ///
     /// `query` values land in the URL (and therefore in access logs); `body`
     /// values are sent as a JSON request body and never appear in a URL. Anything
     /// sensitive — the card number above all — MUST go through `body`, never
     /// `query`, because URLs are routinely logged by every hop even under TLS.
-    private func fire(_ path: String, method: String,
-                      query: [String: String] = [:],
-                      body: [String: String]? = nil) {
+    /// Internal (not private) so the leak tests can inspect the generated request.
+    func makeRequest(_ path: String, method: String,
+                     query: [String: String] = [:],
+                     body: [String: String]? = nil) -> URLRequest? {
         var comps = URLComponents()
         comps.scheme = "http"
         comps.host = host
@@ -239,7 +261,7 @@ final class AsteriskClient: NSObject {
         comps.queryItems =
             query.map { URLQueryItem(name: $0.key, value: $0.value) }
             + [URLQueryItem(name: "api_key", value: apiKey)]
-        guard let url = comps.url else { return }
+        guard let url = comps.url else { return nil }
 
         var req = URLRequest(url: url)
         req.httpMethod = method
@@ -247,7 +269,7 @@ final class AsteriskClient: NSObject {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         }
-        URLSession.shared.dataTask(with: req).resume()
+        return req
     }
 }
 

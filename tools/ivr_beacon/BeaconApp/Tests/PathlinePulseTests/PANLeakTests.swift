@@ -68,4 +68,23 @@ final class PANLeakTests: XCTestCase {
         XCTAssertTrue(transcript.contains("dtmf received"),
                       "DTMF arrival should still be noted (without the value)")
     }
+
+    /// The card number must never appear in the outbound request URL — only in the
+    /// body. This inspects the *exact* request `sendDTMF` issues, so it fails the
+    /// build if anyone moves the digits back into a query string in the future.
+    func testNoPANAppearsInOutboundRequestURL() {
+        let client = AsteriskClient(state: PulseState())
+        guard let request = client.dtmfRequest(channelId: "chan-1", digits: pan) else {
+            return XCTFail("dtmfRequest returned nil")
+        }
+
+        let url = request.url?.absoluteString ?? ""
+        XCTAssertFalse(url.contains(pan), "PAN leaked into the request URL: \(url)")
+        XCTAssertFalse(containsPANShape(url), "A 13–19 digit run reached the URL: \(url)")
+
+        // …and confirm it IS carried in the body, so the digits actually reach ARI.
+        let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        XCTAssertTrue(body.contains(pan), "PAN should be carried in the request body")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+    }
 }
