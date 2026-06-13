@@ -225,19 +225,31 @@ Pulse implements these data-protection controls in code:
   is cleared the moment Run Probe fires. The PAN is never retained between runs.
 - **No card-shaped default.** `PULSE_CARD_DIGITS` defaults to empty; nothing
   card-shaped is baked into the binary or pre-filled into the field.
-- **Loopback-only transport.** DTMF rides in the ARI request URL over cleartext
-  `http://`. This is safe only on loopback. **Keep `PULSE_ARI_HOST=127.0.0.1`**
-  (the default) unless you terminate ARI over TLS — otherwise the PAN travels in
-  cleartext and can land in an intermediary's access log.
+- **PAN never appears in a URL.** DTMF (which carries the card number) is sent in
+  the ARI request **body**, never the query string. A PAN in a URL leaks into
+  access logs, proxy logs, and tracing systems *even under TLS* — TLS protects
+  the wire, not the log files. The body keeps it out of every URL on the path.
+- **Leak regression tests.** `Tests/PathlinePulseTests/PANLeakTests.swift` fails
+  the build if a 13–19 digit PAN ever reaches a transcript (including via echoed
+  DTMF) or survives in `CallProbe` after dialing. Run with `swift test`.
 
 Operator responsibilities (not enforced in code):
 
-- Disable/scrub Asterisk's HTTP access logging for the `/ari/channels/.../dtmf`
-  path, or keep it off — that URL contains the PAN.
+- **Keep ARI on loopback or TLS.** The client still speaks cleartext `http://`,
+  and the request *body* and the `api_key` credential travel over it. On loopback
+  (`PULSE_ARI_HOST=127.0.0.1`, the default) nothing reaches a wire; for any remote
+  ARI, terminate it over TLS.
+- **Don't log request bodies.** The PAN is now out of URLs, but it's in the POST
+  body — ensure Asterisk (and any proxy) isn't configured to log request bodies.
 - Define and enforce a **retention policy**: delete any temporarily stored card
   as soon as the subscriber's payment clears. Don't persist PANs to disk.
 - Complete the appropriate **SAQ** (likely SAQ D, since you store and process
   card data) and keep an access log + key-management story for anything at rest.
+
+> **Verify on a live ARI.** The DTMF-in-body path relies on Asterisk reading the
+> `dtmf` parameter from the JSON body. This is the documented ARI behaviour but
+> has not been exercised here (no Asterisk/Swift toolchain in CI) — confirm the
+> first live probe still advances past the card prompt before trusting it.
 
 ## Calibration (do this with real traffic)
 

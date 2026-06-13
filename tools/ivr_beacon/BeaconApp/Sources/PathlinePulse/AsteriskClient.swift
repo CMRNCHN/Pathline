@@ -188,15 +188,14 @@ final class AsteriskClient: NSObject {
         ])
     }
 
-    /// Send DTMF on the channel. ⚠️ CARDHOLDER DATA: when `digits` is the card
-    /// number, it rides in the request URL's query string (ARI takes `dtmf` as a
-    /// query param). This client speaks cleartext `http://`, which is safe ONLY on
-    /// loopback, where the request never reaches a wire. If you ever point Pulse
-    /// at a non-loopback `PULSE_ARI_HOST`, you MUST terminate ARI over TLS first —
-    /// otherwise the PAN travels in cleartext and can land in any intermediary's
-    /// access log. Keep ARI on 127.0.0.1 (default) unless TLS is in place.
+    /// Send DTMF on the channel. ⚠️ CARDHOLDER DATA: the digits can be a card
+    /// number, so they are sent in the request BODY, never the URL query string.
+    /// A PAN in a URL leaks into access logs, proxy logs, and tracing/observability
+    /// systems even under TLS — TLS protects the wire, not the log files behind it.
+    /// ARI reads `dtmf` from the JSON body via its generated body parser, so the
+    /// card number never appears in any URL anywhere in the request path.
     func sendDTMF(channelId: String, digits: String) {
-        fire("/ari/channels/\(channelId)/dtmf", method: "POST", query: ["dtmf": digits])
+        fire("/ari/channels/\(channelId)/dtmf", method: "POST", body: ["dtmf": digits])
     }
 
     func hangup(channelId: String) {
@@ -224,7 +223,14 @@ final class AsteriskClient: NSObject {
     /// Fire-and-forget HTTP. Uses URLComponents so values like `TALK_DETECT(set)`
     /// and `**11` are percent-encoded correctly. Every call carries api_key, or
     /// Asterisk answers 401.
-    private func fire(_ path: String, method: String, query: [String: String] = [:]) {
+    ///
+    /// `query` values land in the URL (and therefore in access logs); `body`
+    /// values are sent as a JSON request body and never appear in a URL. Anything
+    /// sensitive — the card number above all — MUST go through `body`, never
+    /// `query`, because URLs are routinely logged by every hop even under TLS.
+    private func fire(_ path: String, method: String,
+                      query: [String: String] = [:],
+                      body: [String: String]? = nil) {
         var comps = URLComponents()
         comps.scheme = "http"
         comps.host = host
@@ -237,6 +243,10 @@ final class AsteriskClient: NSObject {
 
         var req = URLRequest(url: url)
         req.httpMethod = method
+        if let body {
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        }
         URLSession.shared.dataTask(with: req).resume()
     }
 }
