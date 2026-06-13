@@ -110,8 +110,14 @@ final class PulseState: ObservableObject {
             return .sendDTMF(probes[i].menuDigits)
         case .waitingForCardPrompt:
             probes[i].phase = .waitingForResult
-            appendTranscript(&probes[i], "→ card (\(probes[i].cardDigits.count) digits)")
-            return .sendDTMF(probes[i].cardDigits)
+            // Hand the PAN off to the client, then wipe it from app memory
+            // immediately. After this point the card number lives nowhere in
+            // Pulse — not in the probe, not in the transcript (we log only the
+            // digit count). This bounds PAN residency to a single FSM transition.
+            let card = probes[i].cardDigits
+            probes[i].cardDigits = ""
+            appendTranscript(&probes[i], "→ card (\(card.count) digits)")
+            return .sendDTMF(card)
         case .waitingForResult:
             probes[i].phase = .done
             appendTranscript(&probes[i], "→ hangup")
@@ -121,9 +127,17 @@ final class PulseState: ObservableObject {
         }
     }
 
-    func noteDTMF(channelId: String, digit: String) {
+    /// A DTMF digit was received on the channel. We deliberately do NOT record
+    /// the digit's *value*: during the card phase the IVR (or a loopback echo)
+    /// can emit the card number digit-by-digit, and logging each value would
+    /// reconstruct the full PAN in the transcript — a cardholder-data leak into
+    /// both the UI and process memory. We log only that a digit arrived, which
+    /// preserves the diagnostic ("DTMF is flowing") without the sensitive value.
+    /// Digits Pulse *sends* are already shown structurally in `advance()` (menu
+    /// verbatim, card as a count only).
+    func noteDTMF(channelId: String, digit _: String) {
         guard let i = index(for: channelId) else { return }
-        appendTranscript(&probes[i], "‹dtmf \(digit)›")
+        appendTranscript(&probes[i], "‹dtmf received›")
     }
 
     /// ChannelDestroyed: the call ended (by us or the far side).

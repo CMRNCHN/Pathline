@@ -169,7 +169,7 @@ of them in the environment **before launching the app** — no recompile needed.
 | `PULSE_TARGET` | `+18009505114` | IVR number to dial |
 | `PULSE_ENDPOINT` | `PJSIP/<PULSE_TARGET>` | full ARI originate endpoint; override to e.g. `Local/1000@ivr-test` for a no-carrier loopback test |
 | `PULSE_MENU_DIGITS` | `**11` | DTMF sent after the greeting |
-| `PULSE_CARD_DIGITS` | `4111111111111111` (Visa test card placeholder) | DTMF sent after the card prompt — **override with the card you want to probe** |
+| `PULSE_CARD_DIGITS` | _(empty)_ | DTMF sent after the card prompt. **No default** — type the card per-run in the menu bar; only set this for an automated loopback test. See [Cardholder data](#cardholder-data-pci). |
 | `PULSE_ARI_HOST` | `127.0.0.1` | Asterisk ARI host |
 | `PULSE_ARI_PORT` | `8088` | Asterisk ARI port |
 | `PULSE_ARI_API_KEY` | `ari:ari` | ARI `user:pass` |
@@ -177,9 +177,9 @@ of them in the environment **before launching the app** — no recompile needed.
 | `PULSE_TALK_SILENCE_MS` | `1500` | TALK_DETECT silence threshold (ms) — **needs calibration** |
 | `PULSE_MIN_PROMPT_MS` | `2000` | minimum sustained-speech duration to count a prompt (ms) — **needs calibration** |
 
-Example — point Pulse at a different IVR with a test card:
+Example — point Pulse at a different IVR (type the card in the menu bar):
 ```bash
-PULSE_TARGET="+18005551234" PULSE_MENU_DIGITS="1" PULSE_CARD_DIGITS="4111111111111111" \
+PULSE_TARGET="+18005551234" PULSE_MENU_DIGITS="1" \
   ./tools/ivr_beacon/BeaconApp/.build/release/PathlinePulse
 ```
 
@@ -206,6 +206,39 @@ Define your own templates by dropping a JSON array at `~/.pulse/templates.json`
 
 The env vars still work and show up as the *Environment* template.
 
+## Cardholder data (PCI)
+
+If you ever feed Pulse a **real** card number, you are handling cardholder data
+and are in PCI DSS scope. An IVR probe is structurally unable to avoid this:
+sending a card as DTMF requires the cleartext digits at send time, so you cannot
+tokenize your way out of scope the way an e-commerce checkout can. Treat the
+controls below as the minimum and pair them with a retention policy and an SAQ.
+
+Pulse implements these data-protection controls in code:
+
+- **PAN never enters the transcript.** `ChannelDtmfReceived` is logged as
+  `‹dtmf received›` with the digit value redacted, so an IVR/loopback echo can't
+  reconstruct the card number into the on-screen transcript. The card send itself
+  is logged only as a digit *count* (`→ card (N digits)`), never the digits.
+- **Minimal in-memory residency.** The card number is wiped from the probe the
+  instant it's handed to the dialer (one FSM transition), and the menu-bar field
+  is cleared the moment Run Probe fires. The PAN is never retained between runs.
+- **No card-shaped default.** `PULSE_CARD_DIGITS` defaults to empty; nothing
+  card-shaped is baked into the binary or pre-filled into the field.
+- **Loopback-only transport.** DTMF rides in the ARI request URL over cleartext
+  `http://`. This is safe only on loopback. **Keep `PULSE_ARI_HOST=127.0.0.1`**
+  (the default) unless you terminate ARI over TLS — otherwise the PAN travels in
+  cleartext and can land in an intermediary's access log.
+
+Operator responsibilities (not enforced in code):
+
+- Disable/scrub Asterisk's HTTP access logging for the `/ari/channels/.../dtmf`
+  path, or keep it off — that URL contains the PAN.
+- Define and enforce a **retention policy**: delete any temporarily stored card
+  as soon as the subscriber's payment clears. Don't persist PANs to disk.
+- Complete the appropriate **SAQ** (likely SAQ D, since you store and process
+  card data) and keep an access log + key-management story for anything at rest.
+
 ## Calibration (do this with real traffic)
 
 `PULSE_TALK_SILENCE_MS` and `PULSE_MIN_PROMPT_MS` are uncalibrated defaults:
@@ -223,12 +256,12 @@ the transcript in the menu bar — no rebuild required.
 ## Testing checklist
 
 1. `bash tools/ivr_beacon/setup.sh` — confirm it builds and reports **ARI reachable**.
-2. Export `PULSE_CARD_DIGITS` with a real test card (and any other overrides).
-3. Launch the binary; confirm the waveform icon appears in the menu bar.
+2. Launch the binary; confirm the waveform icon appears in the menu bar.
+3. Pick a template and **type the card number** in the field (it's never stored).
 4. Click **Run Probe**. Watch the dropdown advance through the phases:
    `connecting → inCall`, then `waitingForGreeting → waitingForCardPrompt →
-   waitingForResult → done`, with `→ menu`, `→ card`, `→ hangup` and `‹dtmf …›`
-   lines appearing in the transcript.
+   waitingForResult → done`, with `→ menu`, `→ card (N digits)`, `→ hangup` and
+   `‹dtmf received›` lines appearing in the transcript (card digits redacted).
 5. Confirm the call hangs up cleanly and the probe shows `completed`.
 
 > **Status:** the full `originate → StasisStart → TALK_DETECT → DTMF → hangup`

@@ -31,12 +31,14 @@ enum PulseConfig {
     }
 
     // ── Probe definition ──────────────────────────────────────────────────────
-    // cardDigits defaults to the canonical Visa test number (4111…1111) as a
-    // placeholder — never a real card in source. Override PULSE_CARD_DIGITS with
-    // the card you actually want to probe before running against a live IVR.
+    // cardDigits has NO default on purpose: a card number is entered per-run in
+    // the menu bar, never baked into source or pre-filled into the field. This
+    // keeps even a card-shaped placeholder out of the binary and off the screen.
+    // PULSE_CARD_DIGITS still works for an automated/loopback test if you set it,
+    // but the privacy-correct path is to leave it unset and type the card in.
     static var target: String { string("PULSE_TARGET", "+18009505114") }
     static var menuDigits: String { string("PULSE_MENU_DIGITS", "**11") }
-    static var cardDigits: String { string("PULSE_CARD_DIGITS", "4111111111111111") }
+    static var cardDigits: String { string("PULSE_CARD_DIGITS", "") }
 
     /// The ARI originate endpoint. Defaults to a PJSIP trunk call to `target`
     /// (the production path), so behavior is unchanged when unset. Override with

@@ -188,6 +188,13 @@ final class AsteriskClient: NSObject {
         ])
     }
 
+    /// Send DTMF on the channel. ⚠️ CARDHOLDER DATA: when `digits` is the card
+    /// number, it rides in the request URL's query string (ARI takes `dtmf` as a
+    /// query param). This client speaks cleartext `http://`, which is safe ONLY on
+    /// loopback, where the request never reaches a wire. If you ever point Pulse
+    /// at a non-loopback `PULSE_ARI_HOST`, you MUST terminate ARI over TLS first —
+    /// otherwise the PAN travels in cleartext and can land in any intermediary's
+    /// access log. Keep ARI on 127.0.0.1 (default) unless TLS is in place.
     func sendDTMF(channelId: String, digits: String) {
         fire("/ari/channels/\(channelId)/dtmf", method: "POST", query: ["dtmf": digits])
     }

@@ -84,5 +84,9 @@ struct PulseApp: App {
         let t = form.template
         let channelId = state.startProbe(number: t.target, menu: t.menuDigits, card: form.card)
         client?.placeCall(endpoint: t.endpoint, channelId: channelId)
+        // Clear the card field as soon as the probe owns the number. The PAN is
+        // never retained in the UI between runs — the operator re-enters it each
+        // time, so a card number is never left sitting on screen or in the form.
+        form.card = ""
     }
 }
