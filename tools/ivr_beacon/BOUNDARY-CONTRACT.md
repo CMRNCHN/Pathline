@@ -105,6 +105,11 @@ digits, so the authority record can never become a cardholder-data store.
 
 ## Open Validation Item
 
-Transport behavior: requires live Asterisk validation of ARI DTMF body parsing.
-This may change the §2 "send card DTMF" side effect's encoding; the transition
-itself is unaffected.
+Resolved by source verification (Asterisk's ARI Swagger spec, `res_ari.c`,
+`http.c`): `dtmf` is a query-type parameter, read only from the merged
+query/post-vars table — never from a JSON body, which would silently 400 "DTMF is
+required". The §2 "send card DTMF" side effect now sends
+`application/x-www-form-urlencoded` (`dtmf=<digits>`) in the request body,
+satisfying both ARI's parameter contract and §3's no-PAN-in-URL invariant. The
+transition table itself (§2) is unaffected. A live Asterisk run remains the final
+end-to-end check.
