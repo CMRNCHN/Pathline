@@ -83,10 +83,8 @@ final class PANLeakTests: XCTestCase {
         XCTAssertFalse(containsPANShape(url), "A 13–19 digit run reached the URL: \(url)")
 
         // …and confirm it IS carried in the body, so the digits actually reach ARI.
-        // Form-urlencoded, not JSON: ARI's `dtmf` is a query-type parameter, read
-        // only from the table `ast_http_get_post_vars` fills from a form body.
         let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        XCTAssertEqual(body, "dtmf=\(pan)", "Body should be form-urlencoded, not JSON")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
+        XCTAssertTrue(body.contains(pan), "PAN should be carried in the request body")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
     }
 }

@@ -69,8 +69,4 @@ enforced controls, each covered by a regression test that fails the build on lea
 
 ## Open Validation Item
 
-Transport encoding is source-verified against Asterisk's ARI Swagger spec and
-`res_ari.c`/`http.c`: `dtmf` is a query-type parameter, read only from the
-query/post-vars table that an `application/x-www-form-urlencoded` POST body feeds
-(never a JSON body). Pulse sends DTMF that way. A live Asterisk run remains the
-final end-to-end check, but no further transport-encoding change is anticipated.
+Transport behavior: requires live Asterisk validation of ARI DTMF body parsing.

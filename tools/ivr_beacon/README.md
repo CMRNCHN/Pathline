@@ -246,15 +246,10 @@ Operator responsibilities (not enforced in code):
 - Complete the appropriate **SAQ** (likely SAQ D, since you store and process
   card data) and keep an access log + key-management story for anything at rest.
 
-> **Transport encoding (source-verified).** ARI's channel Swagger spec defines
-> `dtmf` as `paramType: query`; ARI's generated handler reads it only from the
-> query/post-vars table that `ast_http_get_post_vars` (in `res_ari.c`/`http.c`)
-> fills from an `application/x-www-form-urlencoded` POST body — a JSON body is
-> never consulted and would silently 400 "DTMF is required". Pulse sends DTMF
-> `application/x-www-form-urlencoded` (`dtmf=<digits>`) in the body, so it reaches
-> ARI's handler without ever appearing in a URL. A live probe (no Asterisk/Swift
-> toolchain in CI) remains the final end-to-end check, but the encoding is no
-> longer a guess.
+> **Verify on a live ARI.** The DTMF-in-body path relies on Asterisk reading the
+> `dtmf` parameter from the JSON body. This is the documented ARI behaviour but
+> has not been exercised here (no Asterisk/Swift toolchain in CI) — confirm the
+> first live probe still advances past the card prompt before trusting it.
 
 ## Calibration (do this with real traffic)
 

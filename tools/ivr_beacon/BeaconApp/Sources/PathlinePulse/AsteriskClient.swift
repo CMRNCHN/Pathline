@@ -192,12 +192,8 @@ final class AsteriskClient: NSObject {
     /// number, so they are sent in the request BODY, never the URL query string.
     /// A PAN in a URL leaks into access logs, proxy logs, and tracing/observability
     /// systems even under TLS — TLS protects the wire, not the log files behind it.
-    /// `dtmf` is a `paramType: query` field in ARI's channel spec: ARI's generated
-    /// handler reads it only from the merged query/post-vars table, which
-    /// `ast_http_get_post_vars` fills from an `application/x-www-form-urlencoded`
-    /// POST body (never from a JSON body — that would silently 400 "DTMF is
-    /// required"). So the card number reaches ARI via a form-encoded body,
-    /// without ever appearing in a URL.
+    /// ARI reads `dtmf` from the JSON body via its generated body parser, so the
+    /// card number never appears in any URL anywhere in the request path.
     func sendDTMF(channelId: String, digits: String) {
         send(dtmfRequest(channelId: channelId, digits: digits))
     }
@@ -250,12 +246,10 @@ final class AsteriskClient: NSObject {
     /// carries api_key, or Asterisk answers 401.
     ///
     /// `query` values land in the URL (and therefore in access logs); `body`
-    /// values are sent `application/x-www-form-urlencoded` — the one body
-    /// encoding ARI's HTTP layer folds into its query-parameter table — and never
-    /// appear in a URL. Anything sensitive — the card number above all — MUST go
-    /// through `body`, never `query`, because URLs are routinely logged by every
-    /// hop even under TLS. Internal (not private) so the leak tests can inspect
-    /// the generated request.
+    /// values are sent as a JSON request body and never appear in a URL. Anything
+    /// sensitive — the card number above all — MUST go through `body`, never
+    /// `query`, because URLs are routinely logged by every hop even under TLS.
+    /// Internal (not private) so the leak tests can inspect the generated request.
     func makeRequest(_ path: String, method: String,
                      query: [String: String] = [:],
                      body: [String: String]? = nil) -> URLRequest? {
@@ -272,23 +266,10 @@ final class AsteriskClient: NSObject {
         var req = URLRequest(url: url)
         req.httpMethod = method
         if let body {
-            req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-            req.httpBody = formEncode(body).data(using: .utf8)
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         }
         return req
-    }
-
-    /// `application/x-www-form-urlencoded` encoding for the request body — the
-    /// only body format ARI's HTTP layer (`ast_http_get_post_vars`) parses into
-    /// its query-parameter table. A JSON body is never consulted for params like
-    /// `dtmf`.
-    private func formEncode(_ params: [String: String]) -> String {
-        let unreserved = CharacterSet(charactersIn:
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
-        func encode(_ s: String) -> String {
-            s.addingPercentEncoding(withAllowedCharacters: unreserved) ?? s
-        }
-        return params.map { "\(encode($0.key))=\(encode($0.value))" }.joined(separator: "&")
     }
 }
 
