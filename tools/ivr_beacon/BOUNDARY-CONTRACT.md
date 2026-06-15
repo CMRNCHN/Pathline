@@ -19,13 +19,16 @@ is decoded. No other component may field-scan or re-parse raw event payloads.
 - One decode point, one typed representation. Today decode is a minimal inline
   struct in the runtime client **[Built]**; the target promotes it to a dedicated,
   owned schema with explicit, exhaustive event-type handling.
-- Unknown event types are **explicitly ignored, never errored** — schema evolution
-  in Asterisk must not break the probe.
 - The schema is **versioned**. A decoded event carries enough identity (type,
   channel id, and event-specific fields) that a stored event is self-describing
   for replay independent of the live connection.
-- Decode fails closed to *drop*, not crash: an undecodable frame is discarded and
-  noted, never allowed to advance the FSM.
+- Three distinct failure rules, kept separate so "unknown type" is never misread
+  as "drop the stream":
+  - **Malformed event** (undecodable frame) → **drop the event**, note it, never
+    advance the FSM, never crash.
+  - **Unknown schema version** → **drop the event** — its fields cannot be trusted.
+  - **Unknown event type** (well-formed, known version, unrecognized `type`) →
+    **ignore and continue** — skip this one event, keep processing the stream.
 
 Authoritative fields the contract depends on:
 
