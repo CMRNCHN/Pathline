@@ -1,0 +1,18 @@
+{
+  "name": "pathline-ari-controller",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone ARI channel-holder + DTMF ground-truth logger for the DTMF transport probe. Run instead of the Swift Pulse client, never alongside it.",
+  "bin": {
+    "ari-controller": "ari-controller.js"
+  },
+  "scripts": {
+    "start": "node ari-controller.js"
+  },
+  "dependencies": {
+    "ari-client": "^2.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

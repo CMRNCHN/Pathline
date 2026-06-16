@@ -1,0 +1,3 @@
+# Node ARI controller dependency (ari-controller.js) — installed locally, not committed
+node_modules/
+package-lock.json

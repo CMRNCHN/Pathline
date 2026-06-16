@@ -251,6 +251,53 @@ Operator responsibilities (not enforced in code):
 > has not been exercised here (no Asterisk/Swift toolchain in CI) — confirm the
 > first live probe still advances past the card prompt before trusting it.
 
+## DTMF transport probe (`probe-ari-dtmf.sh` + `ari-controller.js`)
+
+The PCI note above hinges on one unverified fact: that ARI reads `dtmf` from the
+request **body**. To settle that on a live ARI without trusting the Swift client
+(whose request builder would only confirm its own assumption), two standalone,
+contamination-free tools sit beside Pulse:
+
+- **`probe-ari-dtmf.sh`** — a pure-curl probe that fires the same DTMF POST as
+  JSON and as form-urlencoded, prints the raw wire trace + HTTP status for each,
+  and **decides nothing**. It aborts unless given a genuinely live channel id, so
+  a 404 from route resolution can't masquerade as encoding evidence.
+- **`ari-controller.js`** — a standalone Node ARI controller that holds the
+  channel live and logs DTMF as an **independent witness**. It claims the Stasis
+  app, answers, and (like the Swift client) **bridges the channel into a mixing
+  bridge to pump media** — a bare `answer()` leaves a `Local` loopback without
+  two-way media. It is deliberately separate from Pulse so the thing under test
+  isn't also the test fixture.
+
+The dialplan is **unchanged**: extension `1000` stays the native IVR, which is
+the "did the IVR advance" ground truth (case A vs B). You reach Stasis through
+the originate call, not the dialplan.
+
+```bash
+# 1. Asterisk up
+docker compose -f infrastructure/docker-compose.yml up asterisk -d
+
+# 2. Controller (run INSTEAD of Pulse — never both on the same app)
+npm --prefix tools/ivr_beacon install      # one-time: pulls ari-client
+node tools/ivr_beacon/ari-controller.js
+
+# 3. Originate a live channel into the pulse app (far end runs the real IVR)
+curl -sS -X POST \
+  "http://127.0.0.1:8088/ari/channels?endpoint=Local/1000@ivr-test&app=pulse&channelId=probe-1&api_key=ari:ari"
+
+# 4. Fire the probe; watch the controller log for the DTMF_RECEIVED witness
+./tools/ivr_beacon/probe-ari-dtmf.sh probe-1
+```
+
+Then classify by hand from two facts per variant — the probe's `HTTP_STATUS` and
+whether the IVR advanced (controller `DTMF_RECEIVED` + the echo/hangup on the
+native IVR): **A** 2xx and advanced → no code change; **B** 2xx but nothing
+happened → accepted-not-applied; **C** 4xx → rejected. Only then is the single
+encoding cell touched.
+
+> Two WebSocket subscribers fight over each channel. Run either the controller
+> **or** the Swift Pulse app against `pulse`, not both.
+
 ## Calibration (do this with real traffic)
 
 `PULSE_TALK_SILENCE_MS` and `PULSE_MIN_PROMPT_MS` are uncalibrated defaults:
