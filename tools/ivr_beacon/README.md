@@ -267,7 +267,10 @@ contamination-free tools sit beside Pulse:
   app, answers, and (like the Swift client) **bridges the channel into a mixing
   bridge to pump media** — a bare `answer()` leaves a `Local` loopback without
   two-way media. It is deliberately separate from Pulse so the thing under test
-  isn't also the test fixture.
+  isn't also the test fixture. The Node controller never interprets IVR
+  behavior. It answers channels, maintains media flow, and records observable
+  Asterisk events. The native IVR remains the sole authority for call
+  progression and menu state.
 
 The dialplan is **unchanged**: extension `1000` stays the native IVR, which is
 the "did the IVR advance" ground truth (case A vs B). You reach Stasis through
