@@ -1,0 +1,92 @@
+# Lab IVR flow — map incrementally via discover mode, then automate.
+# Test against lab/asterisk or paste IVR phrases manually in the web UI.
+
+id: lab-account-status
+version: 1
+name: Lab Account Status IVR
+target: "1000"
+
+secrets:
+  - account_pin
+  - ssn_last4
+
+timing:
+  silence_after_prompt_ms: 800
+  max_listen_ms: 30000
+  timeout_fallback_ms: 20000   # last resort only — phrase matching is primary
+
+start_at: main_menu
+
+states:
+  main_menu:
+    listen: true
+    on_unknown: discover
+    when:
+      - hear:
+          - "press 1 for account"
+          - "account services"
+          - "option 1"
+        send: "1"
+        goto: touch_tone
+        note: "Main menu → account path"
+
+  touch_tone:
+    listen: true
+    on_unknown: discover
+    when:
+      - hear:
+          - "press 9 for touch tone"
+          - "use your keypad"
+          - "touch tone"
+        send: "9"
+        goto: pin_entry
+        note: "Switch from voice to DTMF if needed"
+
+  pin_entry:
+    listen: true
+    on_unknown: discover
+    when:
+      - hear:
+          - "enter your pin"
+          - "personal identification number"
+          - "enter pin followed by pound"
+        send: "{account_pin}#"
+        goto: ssn_entry
+
+  ssn_entry:
+    listen: true
+    on_unknown: discover
+    when:
+      - hear:
+          - "last four of your social"
+          - "social security number"
+          - "enter the last four"
+        send: "{ssn_last4}#"
+        goto: status_menu
+
+  status_menu:
+    listen: true
+    on_unknown: discover
+    when:
+      - hear:
+          - "press 1 for balance"
+          - "account balance"
+          - "hear your balance"
+        send: "1"
+        goto: read_status
+
+  read_status:
+    listen: true
+    on_unknown: wait
+    when:
+      - hear:
+          - "your balance is"
+          - "claim status is"
+          - "your status is"
+          - "current balance"
+        capture: status
+        goto: done
+
+  done:
+    terminal: true
+    listen: false

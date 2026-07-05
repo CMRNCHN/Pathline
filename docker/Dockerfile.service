@@ -1,0 +1,23 @@
+FROM python:3.12-slim
+
+ARG SERVICE
+ARG MODULE
+ARG PORT=8000
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+
+COPY packages/shared-python /app/packages/shared-python
+COPY services/${SERVICE} /app/services/${SERVICE}
+
+RUN pip install --no-cache-dir /app/packages/shared-python \
+    && pip install --no-cache-dir /app/services/${SERVICE}
+
+ENV MODULE=${MODULE}
+ENV PORT=${PORT}
+
+EXPOSE ${PORT}
+
+CMD uvicorn ${MODULE} --host 0.0.0.0 --port ${PORT}

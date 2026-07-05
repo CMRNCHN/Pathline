@@ -1,0 +1,126 @@
+# Credit card IVR — status branching example
+# After cc entry, the IVR can say different things → different first_status branches
+
+id: credit-card-status
+version: 1
+name: Credit Card Status IVR
+target: null
+
+secrets:
+  - cc_num
+
+timing:
+  silence_after_prompt_ms: 800
+  max_listen_ms: 30000
+  timeout_fallback_ms: 20000
+
+start_at: main_menu
+
+states:
+  main_menu:
+    on_unknown: discover
+    when:
+      - hear:
+          - "monitored or recorded"
+          - "touch tone"
+        send: "**11"
+        goto: cc_number_entry
+        note: "Acknowledge recording + switch to touch-tone"
+
+  cc_number_entry:
+    on_unknown: discover
+    when:
+      - hear:
+          - "please enter your full credit card number"
+          - "credit card"
+          - "telephone keypad"
+        send: "{cc_num}#"
+        goto: first_status_check
+        note: "Submit card number from local vault"
+
+  # ── Branching: IVR response determines first system status ──
+  # Multiple `when` entries = multiple possible IVR outcomes from one step.
+  # Put more specific phrases FIRST (first match wins).
+  first_status_check:
+    on_unknown: discover
+    when:
+      # Branch A — account current / no action needed
+      - hear:
+          - "account is current"
+          - "no payment due"
+          - "zero balance"
+        capture: first_status_current
+        goto: done_current
+        note: "Status: current"
+
+      # Branch B — past due / payment required
+      - hear:
+          - "past due"
+          - "payment is required"
+          - "minimum payment due"
+        capture: first_status_past_due
+        goto: past_due_menu
+        note: "Status: past due — may need further navigation"
+
+      # Branch C — card not found / invalid
+      - hear:
+          - "card number is invalid"
+          - "unable to locate"
+          - "not found in our system"
+        capture: first_status_invalid
+        goto: done_error
+        note: "Status: invalid card"
+
+      # Branch D — needs more input before status
+      - hear:
+          - "enter the last four"
+          - "billing zip code"
+          - "verify your identity"
+        send: "{zip_code}#"
+        goto: verify_then_recheck
+        note: "IVR wants more info before giving status — map as you discover"
+
+      # Branch E — hold / transfer (terminal-ish)
+      - hear:
+          - "please hold"
+          - "transferring your call"
+          - "connect you to a representative"
+        capture: first_status_transfer
+        goto: done_transfer
+        note: "Status: escalated to agent"
+
+  # ── Follow-up paths per branch ──
+  past_due_menu:
+    on_unknown: discover
+    when:
+      - hear:
+          - "your balance is"
+          - "amount due is"
+        capture: balance_detail
+        goto: done_past_due
+
+  verify_then_recheck:
+    on_unknown: discover
+    when:
+      - hear:
+          - "account is current"
+          - "past due"
+          - "payment due"
+        capture: first_status_after_verify
+        goto: done_current
+
+  done_current:
+    terminal: true
+    listen: false
+
+  done_past_due:
+    terminal: true
+    listen: false
+
+  done_error:
+    terminal: true
+    listen: false
+
+  done_transfer:
+    terminal: true
+    listen: false

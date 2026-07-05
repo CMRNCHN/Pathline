@@ -1,0 +1,44 @@
+{
+  "id": "cc-balance",
+  "name": "Credit card balance check",
+  "description": "Known IVR script — no discovery. Map trigger → DTMF and response → status key.",
+  "target": "+18001234567",
+  "secrets": ["cc_num"],
+  "rules": [
+    {
+      "trigger": "monitored or recorded|touch tone",
+      "response": "",
+      "key": "",
+      "status": "",
+      "dtmf": "**11"
+    },
+    {
+      "trigger": "enter your full credit card|credit card number",
+      "response": "",
+      "key": "",
+      "status": "",
+      "dtmf": "{cc_num}#"
+    },
+    {
+      "trigger": "",
+      "response": "account is current|no payment due|zero balance",
+      "key": "balance_status",
+      "status": "current",
+      "endCall": true
+    },
+    {
+      "trigger": "",
+      "response": "past due|payment is required|minimum payment due",
+      "key": "balance_status",
+      "status": "past_due",
+      "endCall": true
+    },
+    {
+      "trigger": "",
+      "response": "your balance is|amount due is",
+      "key": "balance",
+      "status": "past_due_detail",
+      "endCall": true
+    }
+  ]
+}

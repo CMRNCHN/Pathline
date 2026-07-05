@@ -1,0 +1,44 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE: api
+        MODULE: promptpath_api.main:app
+        PORT: 8000
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./data/promptpath.db}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-300}
+      SESSION_PEPPER: ${SESSION_PEPPER:-dev-pepper-change-me}
+      RETENTION_SECONDS: ${SESSION_RETENTION_SECONDS:-3600}
+    volumes:
+      - api_data:/app/data
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - api
+
+  asterisk:
+    image: andrius/asterisk:18-current
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "8088:8088"
+    volumes:
+      - ./lab/asterisk:/etc/asterisk/custom:ro
+    profiles:
+      - lab
+
+volumes:
+  api_data:

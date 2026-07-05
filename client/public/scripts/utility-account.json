@@ -1,0 +1,58 @@
+{
+  "id": "utility-account",
+  "name": "Utility account status",
+  "description": "Example with account number, PIN, and zip — not card-specific.",
+  "target": "+18005551234",
+  "secrets": ["account_number", "account_pin", "zip_code"],
+  "rules": [
+    {
+      "trigger": "welcome|main menu",
+      "response": "",
+      "key": "",
+      "status": "",
+      "dtmf": "1"
+    },
+    {
+      "trigger": "account number|enter your account",
+      "response": "",
+      "key": "",
+      "status": "",
+      "dtmf": "{account_number}#"
+    },
+    {
+      "trigger": "personal identification|pin",
+      "response": "",
+      "key": "",
+      "status": "",
+      "dtmf": "{account_pin}#"
+    },
+    {
+      "trigger": "billing zip|zip code",
+      "response": "",
+      "key": "",
+      "status": "",
+      "dtmf": "{zip_code}#"
+    },
+    {
+      "trigger": "",
+      "response": "account is current|no balance due|paid in full",
+      "key": "account_status",
+      "status": "current",
+      "endCall": true
+    },
+    {
+      "trigger": "",
+      "response": "past due|amount due|payment required",
+      "key": "account_status",
+      "status": "past_due",
+      "endCall": true
+    },
+    {
+      "trigger": "",
+      "response": "disconnected|service suspended",
+      "key": "account_status",
+      "status": "suspended",
+      "endCall": true
+    }
+  ]
+}
