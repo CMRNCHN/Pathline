@@ -25,7 +25,7 @@ interface ActiveRun {
 }
 
 export default function App() {
-  const { loading: loadingScripts, error: scriptError } = useScripts();
+  const { loading: loadingScripts, error: scriptError, setActiveId } = useScripts();
   const [view, setView] = useState<View>("call");
   const [step, setStep] = useState<Step>("consent");
   const [token, setToken] = useState<string | null>(null);
@@ -171,7 +171,13 @@ export default function App() {
 
       <main className={`main ${view === "scripts" ? "main-wide" : ""}`}>
         {view === "scripts" ? (
-          <ScriptEditor />
+          <ScriptEditor
+            onTest={(scriptId) => {
+              setActiveId(scriptId);
+              setView("call");
+              if (step === "consent") setStep("configure");
+            }}
+          />
         ) : (
           <>
             {step === "consent" && (

@@ -1,44 +1,72 @@
 {
   "id": "cc-balance",
-  "name": "Credit card balance check",
-  "description": "Known IVR script — no discovery. Map trigger → DTMF and response → status key.",
+  "name": "Credit Card Balance Check",
+  "description": "Check if my credit card account is current or past due.",
   "target": "+18001234567",
-  "secrets": ["cc_num"],
-  "rules": [
+  "timeoutMs": 30000,
+  "tags": ["Credit Card"],
+  "setupComplete": true,
+  "secrets": [
     {
-      "trigger": "monitored or recorded|touch tone",
-      "response": "",
-      "key": "",
-      "status": "",
-      "dtmf": "**11"
+      "id": "s1",
+      "name": "cc_num",
+      "description": "Full credit card number",
+      "example": "4111…",
+      "required": true
+    }
+  ],
+  "results": [
+    { "id": "r1", "key": "balance_status", "description": "Current or past due" },
+    { "id": "r2", "key": "balance", "description": "Balance detail if past due" }
+  ],
+  "conversation": [
+    {
+      "id": "c1",
+      "listenFor": "monitored or recorded|touch tone",
+      "action": "send_keys",
+      "keys": "**11"
     },
     {
-      "trigger": "enter your full credit card|credit card number",
-      "response": "",
-      "key": "",
-      "status": "",
-      "dtmf": "{cc_num}#"
+      "id": "c2",
+      "listenFor": "enter your full credit card|credit card number",
+      "action": "send_keys",
+      "keys": "{cc_num}#"
     },
     {
-      "trigger": "",
-      "response": "account is current|no payment due|zero balance",
-      "key": "balance_status",
-      "status": "current",
-      "endCall": true
+      "id": "c3",
+      "listenFor": "account is current|no payment due|zero balance",
+      "action": "save_value",
+      "resultKey": "balance_status",
+      "value": "current"
     },
     {
-      "trigger": "",
-      "response": "past due|payment is required|minimum payment due",
-      "key": "balance_status",
-      "status": "past_due",
-      "endCall": true
+      "id": "c4",
+      "listenFor": "",
+      "action": "hang_up"
     },
     {
-      "trigger": "",
-      "response": "your balance is|amount due is",
-      "key": "balance",
-      "status": "past_due_detail",
-      "endCall": true
+      "id": "c5",
+      "listenFor": "past due|payment is required|minimum payment due",
+      "action": "save_value",
+      "resultKey": "balance_status",
+      "value": "past_due"
+    },
+    {
+      "id": "c6",
+      "listenFor": "",
+      "action": "hang_up"
+    },
+    {
+      "id": "c7",
+      "listenFor": "your balance is|amount due is",
+      "action": "save_value",
+      "resultKey": "balance",
+      "value": "past_due_detail"
+    },
+    {
+      "id": "c8",
+      "listenFor": "",
+      "action": "hang_up"
     }
   ]
 }

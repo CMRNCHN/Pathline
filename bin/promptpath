@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Resolve project root whether this script is run directly or via symlink
+set -euo pipefail
+
+resolve_root() {
+  local src="${BASH_SOURCE[0]}"
+  while [[ -L "$src" ]]; do
+    local dir
+    dir="$(cd "$(dirname "$src")" && pwd)"
+    src="$(readlink "$src")"
+    [[ "$src" != /* ]] && src="$dir/$src"
+  done
+  cd "$(dirname "$src")/.." && pwd
+}
+
+ROOT="$(resolve_root)"
+exec "$ROOT/scripts/start.sh" "$@"

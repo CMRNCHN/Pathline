@@ -22,11 +22,46 @@ Device (native / web shell)
 
 ## Quick Start
 
-One command — installs deps, frees ports, starts API + client, opens browser:
+### First-time setup (macOS)
+
+Run once from the project folder — installs global commands and Spotlight apps:
 
 ```bash
-./scripts/start.sh
+cd ~/Developer/projects/PromptPath
+./scripts/install-macos.sh
+source ~/.zshrc
 ```
+
+Then from **any directory**:
+
+```bash
+promptpath          # start in terminal (Ctrl+C to stop)
+promptpath-stop     # stop background services
+```
+
+Or **Spotlight** → type `PromptPath` → double-click the app (runs in background, opens browser).
+
+### macOS apps (in project folder)
+
+| App | Action |
+|-----|--------|
+| `PromptPath.app` | Start API + client, open browser |
+| `PromptPath Stop.app` | Stop services |
+
+After `install-macos.sh`, these also appear in **~/Applications**.
+
+### Terminal (must be in project folder)
+
+If you have not run `install-macos.sh`, `cd` into the project first:
+
+```bash
+cd ~/Developer/projects/PromptPath
+./PromptPath          # foreground
+npm start             # same
+./scripts/stop.sh     # stop
+```
+
+Logs: `.logs/api.log` and `.logs/client.log`
 
 Or manually:
 

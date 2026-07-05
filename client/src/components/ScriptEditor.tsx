@@ -1,161 +1,56 @@
-import { useRef, useState } from "react";
-import type { StatusRule } from "../script/types";
-import { isSendRule, newCaptureRule, newSendRule } from "../script/storage";
+import { useEffect, useMemo, useState } from "react";
+import type { EditorSection } from "../script/types";
+import { compileToRules } from "../script/compile";
+import { newResult, newSecret } from "../script/compile";
 import { useScripts } from "../context/ScriptContext";
+import { ScriptsSidebar } from "./ScriptsSidebar";
+import { ConversationEditor } from "./ConversationEditor";
 
-function RuleCard({
-  rule,
-  index,
-  readOnly,
-  onChange,
-  onRemove,
-}: {
-  rule: StatusRule;
-  index: number;
-  readOnly: boolean;
-  onChange: (patch: Partial<StatusRule>) => void;
-  onRemove: () => void;
-}) {
-  const send = isSendRule(rule);
-
-  const setKind = (kind: "send" | "capture") => {
-    if (kind === "send") {
-      onChange({ response: "", key: "", status: "", endCall: false });
-    } else {
-      onChange({ trigger: "", dtmf: "", endCall: true });
-    }
-  };
-
-  return (
-    <div className={`outcome-card outcome-${send ? "send" : "capture"}`}>
-      <div className="outcome-card-top">
-        <span className="step-num-badge">{index + 1}</span>
-        <div className="branch-type-toggle">
-          <button
-            type="button"
-            className={`branch-type-btn ${send ? "active" : ""}`}
-            onClick={() => !readOnly && setKind("send")}
-            disabled={readOnly}
-          >
-            Send DTMF
-          </button>
-          <button
-            type="button"
-            className={`branch-type-btn ${!send ? "active" : ""}`}
-            onClick={() => !readOnly && setKind("capture")}
-            disabled={readOnly}
-          >
-            Capture status
-          </button>
-        </div>
-        {!readOnly && (
-          <button className="btn-icon" onClick={onRemove} title="Remove rule">×</button>
-        )}
-      </div>
-
-      {send ? (
-        <div className="outcome-fields">
-          <div className="outcome-field-row">
-            <label>When I hear (trigger)</label>
-            <input
-              value={rule.trigger ?? ""}
-              onChange={(e) => onChange({ trigger: e.target.value })}
-              placeholder="monitored or recorded|zip code"
-              disabled={readOnly}
-            />
-          </div>
-          <div className="outcome-field-row">
-            <label>I send (DTMF)</label>
-            <input
-              className="mono"
-              value={rule.dtmf ?? ""}
-              onChange={(e) => onChange({ dtmf: e.target.value })}
-              placeholder="**11  or  {account_pin}#"
-              disabled={readOnly}
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="outcome-fields">
-          <div className="outcome-field-row">
-            <label>When I hear (response)</label>
-            <input
-              value={rule.response}
-              onChange={(e) => onChange({ response: e.target.value })}
-              placeholder="account is current|payment due"
-              disabled={readOnly}
-            />
-          </div>
-          <div className="outcome-field-row">
-            <label>JSON key</label>
-            <input
-              className="mono"
-              value={rule.key}
-              onChange={(e) => onChange({ key: e.target.value })}
-              placeholder="account_status"
-              disabled={readOnly}
-            />
-          </div>
-          <div className="outcome-field-row">
-            <label>Means (status value)</label>
-            <input
-              value={rule.status}
-              onChange={(e) => onChange({ status: e.target.value })}
-              placeholder="current"
-              disabled={readOnly}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="outcome-footer">
-        <label className="end-call-label">
-          <input
-            type="checkbox"
-            checked={Boolean(rule.endCall)}
-            onChange={(e) => onChange({ endCall: e.target.checked })}
-            disabled={readOnly}
-          />
-          End call & submit status
-        </label>
-      </div>
-    </div>
-  );
+interface ScriptEditorProps {
+  onTest?: (scriptId: string) => void;
 }
 
-export function ScriptEditor() {
+const SECTIONS: { id: EditorSection; label: string }[] = [
+  { id: "basics", label: "Basics" },
+  { id: "secrets", label: "Secrets" },
+  { id: "conversation", label: "Conversation" },
+  { id: "results", label: "Results" },
+];
+
+export function ScriptEditor({ onTest }: ScriptEditorProps) {
   const {
-    scripts,
-    bundledIds,
     activeScript,
-    activeId,
-    setActiveId,
     isActiveBundled,
     updateActive,
-    addCustom,
     removeCustom,
     duplicateToCustom,
     importScript,
-    updateActiveRule,
-    addActiveRule,
-    removeActiveRule,
-    addSecretKey,
-    removeSecretKey,
-    syncActiveSecrets,
   } = useScripts();
 
-  const [newSecret, setNewSecret] = useState("");
-  const [showJson, setShowJson] = useState(false);
-  const importRef = useRef<HTMLInputElement>(null);
+  const [section, setSection] = useState<EditorSection>("conversation");
+
+  useEffect(() => {
+    if (activeScript && !activeScript.setupComplete) setSection("basics");
+  }, [activeScript?.id, activeScript?.setupComplete]);
+
+  const jsonPreview = useMemo(() => {
+    if (!activeScript) return "{}";
+    return JSON.stringify(activeScript, null, 2);
+  }, [activeScript]);
 
   if (!activeScript) {
     return (
-      <div className="script-editor-empty">
-        <p className="hint">No scripts yet.</p>
-        <button className="btn btn-primary" onClick={() => addCustom()}>Create script</button>
+      <div className="script-workspace">
+        <ScriptsSidebar onImport={importScript} />
+        <div className="script-editor-empty">
+          <p className="hint">No scripts yet.</p>
+        </div>
       </div>
     );
   }
+
+  const readOnly = isActiveBundled;
+  const showBasicsSection = section === "basics" || !activeScript.setupComplete;
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(activeScript, null, 2)], { type: "application/json" });
@@ -167,88 +62,17 @@ export function ScriptEditor() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = async (file: File) => {
-    try {
-      const text = await file.text();
-      importScript(JSON.parse(text));
-    } catch {
-      alert("Invalid script JSON");
-    }
+  const finishBasics = () => {
+    updateActive({ setupComplete: true });
+    setSection("secrets");
   };
 
   return (
-    <div className="template-builder">
-      <aside className="template-sidebar">
-        <section>
-          <div className="sidebar-head">
-            <h3>Scripts</h3>
-            <button className="btn btn-sm btn-secondary" onClick={() => addCustom()}>+</button>
-          </div>
-          <ul className="sidebar-list">
-            {scripts.map((s) => (
-              <li key={s.id}>
-                <button
-                  className={`sidebar-item ${s.id === activeId ? "active" : ""}`}
-                  onClick={() => setActiveId(s.id)}
-                >
-                  {bundledIds.has(s.id) ? "📦 " : ""}{s.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+    <div className="script-workspace">
+      <ScriptsSidebar onImport={importScript} />
 
-        <section className="secrets-section-panel">
-          <div className="sidebar-head">
-            <h3>Local secrets</h3>
-            {!isActiveBundled && (
-              <button className="btn btn-sm btn-secondary" onClick={syncActiveSecrets} title="Detect {keys} from DTMF">
-                ↻
-              </button>
-            )}
-          </div>
-          <p className="field-hint">Used at call time — never sent to server</p>
-          {(activeScript.secrets ?? []).map((key) => (
-            <div key={key} className="secret-field">
-              <div className="secret-field-row">
-                <label>{key}</label>
-                {!isActiveBundled && (
-                  <button className="btn-icon" onClick={() => removeSecretKey(key)}>×</button>
-                )}
-              </div>
-              <input disabled placeholder="Set value on Call tab" />
-            </div>
-          ))}
-          {!isActiveBundled && (
-            <div className="add-secret-row">
-              <input
-                className="mono"
-                value={newSecret}
-                onChange={(e) => setNewSecret(e.target.value)}
-                placeholder="account_pin"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    addSecretKey(newSecret);
-                    setNewSecret("");
-                  }
-                }}
-              />
-              <button
-                className="btn btn-sm btn-secondary"
-                onClick={() => {
-                  addSecretKey(newSecret);
-                  setNewSecret("");
-                }}
-              >
-                Add
-              </button>
-            </div>
-          )}
-        </section>
-      </aside>
-
-      <div className="template-main">
-        {isActiveBundled && (
+      <div className="script-editor-panel">
+        {readOnly && (
           <div className="bundled-banner">
             Example script (read-only).{" "}
             <button className="btn btn-sm btn-secondary" onClick={() => duplicateToCustom(activeScript)}>
@@ -257,90 +81,273 @@ export function ScriptEditor() {
           </div>
         )}
 
-        <div className="template-main-header">
-          <input
-            className="template-name-input"
-            value={activeScript.name}
-            onChange={(e) => updateActive({ name: e.target.value })}
-            disabled={isActiveBundled}
-          />
-          <div className="template-actions">
-            {!isActiveBundled && (
+        <header className="editor-topbar">
+          <h1 className="editor-title">{activeScript.name || "Untitled script"}</h1>
+          <div className="editor-topbar-actions">
+            {onTest && (
+              <button className="btn btn-primary btn-sm" onClick={() => onTest(activeScript.id)}>
+                Test
+              </button>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={() => duplicateToCustom(activeScript)}>
+              Duplicate
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={exportJson}>Export</button>
+            {!readOnly && (
               <button className="btn btn-danger btn-sm" onClick={() => removeCustom(activeScript.id)}>
                 Delete
               </button>
             )}
-            <button className="btn btn-secondary" onClick={() => setShowJson(!showJson)}>
-              {showJson ? "Hide JSON" : "Preview JSON"}
+          </div>
+        </header>
+
+        <nav className="section-nav">
+          {SECTIONS.map((s) => {
+            if (s.id === "basics" && activeScript.setupComplete && section !== "basics") {
+              return null;
+            }
+            return (
+              <button
+                key={s.id}
+                className={`section-tab ${section === s.id ? "active" : ""}`}
+                onClick={() => setSection(s.id)}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+          {activeScript.setupComplete && section !== "basics" && (
+            <button className="section-tab section-tab-muted" onClick={() => setSection("basics")}>
+              Basics
             </button>
-            <button className="btn btn-secondary" onClick={exportJson}>Export</button>
-            <button className="btn btn-secondary" onClick={() => importRef.current?.click()}>
-              Import
-            </button>
-            <input
-              ref={importRef}
-              type="file"
-              accept="application/json"
-              hidden
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImport(file);
-                e.target.value = "";
-              }}
+          )}
+        </nav>
+
+        <div className="editor-scroll">
+          {showBasicsSection && (
+            <section className="editor-section">
+              <header className="section-header">
+                <h2>Basics</h2>
+                <p className="hint">What is this check? You can hide this after setup.</p>
+              </header>
+              <div className="basics-grid">
+                <div className="form-group">
+                  <label>Name</label>
+                  <input
+                    value={activeScript.name}
+                    onChange={(e) => updateActive({ name: e.target.value })}
+                    placeholder="Credit Card Balance Check"
+                    disabled={readOnly}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Description</label>
+                  <input
+                    value={activeScript.description}
+                    onChange={(e) => updateActive({ description: e.target.value })}
+                    placeholder="Check if my card is current"
+                    disabled={readOnly}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Target number</label>
+                  <input
+                    type="tel"
+                    value={activeScript.target}
+                    onChange={(e) => updateActive({ target: e.target.value })}
+                    placeholder="+18001234567"
+                    disabled={readOnly}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Timeout (seconds)</label>
+                  <input
+                    type="number"
+                    value={Math.round(activeScript.timeoutMs / 1000)}
+                    onChange={(e) => updateActive({ timeoutMs: Number(e.target.value) * 1000 })}
+                    disabled={readOnly}
+                  />
+                </div>
+                <div className="form-group form-group-full">
+                  <label>Tags</label>
+                  <input
+                    value={activeScript.tags.join(", ")}
+                    onChange={(e) =>
+                      updateActive({
+                        tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
+                      })
+                    }
+                    placeholder="Credit Card, Bank"
+                    disabled={readOnly}
+                  />
+                </div>
+              </div>
+              {!readOnly && (
+                <button className="btn btn-primary" onClick={finishBasics}>
+                  Done — continue to secrets
+                </button>
+              )}
+            </section>
+          )}
+
+          {section === "secrets" && (
+            <section className="editor-section">
+              <header className="section-header">
+                <h2>Required secrets</h2>
+                <p className="hint">What this script needs at run time — card number, PIN, zip, etc.</p>
+              </header>
+              {activeScript.secrets.map((secret, i) => (
+                <div key={secret.id} className="secret-row">
+                  <div className="form-group">
+                    <label>Name</label>
+                    <input
+                      className="mono"
+                      value={secret.name}
+                      onChange={(e) => {
+                        const secrets = [...activeScript.secrets];
+                        secrets[i] = { ...secret, name: e.target.value };
+                        updateActive({ secrets });
+                      }}
+                      placeholder="cc_num"
+                      disabled={readOnly}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Description</label>
+                    <input
+                      value={secret.description}
+                      onChange={(e) => {
+                        const secrets = [...activeScript.secrets];
+                        secrets[i] = { ...secret, description: e.target.value };
+                        updateActive({ secrets });
+                      }}
+                      placeholder="Full card number"
+                      disabled={readOnly}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Example</label>
+                    <input
+                      value={secret.example}
+                      onChange={(e) => {
+                        const secrets = [...activeScript.secrets];
+                        secrets[i] = { ...secret, example: e.target.value };
+                        updateActive({ secrets });
+                      }}
+                      placeholder="4111…"
+                      disabled={readOnly}
+                    />
+                  </div>
+                  <label className="required-check">
+                    <input
+                      type="checkbox"
+                      checked={secret.required}
+                      onChange={(e) => {
+                        const secrets = [...activeScript.secrets];
+                        secrets[i] = { ...secret, required: e.target.checked };
+                        updateActive({ secrets });
+                      }}
+                      disabled={readOnly}
+                    />
+                    Required
+                  </label>
+                  {!readOnly && (
+                    <button
+                      className="btn-icon"
+                      onClick={() =>
+                        updateActive({ secrets: activeScript.secrets.filter((s) => s.id !== secret.id) })
+                      }
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              {!readOnly && (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => updateActive({ secrets: [...activeScript.secrets, newSecret()] })}
+                >
+                  + Add secret
+                </button>
+              )}
+            </section>
+          )}
+
+          {section === "conversation" && (
+            <ConversationEditor
+              script={activeScript}
+              readOnly={readOnly}
+              onChange={(conversation) => updateActive({ conversation })}
             />
-          </div>
+          )}
+
+          {section === "results" && (
+            <section className="editor-section">
+              <header className="section-header">
+                <h2>Captured values</h2>
+                <p className="hint">Define the fields your script saves. Conversation steps reference these.</p>
+              </header>
+              {activeScript.results.map((result, i) => (
+                <div key={result.id} className="result-row">
+                  <div className="form-group">
+                    <label>JSON key</label>
+                    <input
+                      className="mono"
+                      value={result.key}
+                      onChange={(e) => {
+                        const results = [...activeScript.results];
+                        results[i] = { ...result, key: e.target.value };
+                        updateActive({ results });
+                      }}
+                      placeholder="balance_status"
+                      disabled={readOnly}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Description</label>
+                    <input
+                      value={result.description}
+                      onChange={(e) => {
+                        const results = [...activeScript.results];
+                        results[i] = { ...result, description: e.target.value };
+                        updateActive({ results });
+                      }}
+                      placeholder="Whether the account is current"
+                      disabled={readOnly}
+                    />
+                  </div>
+                  {!readOnly && (
+                    <button
+                      className="btn-icon"
+                      onClick={() =>
+                        updateActive({ results: activeScript.results.filter((r) => r.id !== result.id) })
+                      }
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              {!readOnly && (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => updateActive({ results: [...activeScript.results, newResult()] })}
+                >
+                  + Add captured value
+                </button>
+              )}
+            </section>
+          )}
         </div>
 
-        <input
-          className="profile-name-input script-meta-input"
-          value={activeScript.description ?? ""}
-          onChange={(e) => updateActive({ description: e.target.value })}
-          placeholder="Description"
-          disabled={isActiveBundled}
-        />
-
-        <div className="form-group script-target-row">
-          <label htmlFor="script-target">Default target number (optional)</label>
-          <input
-            id="script-target"
-            type="tel"
-            value={activeScript.target ?? ""}
-            onChange={(e) => updateActive({ target: e.target.value })}
-            placeholder="+15551234567"
-            disabled={isActiveBundled}
-          />
-        </div>
-
-        <p className="template-intro">
-          <strong>Send DTMF</strong> — trigger phrase → touch-tone (use <code>{"{secret_key}"}</code> placeholders).
-          <strong> Capture status</strong> — IVR response → <code>key: status</code> in collected JSON.
-        </p>
-
-        {activeScript.rules.map((rule, i) => (
-          <RuleCard
-            key={i}
-            rule={rule}
-            index={i}
-            readOnly={isActiveBundled}
-            onChange={(patch) => updateActiveRule(i, patch)}
-            onRemove={() => removeActiveRule(i)}
-          />
-        ))}
-
-        {!isActiveBundled && (
-          <div className="add-outcome-btns">
-            <button className="btn btn-secondary btn-sm" onClick={() => addActiveRule(newSendRule())}>
-              + Send DTMF rule
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => addActiveRule(newCaptureRule())}>
-              + Capture status rule
-            </button>
+        <footer className="json-dock">
+          <div className="json-dock-header">
+            <span>JSON</span>
+            <span className="hint">{compileToRules(activeScript).length} compiled rules</span>
           </div>
-        )}
-
-        {showJson && (
-          <pre className="json-preview">{JSON.stringify(activeScript, null, 2)}</pre>
-        )}
+          <pre className="json-dock-body">{jsonPreview}</pre>
+        </footer>
       </div>
     </div>
   );

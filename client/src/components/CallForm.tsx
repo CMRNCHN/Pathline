@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { KnownScript } from "../script/types";
+import { requiredSecretNames } from "../script/compile";
 import { useScripts } from "../context/ScriptContext";
 
 interface CallFormProps {
@@ -24,14 +25,26 @@ export function CallForm({
   const [secrets, setSecrets] = useState<Record<string, string>>({});
 
   const script = scripts.find((s) => s.id === activeId) ?? scripts[0];
-  const secretKeys = script?.secrets ?? [];
+
+  const secretFields = (() => {
+    if (!script) return [];
+    const names = requiredSecretNames(script);
+    const byName = new Map(script.secrets.map((s) => [s.name, s]));
+    return names.map((name) => byName.get(name) ?? {
+      id: name,
+      name,
+      description: `Value for ${name}`,
+      example: "",
+      required: true,
+    });
+  })();
 
   useEffect(() => {
     if (script?.target) setTargetNumber(script.target);
     else setTargetNumber("");
   }, [script?.id, script?.target]);
 
-  const missingSecrets = secretKeys.filter((k) => !secrets[k]?.trim());
+  const missingSecrets = secretFields.filter((s) => s.required && !secrets[s.name]?.trim());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,10 +70,10 @@ export function CallForm({
 
   return (
     <form className="call-form" onSubmit={handleSubmit}>
-      <div className="mode-badge">Known script · privacy-preserving status run</div>
+      <div className="mode-badge">{script.name}</div>
 
       <p className="hint privacy-note">
-        Pick a script and fill local secrets. Number stays on device; only encrypted status reaches the server.
+        This script needs a few values from you. They stay on your device.
       </p>
 
       <div className="form-group">
@@ -77,20 +90,22 @@ export function CallForm({
         {script.description && <p className="field-hint">{script.description}</p>}
       </div>
 
-      {secretKeys.length > 0 && (
+      {secretFields.length > 0 && (
         <div className="secrets-section">
-          <h3>Local secrets</h3>
-          {secretKeys.map((key) => (
-            <div key={key} className="form-group">
-              <label htmlFor={`secret-${key}`}>{key}</label>
+          <h3>This script needs</h3>
+          {secretFields.map((field) => (
+            <div key={field.name} className="form-group">
+              <label htmlFor={`secret-${field.name}`}>
+                {field.description || field.name}
+              </label>
               <input
-                id={`secret-${key}`}
+                id={`secret-${field.name}`}
                 type="password"
-                value={secrets[key] ?? ""}
-                onChange={(e) => setSecrets((prev) => ({ ...prev, [key]: e.target.value }))}
-                placeholder={`Enter ${key}`}
+                value={secrets[field.name] ?? ""}
+                onChange={(e) => setSecrets((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                placeholder={field.example || field.name}
                 autoComplete="off"
-                required
+                required={field.required}
               />
             </div>
           ))}
@@ -98,7 +113,7 @@ export function CallForm({
       )}
 
       <div className="form-group">
-        <label htmlFor="target">Target number (E.164) — local only</label>
+        <label htmlFor="target">Target number — local only</label>
         <input
           id="target"
           type="tel"
@@ -114,7 +129,7 @@ export function CallForm({
         className="btn btn-primary btn-full"
         disabled={loading || missingSecrets.length > 0}
       >
-        {loading ? "Starting…" : "Start status check"}
+        {loading ? "Starting…" : "Start check"}
       </button>
     </form>
   );

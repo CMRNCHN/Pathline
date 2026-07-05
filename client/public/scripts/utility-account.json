@@ -1,58 +1,47 @@
 {
   "id": "utility-account",
-  "name": "Utility account status",
-  "description": "Example with account number, PIN, and zip — not card-specific.",
+  "name": "Utility Account Status",
+  "description": "Check utility account — current, past due, or suspended.",
   "target": "+18005551234",
-  "secrets": ["account_number", "account_pin", "zip_code"],
-  "rules": [
+  "timeoutMs": 45000,
+  "tags": ["Utility"],
+  "setupComplete": true,
+  "secrets": [
     {
-      "trigger": "welcome|main menu",
-      "response": "",
-      "key": "",
-      "status": "",
-      "dtmf": "1"
+      "id": "s1",
+      "name": "account_number",
+      "description": "Account number on your bill",
+      "example": "123456789",
+      "required": true
     },
     {
-      "trigger": "account number|enter your account",
-      "response": "",
-      "key": "",
-      "status": "",
-      "dtmf": "{account_number}#"
+      "id": "s2",
+      "name": "account_pin",
+      "description": "PIN or passcode",
+      "example": "••••",
+      "required": true
     },
     {
-      "trigger": "personal identification|pin",
-      "response": "",
-      "key": "",
-      "status": "",
-      "dtmf": "{account_pin}#"
-    },
-    {
-      "trigger": "billing zip|zip code",
-      "response": "",
-      "key": "",
-      "status": "",
-      "dtmf": "{zip_code}#"
-    },
-    {
-      "trigger": "",
-      "response": "account is current|no balance due|paid in full",
-      "key": "account_status",
-      "status": "current",
-      "endCall": true
-    },
-    {
-      "trigger": "",
-      "response": "past due|amount due|payment required",
-      "key": "account_status",
-      "status": "past_due",
-      "endCall": true
-    },
-    {
-      "trigger": "",
-      "response": "disconnected|service suspended",
-      "key": "account_status",
-      "status": "suspended",
-      "endCall": true
+      "id": "s3",
+      "name": "zip_code",
+      "description": "Billing zip code",
+      "example": "20009",
+      "required": true
     }
+  ],
+  "results": [
+    { "id": "r1", "key": "account_status", "description": "Account standing" }
+  ],
+  "conversation": [
+    { "id": "c1", "listenFor": "welcome|main menu", "action": "send_keys", "keys": "1" },
+    { "id": "c2", "listenFor": "account number|enter your account", "action": "send_keys", "keys": "{account_number}#" },
+    { "id": "c3", "listenFor": "personal identification|pin", "action": "send_keys", "keys": "{account_pin}#" },
+    { "id": "c4", "listenFor": "billing zip|zip code", "action": "send_keys", "keys": "{zip_code}#" },
+    { "id": "c5", "listenFor": "account is current|no balance due|paid in full", "action": "save_value", "resultKey": "account_status", "value": "current" },
+    { "id": "c6", "listenFor": "", "action": "hang_up" },
+    { "id": "c7", "listenFor": "past due|amount due|payment required", "action": "save_value", "resultKey": "account_status", "value": "past_due" },
+    { "id": "c8", "listenFor": "", "action": "hang_up" },
+    { "id": "c9", "listenFor": "disconnected|service suspended", "action": "save_value", "resultKey": "account_status", "value": "suspended" },
+    { "id": "c10", "listenFor": "", "action": "hang_up" }
   ]
 }

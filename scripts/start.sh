@@ -92,7 +92,10 @@ fi
 free_port "$API_PORT"
 free_port "$CLIENT_PORT"
 
-trap cleanup INT TERM
+DAEMON="${PROMPTPATH_DAEMON:-0}"
+if [[ "$DAEMON" != "1" ]]; then
+  trap cleanup INT TERM
+fi
 
 info "Starting API on http://localhost:$API_PORT ..."
 JWT_SECRET="${JWT_SECRET:-$(openssl rand -hex 32 2>/dev/null || python3 -c 'import secrets; print(secrets.token_hex(32))')}"
@@ -116,6 +119,14 @@ echo $! >"$PID_DIR/client.pid"
 wait_for_url "http://127.0.0.1:$CLIENT_PORT" "Client"
 
 # ── Done ───────────────────────────────────────────────────────
+if [[ "$DAEMON" == "1" ]]; then
+  if [[ "$(uname)" == "Darwin" ]]; then
+    open "http://localhost:$CLIENT_PORT" 2>/dev/null || true
+    osascript -e "display notification \"http://localhost:$CLIENT_PORT\" with title \"PromptPath is running\" subtitle \"Use PromptPath Stop.app or scripts/stop.sh to quit\""
+  fi
+  exit 0
+fi
+
 echo ""
 echo -e "${GREEN}PromptPath is running${NC}"
 echo ""
@@ -126,6 +137,7 @@ echo "  Logs:   $LOG_DIR/api.log"
 echo "          $LOG_DIR/client.log"
 echo ""
 echo "  Press Ctrl+C to stop both services"
+echo "  Or run: ./scripts/stop.sh"
 echo ""
 
 # Open browser on macOS

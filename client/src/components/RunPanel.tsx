@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { KnownScript } from "../script/types";
+import { compileToRules } from "../script/compile";
 import {
   hashCollected,
   initialRunState,
@@ -15,6 +16,7 @@ interface RunPanelProps {
 }
 
 export function RunPanel({ script, secrets, onStatusCaptured }: RunPanelProps) {
+  const rules = compileToRules(script);
   const [run, setRun] = useState<RunState>(initialRunState);
   const [ivrText, setIvrText] = useState("");
   const [autoListen, setAutoListen] = useState(false);
@@ -23,7 +25,7 @@ export function RunPanel({ script, secrets, onStatusCaptured }: RunPanelProps) {
   const applyPhrase = useCallback(
     (text: string) => {
       setRun((prev) => {
-        const result = processPhrase(text, script.rules, secrets, prev);
+        const result = processPhrase(text, rules, secrets, prev);
         if (result.shouldComplete) {
           const { collected } = result.state;
           void hashCollected(collected).then((hash) => onStatusCaptured(collected, hash));
@@ -31,7 +33,7 @@ export function RunPanel({ script, secrets, onStatusCaptured }: RunPanelProps) {
         return result.state;
       });
     },
-    [script.rules, secrets, onStatusCaptured]
+    [rules, secrets, onStatusCaptured]
   );
 
   useEffect(() => {

@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { KnownScript, StatusRule } from "../script/types";
+import type { ScriptDocument } from "../script/types";
+import { normalizeScript } from "../script/compile";
 import {
   BUNDLED_SCRIPT_FILES,
   duplicateScript,
+  inferTags,
   loadActiveScriptId,
   loadCustomScripts,
   newScript,
   saveActiveScriptId,
   saveCustomScripts,
-  syncSecrets,
 } from "../script/storage";
 
 export function useScriptStore() {
-  const [bundled, setBundled] = useState<KnownScript[]>([]);
-  const [custom, setCustom] = useState<KnownScript[]>(loadCustomScripts);
+  const [bundled, setBundled] = useState<ScriptDocument[]>([]);
+  const [custom, setCustom] = useState<ScriptDocument[]>(() =>
+    loadCustomScripts().map((s) => normalizeScript(s))
+  );
   const [activeId, setActiveId] = useState(loadActiveScriptId);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +31,8 @@ export function useScriptStore() {
           BUNDLED_SCRIPT_FILES.map(async (file) => {
             const res = await fetch(`/scripts/${file}`);
             if (!res.ok) throw new Error(`Failed to load ${file}`);
-            return syncSecrets((await res.json()) as KnownScript);
+            const doc = normalizeScript(await res.json());
+            return { ...doc, tags: doc.tags.length ? doc.tags : inferTags(doc) };
           })
         );
         if (!cancelled) setBundled(loaded);
@@ -54,8 +59,14 @@ export function useScriptStore() {
   }, [activeId]);
 
   const bundledIds = useMemo(() => new Set(bundled.map((s) => s.id)), [bundled]);
-
   const scripts = useMemo(() => [...bundled, ...custom], [bundled, custom]);
+
+  const filteredScripts = useMemo(() => {
+    if (!activeTag) return scripts;
+    return scripts.filter((s) =>
+      s.tags.some((t) => t.toLowerCase() === activeTag.toLowerCase())
+    );
+  }, [scripts, activeTag]);
 
   useEffect(() => {
     if (!activeId && scripts[0]) setActiveId(scripts[0].id);
@@ -64,23 +75,22 @@ export function useScriptStore() {
   const activeScript = scripts.find((s) => s.id === activeId) ?? scripts[0];
   const isActiveBundled = activeScript ? bundledIds.has(activeScript.id) : false;
 
-  const updateCustom = useCallback((id: string, patch: Partial<KnownScript>) => {
+  const updateCustom = useCallback((id: string, patch: Partial<ScriptDocument>) => {
     setCustom((prev) =>
-      prev.map((s) => (s.id === id ? syncSecrets({ ...s, ...patch }) : s))
+      prev.map((s) => (s.id === id ? { ...s, ...patch } : s))
     );
   }, []);
 
   const updateActive = useCallback(
-    (patch: Partial<KnownScript>) => {
-      if (!activeScript) return;
-      if (bundledIds.has(activeScript.id)) return;
+    (patch: Partial<ScriptDocument>) => {
+      if (!activeScript || bundledIds.has(activeScript.id)) return;
       updateCustom(activeScript.id, patch);
     },
     [activeScript, bundledIds, updateCustom]
   );
 
-  const addCustom = useCallback((script?: KnownScript) => {
-    const next = syncSecrets(script ?? newScript());
+  const addCustom = useCallback((script?: ScriptDocument) => {
+    const next = script ?? newScript();
     setCustom((prev) => [...prev, next]);
     setActiveId(next.id);
     return next;
@@ -95,18 +105,16 @@ export function useScriptStore() {
     [activeId, bundledIds]
   );
 
-  const duplicateToCustom = useCallback(
-    (source: KnownScript) => {
-      const copy = duplicateScript(source);
-      setCustom((prev) => [...prev, copy]);
-      setActiveId(copy.id);
-      return copy;
-    },
-    []
-  );
+  const duplicateToCustom = useCallback((source: ScriptDocument) => {
+    const copy = duplicateScript(source);
+    setCustom((prev) => [...prev, copy]);
+    setActiveId(copy.id);
+    return copy;
+  }, []);
 
-  const importScript = useCallback((script: KnownScript) => {
-    const next = syncSecrets({ ...script, id: script.id || crypto.randomUUID() });
+  const importScript = useCallback((raw: unknown) => {
+    const next = normalizeScript(raw);
+    if (!next.id) next.id = crypto.randomUUID();
     setCustom((prev) => {
       const idx = prev.findIndex((s) => s.id === next.id);
       if (idx >= 0) {
@@ -119,64 +127,17 @@ export function useScriptStore() {
     setActiveId(next.id);
   }, []);
 
-  const updateActiveRule = useCallback(
-    (ruleIndex: number, patch: Partial<StatusRule>) => {
-      if (!activeScript || bundledIds.has(activeScript.id)) return;
-      const rules = activeScript.rules.map((r, i) =>
-        i === ruleIndex ? { ...r, ...patch } : r
-      );
-      updateCustom(activeScript.id, { rules });
-    },
-    [activeScript, bundledIds, updateCustom]
-  );
-
-  const addActiveRule = useCallback(
-    (rule: StatusRule) => {
-      if (!activeScript || bundledIds.has(activeScript.id)) return;
-      updateCustom(activeScript.id, { rules: [...activeScript.rules, rule] });
-    },
-    [activeScript, bundledIds, updateCustom]
-  );
-
-  const removeActiveRule = useCallback(
-    (ruleIndex: number) => {
-      if (!activeScript || bundledIds.has(activeScript.id)) return;
-      updateCustom(activeScript.id, {
-        rules: activeScript.rules.filter((_, i) => i !== ruleIndex),
-      });
-    },
-    [activeScript, bundledIds, updateCustom]
-  );
-
-  const addSecretKey = useCallback(
-    (key: string) => {
-      if (!activeScript || bundledIds.has(activeScript.id) || !key.trim()) return;
-      const k = key.trim();
-      if (activeScript.secrets?.includes(k)) return;
-      updateCustom(activeScript.id, {
-        secrets: [...(activeScript.secrets ?? []), k],
-      });
-    },
-    [activeScript, bundledIds, updateCustom]
-  );
-
-  const removeSecretKey = useCallback(
-    (key: string) => {
-      if (!activeScript || bundledIds.has(activeScript.id)) return;
-      updateCustom(activeScript.id, {
-        secrets: (activeScript.secrets ?? []).filter((s) => s !== key),
-      });
-    },
-    [activeScript, bundledIds, updateCustom]
-  );
-
-  const syncActiveSecrets = useCallback(() => {
-    if (!activeScript || bundledIds.has(activeScript.id)) return;
-    updateCustom(activeScript.id, syncSecrets(activeScript));
-  }, [activeScript, bundledIds, updateCustom]);
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    for (const s of scripts) {
+      for (const t of s.tags) tags.add(t);
+    }
+    return [...tags].sort();
+  }, [scripts]);
 
   return {
     scripts,
+    filteredScripts,
     bundled,
     custom,
     bundledIds,
@@ -185,18 +146,15 @@ export function useScriptStore() {
     activeScript,
     activeId,
     setActiveId,
+    activeTag,
+    setActiveTag,
+    allTags,
     isActiveBundled,
     updateActive,
     addCustom,
     removeCustom,
     duplicateToCustom,
     importScript,
-    updateActiveRule,
-    addActiveRule,
-    removeActiveRule,
-    addSecretKey,
-    removeSecretKey,
-    syncActiveSecrets,
   };
 }
 

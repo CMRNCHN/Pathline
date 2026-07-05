@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Launch PromptPath from anywhere — same as scripts/start.sh
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+exec "$ROOT/scripts/start.sh" "$@"
