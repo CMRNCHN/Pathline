@@ -4,7 +4,7 @@ import { newConversationStep } from "./compile";
 export const CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts";
 export const ACTIVE_SCRIPT_KEY = "promptpath-active-script";
 
-export const BUNDLED_SCRIPT_FILES = ["cc-balance.json", "utility-account.json"];
+export const BUNDLED_SCRIPT_FILES: string[] = [];
 
 export function newId(): string {
   return crypto.randomUUID();
@@ -13,7 +13,7 @@ export function newId(): string {
 export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
   return {
     id: newId(),
-    name: "New script",
+    name: "",
     description: "",
     target: "",
     timeoutMs: 30000,
@@ -57,17 +57,13 @@ export function duplicateScript(source: ScriptDocument, name?: string): ScriptDo
   };
 }
 
-export const DEFAULT_TAGS = ["Credit Card", "Utility", "Insurance", "Bank", "Government"];
+export const DEFAULT_TAGS = ["Utility", "Insurance", "Bank", "Government", "Other"];
 
 export function scriptMatchesTag(script: ScriptDocument, tag: string | null): boolean {
   if (!tag) return true;
   return script.tags.some((t) => t.toLowerCase() === tag.toLowerCase());
 }
 
-export function inferTags(script: ScriptDocument): string[] {
-  if (script.tags.length) return script.tags;
-  const name = script.name.toLowerCase();
-  if (name.includes("credit") || name.includes("card")) return ["Credit Card"];
-  if (name.includes("utility")) return ["Utility"];
-  return ["Credit Card"];
+export function inferTags(_script: ScriptDocument): string[] {
+  return [];
 }

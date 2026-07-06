@@ -1,0 +1,19 @@
+{
+  "id": "template",
+  "name": "",
+  "description": "",
+  "target": "",
+  "timeoutMs": 30000,
+  "tags": [],
+  "setupComplete": false,
+  "secrets": [],
+  "results": [],
+  "conversation": [
+    {
+      "id": "step-1",
+      "listenFor": "",
+      "action": "send_keys",
+      "keys": ""
+    }
+  ]
+}

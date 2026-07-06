@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { ScriptDocument } from "../script/types";
 import { normalizeScript } from "../script/compile";
+import { getActiveScript, isBundledScript } from "../script/selectors";
 import {
   BUNDLED_SCRIPT_FILES,
   duplicateScript,
@@ -12,19 +21,39 @@ import {
   saveCustomScripts,
 } from "../script/storage";
 
-export function useScriptStore() {
-  const [bundled, setBundled] = useState<ScriptDocument[]>([]);
-  const [custom, setCustom] = useState<ScriptDocument[]>(() =>
+export interface ScriptStore {
+  bundledScripts: ScriptDocument[];
+  customScripts: ScriptDocument[];
+  activeId: string;
+  activeScript: ScriptDocument | undefined;
+  loading: boolean;
+  error: string | null;
+  setActiveId: (id: string) => void;
+  updateCustom: (id: string, patch: Partial<ScriptDocument>) => void;
+  addCustom: (script?: ScriptDocument) => ScriptDocument;
+  removeCustom: (id: string) => void;
+  duplicateToCustom: (source: ScriptDocument) => ScriptDocument;
+  importScript: (raw: unknown) => void;
+}
+
+const ScriptStoreContext = createContext<ScriptStore | null>(null);
+
+function useScriptStoreState(): ScriptStore {
+  const [bundledScripts, setBundledScripts] = useState<ScriptDocument[]>([]);
+  const [customScripts, setCustomScripts] = useState<ScriptDocument[]>(() =>
     loadCustomScripts().map((s) => normalizeScript(s))
   );
   const [activeId, setActiveId] = useState(loadActiveScriptId);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const bundledRef = useRef(bundledScripts);
+
+  useEffect(() => {
+    bundledRef.current = bundledScripts;
+  }, [bundledScripts]);
 
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       try {
         const loaded = await Promise.all(
@@ -35,7 +64,7 @@ export function useScriptStore() {
             return { ...doc, tags: doc.tags.length ? doc.tags : inferTags(doc) };
           })
         );
-        if (!cancelled) setBundled(loaded);
+        if (!cancelled) setBundledScripts(loaded);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load bundled scripts");
@@ -44,70 +73,50 @@ export function useScriptStore() {
         if (!cancelled) setLoading(false);
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
   useEffect(() => {
-    saveCustomScripts(custom);
-  }, [custom]);
+    saveCustomScripts(customScripts);
+  }, [customScripts]);
 
   useEffect(() => {
     saveActiveScriptId(activeId);
   }, [activeId]);
 
-  const bundledIds = useMemo(() => new Set(bundled.map((s) => s.id)), [bundled]);
-  const scripts = useMemo(() => [...bundled, ...custom], [bundled, custom]);
-
-  const filteredScripts = useMemo(() => {
-    if (!activeTag) return scripts;
-    return scripts.filter((s) =>
-      s.tags.some((t) => t.toLowerCase() === activeTag.toLowerCase())
-    );
-  }, [scripts, activeTag]);
-
   useEffect(() => {
-    if (!activeId && scripts[0]) setActiveId(scripts[0].id);
-  }, [scripts, activeId]);
+    if (activeId) return;
+    const first = bundledScripts[0] ?? customScripts[0];
+    if (first) setActiveId(first.id);
+  }, [activeId, bundledScripts, customScripts]);
 
-  const activeScript = scripts.find((s) => s.id === activeId) ?? scripts[0];
-  const isActiveBundled = activeScript ? bundledIds.has(activeScript.id) : false;
+  const activeScript = getActiveScript(bundledScripts, customScripts, activeId);
 
   const updateCustom = useCallback((id: string, patch: Partial<ScriptDocument>) => {
-    setCustom((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...patch } : s))
-    );
+    setCustomScripts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }, []);
-
-  const updateActive = useCallback(
-    (patch: Partial<ScriptDocument>) => {
-      if (!activeScript || bundledIds.has(activeScript.id)) return;
-      updateCustom(activeScript.id, patch);
-    },
-    [activeScript, bundledIds, updateCustom]
-  );
 
   const addCustom = useCallback((script?: ScriptDocument) => {
     const next = script ?? newScript();
-    setCustom((prev) => [...prev, next]);
+    setCustomScripts((prev) => [...prev, next]);
     setActiveId(next.id);
     return next;
   }, []);
 
   const removeCustom = useCallback(
     (id: string) => {
-      if (bundledIds.has(id)) return;
-      setCustom((prev) => prev.filter((s) => s.id !== id));
+      if (isBundledScript(bundledRef.current, id)) return;
+      setCustomScripts((prev) => prev.filter((s) => s.id !== id));
       if (activeId === id) setActiveId("");
     },
-    [activeId, bundledIds]
+    [activeId]
   );
 
   const duplicateToCustom = useCallback((source: ScriptDocument) => {
     const copy = duplicateScript(source);
-    setCustom((prev) => [...prev, copy]);
+    setCustomScripts((prev) => [...prev, copy]);
     setActiveId(copy.id);
     return copy;
   }, []);
@@ -115,7 +124,7 @@ export function useScriptStore() {
   const importScript = useCallback((raw: unknown) => {
     const next = normalizeScript(raw);
     if (!next.id) next.id = crypto.randomUUID();
-    setCustom((prev) => {
+    setCustomScripts((prev) => {
       const idx = prev.findIndex((s) => s.id === next.id);
       if (idx >= 0) {
         const updated = [...prev];
@@ -127,30 +136,15 @@ export function useScriptStore() {
     setActiveId(next.id);
   }, []);
 
-  const allTags = useMemo(() => {
-    const tags = new Set<string>();
-    for (const s of scripts) {
-      for (const t of s.tags) tags.add(t);
-    }
-    return [...tags].sort();
-  }, [scripts]);
-
   return {
-    scripts,
-    filteredScripts,
-    bundled,
-    custom,
-    bundledIds,
+    bundledScripts,
+    customScripts,
+    activeId,
+    activeScript,
     loading,
     error,
-    activeScript,
-    activeId,
     setActiveId,
-    activeTag,
-    setActiveTag,
-    allTags,
-    isActiveBundled,
-    updateActive,
+    updateCustom,
     addCustom,
     removeCustom,
     duplicateToCustom,
@@ -158,4 +152,13 @@ export function useScriptStore() {
   };
 }
 
-export type ScriptStore = ReturnType<typeof useScriptStore>;
+export function ScriptStoreProvider({ children }: { children: ReactNode }) {
+  const store = useScriptStoreState();
+  return <ScriptStoreContext.Provider value={store}>{children}</ScriptStoreContext.Provider>;
+}
+
+export function useScriptStore(): ScriptStore {
+  const store = useContext(ScriptStoreContext);
+  if (!store) throw new Error("useScriptStore must be used within ScriptStoreProvider");
+  return store;
+}
