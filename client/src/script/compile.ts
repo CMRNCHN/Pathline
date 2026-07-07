@@ -1,188 +1,128 @@
 import type {
-  CapturedValue,
-  ConversationStep,
-  ScriptAction,
+  ExtractedSchemaField,
+  FlowStep,
+  IvrRule,
   ScriptDocument,
-  ScriptSecret,
-  StatusRule,
+  ScriptSetup,
 } from "./types";
+import { SCRIPT_VERSION } from "./types";
+import { migrateV1ToV2 } from "./migrate";
 import { newId } from "./storage";
 
-function stepFromSend(trigger: string, dtmf: string): ConversationStep {
-  return { id: newId(), listenFor: trigger, action: "send_keys", keys: dtmf };
+function isV2Shape(raw: unknown): boolean {
+  const o = raw as Record<string, unknown>;
+  return o.version === SCRIPT_VERSION || (Boolean(o.setup) && Array.isArray(o.ivrRules));
 }
 
-function stepFromSave(response: string, key: string, status: string, endCall: boolean): ConversationStep[] {
-  const steps: ConversationStep[] = [
-    { id: newId(), listenFor: response, action: "save_value", resultKey: key, value: status },
-  ];
-  if (endCall) steps.push({ id: newId(), listenFor: "", action: "hang_up" });
-  return steps;
+function normalizeSetup(raw: Partial<ScriptSetup>): ScriptSetup {
+  return {
+    name: raw.name ?? "",
+    description: raw.description ?? "",
+    target: raw.target ?? "",
+    timeoutMs: raw.timeoutMs ?? 30000,
+    speechPreferences: {
+      autoListen: raw.speechPreferences?.autoListen ?? false,
+    },
+  };
 }
 
-export function migrateLegacyRules(rules: StatusRule[]): ConversationStep[] {
-  const steps: ConversationStep[] = [];
-  for (const rule of rules) {
-    const isSend = Boolean(rule.trigger?.trim() || rule.dtmf?.trim());
-    if (isSend) {
-      steps.push(stepFromSend(rule.trigger ?? "", rule.dtmf ?? ""));
-    } else if (rule.response?.trim()) {
-      steps.push(...stepFromSave(rule.response, rule.key, rule.status, Boolean(rule.endCall)));
-    } else if (rule.endCall) {
-      steps.push({ id: newId(), listenFor: "", action: "hang_up" });
-    }
-  }
-  return steps;
+function normalizeIvrRule(raw: Partial<IvrRule>): IvrRule {
+  return {
+    id: raw.id ?? newId(),
+    label: raw.label ?? "",
+    valueReference: raw.valueReference ?? "",
+    expectedInput: raw.expectedInput ?? "",
+    rule: raw.rule ?? "",
+  };
 }
 
-function migrateSecrets(raw: unknown): ScriptSecret[] {
-  if (!Array.isArray(raw)) return [];
-  if (raw.length === 0) return [];
-  if (typeof raw[0] === "string") {
-    return (raw as string[]).map((name) => ({
-      id: newId(),
-      name,
-      description: "",
-      example: "",
-      required: true,
-    }));
-  }
-  return raw as ScriptSecret[];
+function normalizeFlowStep(raw: Partial<FlowStep>): FlowStep {
+  return {
+    id: raw.id ?? newId(),
+    detect: raw.detect ?? "",
+    action: raw.action ?? "pass",
+    triggerLabel: raw.triggerLabel,
+    extractField: raw.extractField,
+    map: raw.map?.map((m) => ({
+      id: m.id ?? newId(),
+      detect: m.detect ?? "",
+      value: m.value ?? "",
+    })),
+  };
 }
 
-function inferResults(conversation: ConversationStep[]): CapturedValue[] {
-  const keys = new Map<string, CapturedValue>();
-  for (const step of conversation) {
-    if (step.action === "save_value" && step.resultKey) {
-      if (!keys.has(step.resultKey)) {
-        keys.set(step.resultKey, {
-          id: newId(),
-          key: step.resultKey,
-          description: "",
-        });
-      }
-    }
-  }
-  return [...keys.values()];
+function normalizeSchemaField(raw: Partial<ExtractedSchemaField>): ExtractedSchemaField {
+  return {
+    id: raw.id ?? newId(),
+    field: raw.field ?? "",
+    type: raw.type ?? "text",
+  };
+}
+
+function normalizeV2(raw: unknown): ScriptDocument {
+  const o = raw as Partial<ScriptDocument>;
+  return {
+    id: o.id ?? newId(),
+    version: SCRIPT_VERSION,
+    setup: normalizeSetup(o.setup ?? {}),
+    ivrRules: (o.ivrRules ?? []).map(normalizeIvrRule),
+    conversationFlow: (o.conversationFlow ?? []).map(normalizeFlowStep),
+    extractedSchema: (o.extractedSchema ?? []).map(normalizeSchemaField),
+  };
 }
 
 export function normalizeScript(raw: unknown): ScriptDocument {
-  const o = raw as Partial<ScriptDocument> & { rules?: StatusRule[]; secrets?: unknown };
+  if (isV2Shape(raw)) return normalizeV2(raw);
+  return migrateV1ToV2(raw);
+}
 
-  let conversation = o.conversation ?? [];
-  if (conversation.length === 0 && o.rules?.length) {
-    conversation = migrateLegacyRules(o.rules);
+const VAR_REF = /\{\{(\w+)\}\}/g;
+
+export function extractVariableNames(doc: ScriptDocument): string[] {
+  const names = new Set<string>();
+  for (const rule of doc.ivrRules) {
+    for (const m of rule.valueReference.matchAll(VAR_REF)) {
+      names.add(m[1]);
+    }
   }
+  return [...names].sort();
+}
 
-  const secrets = migrateSecrets(o.secrets);
-  const results = o.results?.length ? o.results : inferResults(conversation);
+export function resolveReference(template: string, variables: Record<string, string>): string {
+  return template.replace(VAR_REF, (_, key: string) => variables[key] ?? `{{${key}}}`);
+}
 
+export function newIvrRule(): IvrRule {
   return {
-    id: o.id ?? newId(),
-    name: o.name ?? "New script",
-    description: o.description ?? "",
-    target: o.target ?? "",
-    timeoutMs: o.timeoutMs ?? 30000,
-    tags: o.tags ?? [],
-    setupComplete: o.setupComplete ?? Boolean(o.name && o.target),
-    secrets,
-    conversation,
-    results,
+    id: newId(),
+    label: "",
+    valueReference: "",
+    expectedInput: "",
+    rule: "Inject DTMF after detect",
   };
 }
 
-export function compileToRules(doc: ScriptDocument): StatusRule[] {
-  const rules: StatusRule[] = [];
+export function newFlowStep(action: FlowStep["action"] = "trigger"): FlowStep {
+  return { id: newId(), detect: "", action, map: action === "extract" ? [] : undefined };
+}
 
-  for (let i = 0; i < doc.conversation.length; i++) {
-    const step = doc.conversation[i];
-    const next = doc.conversation[i + 1];
-    const endsNext = next?.action === "hang_up";
+export function newSchemaField(): ExtractedSchemaField {
+  return { id: newId(), field: "", type: "text" };
+}
 
-    switch (step.action) {
-      case "send_keys":
-        if (step.listenFor?.trim() || step.keys?.trim()) {
-          rules.push({
-            trigger: step.listenFor ?? "",
-            response: "",
-            key: "",
-            status: "",
-            dtmf: step.keys ?? "",
-            endCall: false,
-          });
-        }
-        break;
+export function newMapEntry(): { id: string; detect: string; value: string } {
+  return { id: newId(), detect: "", value: "" };
+}
 
-      case "save_value":
-        if (step.listenFor?.trim()) {
-          rules.push({
-            trigger: "",
-            response: step.listenFor,
-            key: step.resultKey ?? "",
-            status: step.value ?? "",
-            endCall: endsNext,
-          });
-        }
-        break;
+export function findIvrRule(doc: ScriptDocument, label: string): IvrRule | undefined {
+  return doc.ivrRules.find((r) => r.label === label);
+}
 
-      case "hang_up":
-        if (step.listenFor?.trim()) {
-          rules.push({
-            trigger: "",
-            response: step.listenFor,
-            key: "_ended",
-            status: "ended",
-            endCall: true,
-          });
-        }
-        break;
-
-      case "speak":
-      case "wait":
-      case "jump":
-        break;
-    }
+export function applyExtractMap(phrase: string, map: { detect: string; value: string }[]): string | undefined {
+  const hay = phrase.toLowerCase();
+  for (const entry of map) {
+    const needle = entry.detect.trim().toLowerCase();
+    if (needle && hay.includes(needle)) return entry.value;
   }
-
-  const last = doc.conversation[doc.conversation.length - 1];
-  if (last?.action === "hang_up" && !last.listenFor?.trim() && rules.length > 0) {
-    rules[rules.length - 1] = { ...rules[rules.length - 1], endCall: true };
-  }
-
-  return rules;
-}
-
-export function requiredSecretNames(doc: ScriptDocument): string[] {
-  const fromDefs = doc.secrets.filter((s) => s.required).map((s) => s.name);
-  const fromPlaceholders = new Set<string>();
-  for (const step of doc.conversation) {
-    if (step.keys) {
-      for (const m of step.keys.matchAll(/\{(\w+)\}/g)) fromPlaceholders.add(m[1]);
-    }
-  }
-  return [...new Set([...fromDefs, ...fromPlaceholders])].filter(Boolean);
-}
-
-export function actionLabel(action: ScriptAction): string {
-  const labels: Record<ScriptAction, string> = {
-    send_keys: "Send Keys",
-    save_value: "Save",
-    speak: "Speak",
-    wait: "Wait",
-    hang_up: "End Call",
-    jump: "Jump",
-  };
-  return labels[action];
-}
-
-export function newConversationStep(action: ScriptAction = "send_keys"): ConversationStep {
-  return { id: newId(), listenFor: "", action, keys: action === "send_keys" ? "" : undefined };
-}
-
-export function newSecret(): ScriptSecret {
-  return { id: newId(), name: "", description: "", example: "", required: true };
-}
-
-export function newResult(): CapturedValue {
-  return { id: newId(), key: "", description: "" };
+  return undefined;
 }

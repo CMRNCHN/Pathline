@@ -11,7 +11,7 @@ import {
 import { encryptStatusPayload, generateUserId, generateSessionId, clearLocalKeys } from "../crypto";
 import type { LocalSession } from "../types";
 import type { KnownScript } from "../script/types";
-import { compileToRules, requiredSecretNames } from "../script/compile";
+import { extractVariableNames } from "../script/compile";
 import {
   hashCollected,
   initialRunState,
@@ -19,6 +19,7 @@ import {
   type RunState,
 } from "../script/runEngine";
 import { getActiveScript, mergeScripts } from "../script/selectors";
+import { scriptDisplayName } from "../script/storage";
 import { useScriptStore } from "../store/ScriptStore";
 import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
@@ -27,7 +28,7 @@ type Step = "consent" | "configure" | "active";
 
 interface ActiveRun {
   script: KnownScript;
-  secrets: Record<string, string>;
+  variables: Record<string, string>;
 }
 
 interface RunPageProps {
@@ -46,8 +47,8 @@ export function RunPage({ scriptId }: RunPageProps) {
 
   return (
     <PageLayout
-      title={script?.name || "Run Template"}
-      subtitle="Execute this script locally. Secrets and audio stay on your device."
+      title={script ? scriptDisplayName(script) : "Run Template"}
+      subtitle="Run Configuration injects runtime variables. Audio stays on your device."
       action={
         <div className="flex items-center gap-2 text-xs text-muted bg-white border border-[#0a0a0b14] px-3 py-1.5 rounded-md">
           <Play className="w-3.5 h-3.5 text-accent" />
@@ -83,30 +84,22 @@ function RunFlow({
   const [userId] = useState(() => generateUserId());
 
   const [targetNumber, setTargetNumber] = useState("");
-  const [secrets, setSecrets] = useState<Record<string, string>>({});
+  const [variables, setVariables] = useState<Record<string, string>>({});
 
   const scripts = mergeScripts(bundledScripts, customScripts);
   const script = getActiveScript(bundledScripts, customScripts, activeId) ?? scripts[0];
 
-  const secretFields = useMemo(() => {
+  const variableNames = useMemo(() => {
     if (!script) return [];
-    const names = requiredSecretNames(script);
-    const byName = new Map(script.secrets.map((s) => [s.name, s]));
-    return names.map((name) => byName.get(name) ?? {
-      id: name,
-      name,
-      description: `Value for ${name}`,
-      example: "",
-      required: true,
-    });
+    return extractVariableNames(script);
   }, [script]);
 
   useEffect(() => {
-    if (script?.target) setTargetNumber(script.target);
+    if (script?.setup.target) setTargetNumber(script.setup.target);
     else setTargetNumber("");
-  }, [script?.id, script?.target]);
+  }, [script?.id, script?.setup.target]);
 
-  const missingSecrets = secretFields.filter((s) => s.required && !secrets[s.name]?.trim());
+  const missingVariables = variableNames.filter((name) => !variables[name]?.trim());
 
   const handleConsent = async () => {
     setLoading(true);
@@ -133,11 +126,11 @@ function RunFlow({
     setError(null);
     try {
       const sessionId = generateSessionId();
-      setActiveRun({ script, secrets });
+      setActiveRun({ script, variables });
       setSession({
         sessionId,
         scriptId: script.id,
-        scriptName: script.name,
+        scriptName: scriptDisplayName(script),
         targetNumber,
         status: "in_progress",
         startedAt: new Date().toISOString(),
@@ -265,38 +258,36 @@ function RunFlow({
     return (
       <>
         <form className="call-form" onSubmit={handleStart}>
-          <div className="mode-badge">{script.name || "Untitled script"}</div>
+          <div className="mode-badge">{scriptDisplayName(script)}</div>
 
           <p className="hint privacy-note">
-            This script needs a few values from you. They stay on your device.
+            Run Configuration — runtime variables stay on your device.
           </p>
 
           <div className="form-group">
             <label htmlFor="script">Script</label>
             <select id="script" value={script.id} onChange={(e) => setActiveId(e.target.value)}>
               {scripts.map((s) => (
-                <option key={s.id} value={s.id}>{s.name || "Untitled"}</option>
+                <option key={s.id} value={s.id}>{scriptDisplayName(s)}</option>
               ))}
             </select>
-            {script.description && <p className="field-hint">{script.description}</p>}
+            {script.setup.description && <p className="field-hint">{script.setup.description}</p>}
           </div>
 
-          {secretFields.length > 0 && (
+          {variableNames.length > 0 && (
             <div className="secrets-section">
-              <h3>This script needs</h3>
-              {secretFields.map((field) => (
-                <div key={field.name} className="form-group">
-                  <label htmlFor={`secret-${field.name}`}>
-                    {field.description || field.name}
-                  </label>
+              <h3>Runtime variables</h3>
+              {variableNames.map((name) => (
+                <div key={name} className="form-group">
+                  <label htmlFor={`var-${name}`}>{name}</label>
                   <input
-                    id={`secret-${field.name}`}
+                    id={`var-${name}`}
                     type="password"
-                    value={secrets[field.name] ?? ""}
-                    onChange={(e) => setSecrets((prev) => ({ ...prev, [field.name]: e.target.value }))}
-                    placeholder={field.example || field.name}
+                    value={variables[name] ?? ""}
+                    onChange={(e) => setVariables((prev) => ({ ...prev, [name]: e.target.value }))}
+                    placeholder={name}
                     autoComplete="off"
-                    required={field.required}
+                    required
                   />
                 </div>
               ))}
@@ -317,7 +308,7 @@ function RunFlow({
           <button
             type="submit"
             className="btn btn-primary btn-full"
-            disabled={loading || missingSecrets.length > 0}
+            disabled={loading || missingVariables.length > 0}
           >
             {loading ? "Starting…" : "Start check"}
           </button>
@@ -347,7 +338,7 @@ function RunFlow({
       {session.status === "in_progress" && (
         <MatcherPanel
           script={activeRun.script}
-          secrets={activeRun.secrets}
+          variables={activeRun.variables}
           onStatusCaptured={handleComplete}
         />
       )}
@@ -378,24 +369,23 @@ function RunFlow({
 
 function MatcherPanel({
   script,
-  secrets,
+  variables,
   onStatusCaptured,
 }: {
   script: KnownScript;
-  secrets: Record<string, string>;
+  variables: Record<string, string>;
   onStatusCaptured: (collected: Record<string, string>, transcriptHash: string) => void;
 }) {
-  const rules = useMemo(() => compileToRules(script), [script]);
   const [run, setRun] = useState<RunState>(initialRunState);
   const [ivrText, setIvrText] = useState("");
-  const [autoListen, setAutoListen] = useState(false);
+  const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
   const [listenError, setListenError] = useState<string | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
   const applyPhraseNow = useCallback(
     (text: string) => {
       setRun((prev) => {
-        const result = processPhrase(text, rules, secrets, prev);
+        const result = processPhrase(text, script, variables, prev);
         if (result.shouldComplete) {
           const { collected } = result.state;
           void hashCollected(collected).then((hash) => onStatusCaptured(collected, hash));
@@ -403,7 +393,7 @@ function MatcherPanel({
         return result.state;
       });
     },
-    [rules, secrets, onStatusCaptured]
+    [script, variables, onStatusCaptured]
   );
 
   const applyPhraseDebounced = useCallback(
@@ -445,7 +435,7 @@ function MatcherPanel({
   return (
     <div className="navigator-panel run-panel">
       <div className="run-panel-header">
-        <h4>{script.name || "Untitled script"}</h4>
+        <h4>{scriptDisplayName(script)}</h4>
         {isSpeechRecognitionAvailable() && !run.completed && (
           <button
             type="button"
@@ -507,7 +497,7 @@ function MatcherPanel({
 
       {Object.keys(run.collected).length > 0 && (
         <div className="collected-json">
-          <h5>Collected status</h5>
+          <h5>Extracted data</h5>
           <pre>{JSON.stringify(run.collected, null, 2)}</pre>
         </div>
       )}

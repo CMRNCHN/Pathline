@@ -382,8 +382,36 @@ button {
 }
 
 .log-status { color: var(--success); }
-.log-dtmf { color: var(--accent); }
-.log-unknown { color: var(--warning); }
+.editor-field-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.flow-map-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 12rem;
+}
+
+.flow-map-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.flow-map-arrow {
+  color: var(--muted);
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.log-trigger { color: var(--accent); }
+.log-extract { color: #059669; }
+.log-pass { color: var(--muted); }
+.log-end { color: var(--ink); }
 
 /* ── Script editor ── */
 .script-editor-panel {

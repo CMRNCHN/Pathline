@@ -13,7 +13,6 @@ import { getActiveScript, isBundledScript } from "../script/selectors";
 import {
   BUNDLED_SCRIPT_FILES,
   duplicateScript,
-  inferTags,
   loadActiveScriptId,
   loadCustomScripts,
   newScript,
@@ -61,7 +60,7 @@ function useScriptStoreState(): ScriptStore {
             const res = await fetch(`/scripts/${file}`);
             if (!res.ok) throw new Error(`Failed to load ${file}`);
             const doc = normalizeScript(await res.json());
-            return { ...doc, tags: doc.tags.length ? doc.tags : inferTags(doc) };
+            return doc;
           })
         );
         if (!cancelled) setBundledScripts(loaded);

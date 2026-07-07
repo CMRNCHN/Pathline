@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useScriptStore } from "../store/ScriptStore";
 import { getActiveScript } from "../script/selectors";
+import { scriptDisplayName } from "../script/storage";
 import { normalizeScript } from "../script/compile";
 import type { AppView } from "../navigation";
 
@@ -164,7 +165,7 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
       {openScript && scriptContext && (
         <div className="flex items-center gap-2 px-4 py-2 border-t border-[#1c1c1c] bg-[#0d0d0e]">
           <span className="text-xs text-[#71717a] truncate max-w-[140px] sm:max-w-xs">
-            {openScript.name || "Untitled"}
+            {scriptDisplayName(openScript)}
           </span>
           <span className="text-[#2a2a2a]">|</span>
           <nav className="flex items-center gap-1">

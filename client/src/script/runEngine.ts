@@ -1,29 +1,20 @@
-import type { StatusRule } from "./types";
-import { matchIvrPhrase } from "./matcher";
+import type { ScriptDocument, RunLogEntry, RunState } from "./types";
+import {
+  applyExtractMap,
+  findIvrRule,
+  resolveReference,
+} from "./compile";
 
-export interface RunLogEntry {
-  at: string;
-  message: string;
-  kind: "send" | "status" | "unknown" | "info";
-}
-
-export interface RunState {
-  collected: Record<string, string>;
-  log: RunLogEntry[];
-  lastPhrase?: string;
-  pendingDtmf?: string;
-  pendingTrigger?: string;
-  completed: boolean;
-}
-
-export function initialRunState(): RunState {
-  return { collected: {}, log: [], completed: false };
-}
+export type { RunState, RunLogEntry };
 
 export interface ProcessPhraseResult {
   state: RunState;
   matched: boolean;
   shouldComplete: boolean;
+}
+
+export function initialRunState(): RunState {
+  return { collected: {}, log: [], completed: false };
 }
 
 export async function hashCollected(collected: Record<string, string>): Promise<string> {
@@ -36,10 +27,24 @@ function logEntry(message: string, kind: RunLogEntry["kind"]): RunLogEntry {
   return { at: new Date().toISOString(), message, kind };
 }
 
+function matches(text: string, phrase: string): boolean {
+  if (!phrase.trim()) return false;
+  const hay = text.toLowerCase().replace(/\s+/g, " ").trim();
+  return phrase
+    .split("|")
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean)
+    .some((needle) => hay.includes(needle));
+}
+
+function findMatchingFlowStep(doc: ScriptDocument, phrase: string) {
+  return doc.conversationFlow.find((step) => matches(phrase, step.detect));
+}
+
 export function processPhrase(
   text: string,
-  rules: StatusRule[],
-  secrets: Record<string, string>,
+  doc: ScriptDocument,
+  variables: Record<string, string>,
   prev: RunState
 ): ProcessPhraseResult {
   if (prev.completed) return { state: prev, matched: false, shouldComplete: false };
@@ -48,49 +53,92 @@ export function processPhrase(
   if (!phrase) return { state: prev, matched: false, shouldComplete: false };
   if (phrase === prev.lastPhrase) return { state: prev, matched: false, shouldComplete: false };
 
-  const result = matchIvrPhrase(phrase, rules, secrets);
-  const base = { ...prev, lastPhrase: phrase, pendingDtmf: undefined, pendingTrigger: undefined };
-
-  if (result.type === "trigger") {
-    const { rule, dtmf } = result;
-    const log = [...prev.log, logEntry(
-      dtmf ? `SEND ${dtmf} (heard: ${rule.trigger})` : `Heard trigger, no DTMF configured`,
-      "send"
-    )];
-    const state: RunState = {
-      ...base,
-      log,
-      pendingDtmf: dtmf,
-      pendingTrigger: rule.trigger,
-    };
-    if (rule.endCall) {
-      return { state: { ...state, completed: true }, matched: true, shouldComplete: true };
-    }
-    return { state, matched: true, shouldComplete: false };
-  }
-
-  if (result.type === "status") {
-    const { rule } = result;
-    const collected = { ...prev.collected, [rule.key]: rule.status };
-    const log = [
-      ...prev.log,
-      logEntry(`${rule.key}: ${rule.status}${rule.endCall ? " ✓ END" : ""}`, "status"),
-    ];
-    const state: RunState = {
-      ...base,
-      collected,
-      log,
-      completed: Boolean(rule.endCall),
-    };
-    return { state, matched: true, shouldComplete: Boolean(rule.endCall) };
-  }
-
-  return {
-    state: {
-      ...base,
-      log: [...prev.log, logEntry(`No match: "${phrase.slice(0, 60)}${phrase.length > 60 ? "…" : ""}"`, "unknown")],
-    },
-    matched: false,
-    shouldComplete: false,
+  const step = findMatchingFlowStep(doc, phrase);
+  const base: RunState = {
+    ...prev,
+    lastPhrase: phrase,
+    pendingDtmf: undefined,
+    pendingTrigger: undefined,
   };
+
+  if (!step) {
+    return {
+      state: {
+        ...base,
+        log: [
+          ...prev.log,
+          logEntry(`No match: "${phrase.slice(0, 60)}${phrase.length > 60 ? "…" : ""}"`, "unknown"),
+        ],
+      },
+      matched: false,
+      shouldComplete: false,
+    };
+  }
+
+  switch (step.action) {
+    case "pass": {
+      return {
+        state: {
+          ...base,
+          log: [...prev.log, logEntry(`Pass: "${step.detect}"`, "pass")],
+        },
+        matched: true,
+        shouldComplete: false,
+      };
+    }
+
+    case "trigger": {
+      const ivrRule = step.triggerLabel ? findIvrRule(doc, step.triggerLabel) : undefined;
+      const resolved = ivrRule
+        ? resolveReference(ivrRule.valueReference, variables)
+        : undefined;
+      const log = [
+        ...prev.log,
+        logEntry(
+          resolved
+            ? `Trigger ${step.triggerLabel} → SEND ${resolved}`
+            : `Trigger ${step.triggerLabel ?? "?"} — rule not found`,
+          "trigger"
+        ),
+      ];
+      const state: RunState = {
+        ...base,
+        log,
+        pendingDtmf: resolved,
+        pendingTrigger: step.detect,
+      };
+      return { state, matched: true, shouldComplete: false };
+    }
+
+    case "extract": {
+      const field = step.extractField ?? "";
+      const mapped = step.map?.length ? applyExtractMap(phrase, step.map) : undefined;
+      const value = mapped ?? "";
+      const collected = value ? { ...prev.collected, [field]: value } : prev.collected;
+      const log = [
+        ...prev.log,
+        logEntry(
+          value ? `Extract ${field} = ${value}` : `Extract ${field} — no map match`,
+          value ? "extract" : "unknown"
+        ),
+      ];
+      return {
+        state: { ...base, collected, log },
+        matched: Boolean(value),
+        shouldComplete: false,
+      };
+    }
+
+    case "end": {
+      const log = [...prev.log, logEntry(`End: "${step.detect}"`, "end")];
+      return {
+        state: { ...base, log, completed: true },
+        matched: true,
+        shouldComplete: true,
+      };
+    }
+
+    default:
+      return { state: prev, matched: false, shouldComplete: false };
+  }
 }

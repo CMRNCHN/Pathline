@@ -3,6 +3,7 @@ import { FileText, Phone, Plus } from "lucide-react";
 import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript, mergeScripts } from "../script/selectors";
 import { PageLayout } from "../components/ui/PageHeader";
+import { scriptDisplayName } from "../script/storage";
 import type { AppView } from "../navigation";
 
 interface LibraryPageProps {
@@ -20,8 +21,8 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
     const q = searchQuery.toLowerCase();
     return scripts.filter(
       (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q)
+        s.setup.name.toLowerCase().includes(q) ||
+        s.setup.description.toLowerCase().includes(q)
     );
   }, [scripts, searchQuery]);
 
@@ -78,14 +79,14 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
                     </span>
                   )}
                 </div>
-                <h3 className="font-semibold text-ink mb-1">{script.name || "Untitled"}</h3>
+                <h3 className="font-semibold text-ink mb-1">{scriptDisplayName(script)}</h3>
                 <p className="text-sm text-[#595959] line-clamp-2 mb-3">
-                  {script.description || "No description"}
+                  {script.setup.description || "No description"}
                 </p>
                 <div className="flex items-center gap-3 text-[11px] text-[#595959]">
-                  <span>{script.results.length} capture{script.results.length !== 1 ? "s" : ""}</span>
+                  <span>{script.extractedSchema.length} field{script.extractedSchema.length !== 1 ? "s" : ""}</span>
                   <span>·</span>
-                  <span>{script.secrets.length} secret{script.secrets.length !== 1 ? "s" : ""}</span>
+                  <span>{script.ivrRules.length} rule{script.ivrRules.length !== 1 ? "s" : ""}</span>
                 </div>
               </button>
               <button

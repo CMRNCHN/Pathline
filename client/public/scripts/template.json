@@ -1,19 +1,29 @@
 {
   "id": "template",
-  "name": "",
-  "description": "",
-  "target": "",
-  "timeoutMs": 30000,
-  "tags": [],
-  "setupComplete": false,
-  "secrets": [],
-  "results": [],
-  "conversation": [
+  "version": 2,
+  "setup": {
+    "name": "",
+    "description": "",
+    "target": "",
+    "timeoutMs": 30000,
+    "speechPreferences": { "autoListen": false }
+  },
+  "ivrRules": [
+    {
+      "id": "rule-1",
+      "label": "",
+      "valueReference": "",
+      "expectedInput": "",
+      "rule": "Inject DTMF after detect"
+    }
+  ],
+  "conversationFlow": [
     {
       "id": "step-1",
-      "listenFor": "",
-      "action": "send_keys",
-      "keys": ""
+      "detect": "",
+      "action": "trigger",
+      "triggerLabel": ""
     }
-  ]
+  ],
+  "extractedSchema": []
 }

@@ -19,20 +19,3 @@ export function getActiveScript(
 export function isBundledScript(bundledScripts: ScriptDocument[], id: string): boolean {
   return bundledScripts.some((s) => s.id === id);
 }
-
-export function filterScripts(
-  scripts: ScriptDocument[],
-  tag: string | null
-): ScriptDocument[] {
-  if (!tag) return scripts;
-  const needle = tag.toLowerCase();
-  return scripts.filter((s) => s.tags.some((t) => t.toLowerCase() === needle));
-}
-
-export function deriveTags(scripts: ScriptDocument[]): string[] {
-  const tags = new Set<string>();
-  for (const script of scripts) {
-    for (const tag of script.tags) tags.add(tag);
-  }
-  return [...tags].sort();
-}

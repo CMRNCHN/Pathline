@@ -1,72 +1,89 @@
-/** Runtime rule format — compiled from ScriptDocument for execution */
-export interface StatusRule {
-  trigger?: string;
-  response: string;
-  key: string;
-  status: string;
-  dtmf?: string;
-  endCall?: boolean;
-}
+export const SCRIPT_VERSION = 2 as const;
 
-export type ScriptAction =
-  | "send_keys"
-  | "save_value"
-  | "speak"
-  | "wait"
-  | "hang_up"
-  | "jump";
+export type SchemaFieldType = "text" | "currency" | "number";
 
-export const ACTION_LABELS: Record<ScriptAction, string> = {
-  send_keys: "Send Keys",
-  save_value: "Save Value",
-  speak: "Speak",
-  wait: "Wait",
-  hang_up: "Hang Up",
-  jump: "Jump",
-};
+export type FlowAction = "trigger" | "extract" | "end" | "pass";
 
-export interface ScriptSecret {
-  id: string;
-  name: string;
-  description: string;
-  example: string;
-  required: boolean;
-}
-
-export interface CapturedValue {
-  id: string;
-  key: string;
-  description: string;
-}
-
-export interface ConversationStep {
-  id: string;
-  listenFor: string;
-  action: ScriptAction;
-  keys?: string;
-  resultKey?: string;
-  value?: string;
-  speakText?: string;
-  waitMs?: number;
-  jumpToStepId?: string;
-}
-
-export interface ScriptDocument {
-  id: string;
+export interface ScriptSetup {
   name: string;
   description: string;
   target: string;
   timeoutMs: number;
-  tags: string[];
-  setupComplete: boolean;
-  secrets: ScriptSecret[];
-  conversation: ConversationStep[];
-  results: CapturedValue[];
-  /** @deprecated Legacy — migrated on load */
-  rules?: StatusRule[];
+  speechPreferences: {
+    autoListen: boolean;
+  };
 }
 
-/** Alias used across the app */
-export type KnownScript = ScriptDocument;
+export interface IvrRule {
+  id: string;
+  label: string;
+  valueReference: string;
+  expectedInput: string;
+  rule: string;
+}
 
-export type EditorSection = "basics" | "secrets" | "conversation" | "results";
+export interface ExtractMapEntry {
+  id: string;
+  detect: string;
+  value: string;
+}
+
+export interface FlowStep {
+  id: string;
+  detect: string;
+  action: FlowAction;
+  triggerLabel?: string;
+  extractField?: string;
+  map?: ExtractMapEntry[];
+}
+
+export interface ExtractedSchemaField {
+  id: string;
+  field: string;
+  type: SchemaFieldType;
+}
+
+export interface ScriptDocument {
+  id: string;
+  version: typeof SCRIPT_VERSION;
+  setup: ScriptSetup;
+  ivrRules: IvrRule[];
+  conversationFlow: FlowStep[];
+  extractedSchema: ExtractedSchemaField[];
+}
+
+/** Runtime values for a single run — never stored in the template. */
+export interface RunConfiguration {
+  target: string;
+  variables: Record<string, string>;
+  runtimeOptions: {
+    autoListen: boolean;
+  };
+}
+
+/** Output produced when a run completes. */
+export interface ExportPackage {
+  sessionId: string;
+  scriptId: string;
+  scriptName: string;
+  extractedData: Record<string, string>;
+  activity: RunLogEntry[];
+  completedAt: string;
+}
+
+export interface RunLogEntry {
+  at: string;
+  message: string;
+  kind: "trigger" | "extract" | "pass" | "end" | "unknown" | "info";
+}
+
+export interface RunState {
+  collected: Record<string, string>;
+  log: RunLogEntry[];
+  lastPhrase?: string;
+  pendingDtmf?: string;
+  pendingTrigger?: string;
+  completed: boolean;
+}
+
+export type KnownScript = ScriptDocument;

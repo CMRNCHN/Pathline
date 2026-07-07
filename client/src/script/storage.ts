@@ -1,10 +1,11 @@
 import type { ScriptDocument } from "./types";
-import { newConversationStep } from "./compile";
+import { SCRIPT_VERSION } from "./types";
+import { newFlowStep, newIvrRule } from "./compile";
 
 export const CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts";
 export const ACTIVE_SCRIPT_KEY = "promptpath-active-script";
 
-export const BUNDLED_SCRIPT_FILES: string[] = [];
+export const BUNDLED_SCRIPT_FILES: string[] = ["template.json"];
 
 export function newId(): string {
   return crypto.randomUUID();
@@ -13,15 +14,17 @@ export function newId(): string {
 export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
   return {
     id: newId(),
-    name: "",
-    description: "",
-    target: "",
-    timeoutMs: 30000,
-    tags: [],
-    setupComplete: false,
-    secrets: [],
-    conversation: [newConversationStep("send_keys")],
-    results: [],
+    version: SCRIPT_VERSION,
+    setup: {
+      name: "",
+      description: "",
+      target: "",
+      timeoutMs: 30000,
+      speechPreferences: { autoListen: false },
+    },
+    ivrRules: [newIvrRule()],
+    conversationFlow: [newFlowStep("trigger")],
+    extractedSchema: [],
     ...partial,
   };
 }
@@ -52,18 +55,13 @@ export function duplicateScript(source: ScriptDocument, name?: string): ScriptDo
   return {
     ...structuredClone(source),
     id: newId(),
-    name: name ?? `${source.name} (copy)`,
-    setupComplete: source.setupComplete,
+    setup: {
+      ...source.setup,
+      name: name ?? `${source.setup.name} (copy)`,
+    },
   };
 }
 
-export const DEFAULT_TAGS = ["Utility", "Insurance", "Bank", "Government", "Other"];
-
-export function scriptMatchesTag(script: ScriptDocument, tag: string | null): boolean {
-  if (!tag) return true;
-  return script.tags.some((t) => t.toLowerCase() === tag.toLowerCase());
-}
-
-export function inferTags(_script: ScriptDocument): string[] {
-  return [];
+export function scriptDisplayName(script: ScriptDocument): string {
+  return script.setup.name || "Untitled";
 }
