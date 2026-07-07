@@ -19,6 +19,11 @@ if [[ -f "$PID_DIR/client.pid" ]]; then
   stopped=1
 fi
 
+# Kill stray Vite dev servers for this project (stale HMR breaks the UI)
+if pkill -f "$ROOT/client.*vite" 2>/dev/null; then
+  stopped=1
+fi
+
 if (( stopped )); then
   echo "PromptPath stopped."
 else

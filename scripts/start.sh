@@ -112,7 +112,8 @@ echo $! >"$PID_DIR/api.pid"
 wait_for_url "http://127.0.0.1:$API_PORT/health" "API"
 
 info "Starting client on http://localhost:$CLIENT_PORT ..."
-(cd "$ROOT/client" && npm run dev -- --host 127.0.0.1 --port "$CLIENT_PORT") \
+rm -rf "$ROOT/client/node_modules/.vite"
+(cd "$ROOT/client" && npm run dev -- --host 127.0.0.1 --port "$CLIENT_PORT" --strictPort) \
   >"$LOG_DIR/client.log" 2>&1 &
 echo $! >"$PID_DIR/client.pid"
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import {
   mintToken,
   placeCallLocally,
@@ -20,6 +21,7 @@ import {
 import { getActiveScript, mergeScripts } from "../script/selectors";
 import { useScriptStore } from "../store/ScriptStore";
 import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
+import { PageLayout } from "../components/ui/PageHeader";
 
 type Step = "consent" | "configure" | "active";
 
@@ -28,13 +30,48 @@ interface ActiveRun {
   secrets: Record<string, string>;
 }
 
-interface RunPanelProps {
-  onStepChange?: (step: Step) => void;
+interface RunPageProps {
+  scriptId: string;
 }
 
-export function RunPanel({ onStepChange }: RunPanelProps) {
+export function RunPage({ scriptId }: RunPageProps) {
   const { bundledScripts, customScripts, activeId, setActiveId, loading: loadingScripts, error: scriptError } =
     useScriptStore();
+
+  useEffect(() => {
+    setActiveId(scriptId);
+  }, [scriptId, setActiveId]);
+
+  const script = getActiveScript(bundledScripts, customScripts, scriptId);
+
+  return (
+    <PageLayout
+      title={script?.name || "Run Template"}
+      subtitle="Execute this script locally. Secrets and audio stay on your device."
+      action={
+        <div className="flex items-center gap-2 text-xs text-muted bg-white border border-[#0a0a0b14] px-3 py-1.5 rounded-md">
+          <Play className="w-3.5 h-3.5 text-accent" />
+          Client-mediated run
+        </div>
+      }
+    >
+      <RunFlow
+        key={`${scriptId}-${activeId}`}
+        loadingScripts={loadingScripts}
+        scriptError={scriptError}
+      />
+    </PageLayout>
+  );
+}
+
+function RunFlow({
+  loadingScripts,
+  scriptError,
+}: {
+  loadingScripts: boolean;
+  scriptError: string | null;
+}) {
+  const { bundledScripts, customScripts, activeId, setActiveId } = useScriptStore();
 
   const [step, setStep] = useState<Step>("consent");
   const [consentChecked, setConsentChecked] = useState(false);
@@ -47,10 +84,6 @@ export function RunPanel({ onStepChange }: RunPanelProps) {
 
   const [targetNumber, setTargetNumber] = useState("");
   const [secrets, setSecrets] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    onStepChange?.(step);
-  }, [step, onStepChange]);
 
   const scripts = mergeScripts(bundledScripts, customScripts);
   const script = getActiveScript(bundledScripts, customScripts, activeId) ?? scripts[0];
@@ -427,7 +460,7 @@ function MatcherPanel({
       <p className="hint">
         {autoListen
           ? "Listening locally — IVR phrases auto-match against your script."
-          : "Paste what the IVR said, or enable auto-listen."}
+          : "Paste what you hear, or enable auto-listen."}
       </p>
 
       {listenError && <p className="field-hint warn">{listenError}</p>}
@@ -448,7 +481,7 @@ function MatcherPanel({
       {!run.completed && (
         <>
           <div className="form-group">
-            <label htmlFor="ivr-phrase">What the IVR said</label>
+            <label htmlFor="ivr-phrase">Listen</label>
             <textarea
               id="ivr-phrase"
               rows={2}

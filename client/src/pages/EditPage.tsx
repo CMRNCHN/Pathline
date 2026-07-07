@@ -1,22 +1,17 @@
 import { useEffect } from "react";
 import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript } from "../script/selectors";
-import { ScriptEditorView } from "./ScriptEditorView";
+import { EditForm } from "./edit/EditForm";
+import type { AppView } from "../navigation";
 
-interface ScriptEditorProps {
+interface EditPageProps {
   scriptId: string;
-  onTest?: (scriptId: string) => void;
+  onNavigate: (view: AppView) => void;
 }
 
-export function ScriptEditor({ scriptId, onTest }: ScriptEditorProps) {
-  const {
-    activeScript,
-    bundledScripts,
-    updateCustom,
-    duplicateToCustom,
-    removeCustom,
-    setActiveId,
-  } = useScriptStore();
+export function EditPage({ scriptId, onNavigate }: EditPageProps) {
+  const { activeScript, bundledScripts, updateCustom, duplicateToCustom, setActiveId } =
+    useScriptStore();
 
   useEffect(() => {
     setActiveId(scriptId);
@@ -33,14 +28,13 @@ export function ScriptEditor({ scriptId, onTest }: ScriptEditorProps) {
   const readOnly = isBundledScript(bundledScripts, scriptId);
 
   return (
-    <div className="h-full p-6 overflow-hidden flex flex-col">
-      <ScriptEditorView
+    <div className="p-6 max-w-5xl mx-auto">
+      <EditForm
         script={activeScript}
         readOnly={readOnly}
         onPatch={(patch) => updateCustom(scriptId, patch)}
         onDuplicate={() => duplicateToCustom(activeScript)}
-        onDelete={() => removeCustom(scriptId)}
-        onTest={onTest ? () => onTest(scriptId) : undefined}
+        onTest={() => onNavigate({ category: "run", scriptId })}
       />
     </div>
   );

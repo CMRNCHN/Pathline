@@ -1,73 +1,58 @@
 import { useEffect, useState } from "react";
-import { Play } from "lucide-react";
-import { AppSidebar, type AppView } from "./components/AppSidebar";
-import { ScriptLibrary } from "./components/ScriptLibrary";
-import { ScriptEditor } from "./components/ScriptEditor";
-import { RunPanel } from "./components/RunPanel";
-import { SystemPanel } from "./components/SystemPanel";
-import { SettingsPanel } from "./components/SettingsPanel";
-import { PageShell } from "./components/ui/PageShell";
+import { Shell } from "./components/Shell";
+import { LibraryPage } from "./pages/LibraryPage";
+import { EditPage } from "./pages/EditPage";
+import { RunPage } from "./pages/RunPage";
+import { ScriptSettingsPage } from "./pages/ScriptSettingsPage";
+import { SystemPage } from "./pages/SystemPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { useScriptStore } from "./store/ScriptStore";
 import { getActiveScript } from "./script/selectors";
+import type { AppView } from "./navigation";
 
 export default function App() {
   const { setActiveId, bundledScripts, customScripts } = useScriptStore();
   const [view, setView] = useState<AppView>({ category: "library" });
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    if (view.category === "edit" || view.category === "run") {
-      setActiveId(view.scriptId);
+  const navigate = (next: AppView) => {
+    setView(next);
+    if (next.category === "edit" || next.category === "run" || next.category === "script-settings") {
+      setActiveId(next.scriptId);
     }
-  }, [view, setActiveId]);
+  };
 
-  const runScript =
-    view.category === "run"
-      ? getActiveScript(bundledScripts, customScripts, view.scriptId)
-      : undefined;
+  useEffect(() => {
+    if (view.category === "edit" || view.category === "run" || view.category === "script-settings") {
+      const exists = getActiveScript(bundledScripts, customScripts, view.scriptId);
+      if (!exists) setView({ category: "library" });
+    }
+  }, [view, bundledScripts, customScripts]);
 
   return (
-    <div className="flex h-screen w-full bg-canvas font-sans text-ink overflow-hidden">
-      <AppSidebar
-        view={view}
-        onNavigate={setView}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
+    <Shell
+      view={view}
+      onNavigate={navigate}
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+    >
+      {view.category === "library" && (
+        <LibraryPage onNavigate={navigate} searchQuery={searchQuery} />
+      )}
 
-      <main className="flex-1 overflow-y-auto bg-canvas">
-        {view.category === "library" && (
-          <ScriptLibrary onNavigate={setView} searchQuery={searchQuery} />
-        )}
+      {view.category === "edit" && (
+        <EditPage scriptId={view.scriptId} onNavigate={navigate} />
+      )}
 
-        {view.category === "edit" && (
-          <ScriptEditor
-            scriptId={view.scriptId}
-            onTest={(id) => setView({ category: "run", scriptId: id })}
-          />
-        )}
+      {view.category === "run" && <RunPage scriptId={view.scriptId} />}
 
-        {view.category === "run" && (
-          <div className="min-h-full">
-            <PageShell
-              title={runScript?.name || "Run Template"}
-              subtitle="Execute this script locally. Secrets and audio stay on your device."
-              action={
-                <div className="flex items-center gap-2 text-xs text-muted bg-white border border-[#0a0a0b14] px-3 py-1.5 rounded-md">
-                  <Play className="w-3.5 h-3.5 text-accent" />
-                  Client-mediated run
-                </div>
-              }
-            >
-              <RunPanel />
-            </PageShell>
-          </div>
-        )}
+      {view.category === "script-settings" && (
+        <ScriptSettingsPage scriptId={view.scriptId} onNavigate={navigate} />
+      )}
 
-        {view.category === "system" && <SystemPanel id={view.id} />}
+      {view.category === "system" && <SystemPage />}
 
-        {view.category === "settings" && <SettingsPanel />}
-      </main>
-    </div>
+      {view.category === "settings" && <SettingsPage />}
+    </Shell>
   );
 }
