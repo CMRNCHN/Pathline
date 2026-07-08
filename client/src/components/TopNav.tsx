@@ -1,9 +1,9 @@
-import { useRef, type ReactNode } from "react";
+import { useRef } from "react";
 import {
   Plus,
   Search,
   Settings,
-  Activity,
+  Radio,
   FileText,
   Pencil,
   Play,
@@ -24,30 +24,6 @@ interface TopNavProps {
   onSearchChange: (q: string) => void;
 }
 
-function NavLink({
-  active,
-  onClick,
-  children,
-}: {
-  active?: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer whitespace-nowrap ${
-        active
-          ? "bg-surface text-white"
-          : "text-[#a1a1aa] hover:text-white hover:bg-white/5"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNavProps) {
   const { bundledScripts, customScripts, activeId, setActiveId, addCustom, importScript } =
     useScriptStore();
@@ -64,59 +40,57 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
   };
 
   return (
-    <header className="shrink-0 bg-ink border-b border-[#1c1c1c]">
-      <div className="flex items-center gap-2 px-4 h-14">
+    <header className="topnav">
+      <div className="topnav-row">
         <button
           type="button"
           onClick={() => onNavigate({ category: "library" })}
-          className="flex items-center gap-2 text-white font-semibold mr-2 hover:opacity-90 transition-opacity shrink-0"
+          className="topnav-brand"
         >
-          <Activity className="w-5 h-5 text-accent" />
+          <Radio className="topnav-brand-icon" />
           PromptPath
         </button>
 
-        <nav className="flex items-center gap-1">
-          <NavLink
-            active={view.category === "library"}
+        <nav className="topnav-links">
+          <button
+            type="button"
+            className={`topnav-link${view.category === "library" ? " topnav-link-active" : ""}`}
             onClick={() => onNavigate({ category: "library" })}
           >
-            <span className="flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5" />
-              Scripts
-            </span>
-          </NavLink>
-          <NavLink
-            active={view.category === "system"}
+            <FileText size={14} />
+            Scripts
+          </button>
+          <button
+            type="button"
+            className={`topnav-link${view.category === "system" ? " topnav-link-active" : ""}`}
             onClick={() => onNavigate({ category: "system" })}
           >
-            <span className="flex items-center gap-1.5">
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              System
-            </span>
-          </NavLink>
+            <LayoutDashboard size={14} />
+            System
+          </button>
         </nav>
 
-        <div className="flex-1 min-w-0" />
+        <div className="topnav-spacer" />
 
-        <div className="relative hidden sm:block w-48 lg:w-64 shrink-0">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#71717a] pointer-events-none" />
+        <div className="topnav-search-wrap">
+          <Search className="topnav-search-icon" />
           <input
             type="text"
-            placeholder="Search scripts"
+            placeholder="Search scripts…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-surface border border-[#2a2a2a] rounded-md pl-9 pr-3 py-1.5 text-sm text-zinc-200 placeholder:text-[#71717a] focus:outline-none focus:border-accent"
+            className="topnav-search"
           />
         </div>
 
         <button
           type="button"
           onClick={() => importRef.current?.click()}
-          className="hidden sm:flex items-center gap-1.5 text-xs text-[#a1a1aa] hover:text-white px-2 py-1.5 transition-colors cursor-pointer shrink-0"
+          className="topnav-ghost"
           title="Import script"
         >
-          <Upload className="w-3.5 h-3.5" />
-          Import
+          <Upload size={14} />
+          <span>Import</span>
         </button>
         <input
           ref={importRef}
@@ -139,63 +113,50 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
           }}
         />
 
-        <button
-          type="button"
-          onClick={handleNewScript}
-          className="bg-white text-ink rounded-md px-3 py-1.5 text-sm font-medium hover:bg-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">New</span>
+        <button type="button" onClick={handleNewScript} className="topnav-new">
+          <Plus size={16} />
+          <span className="hidden sm:inline">New script</span>
         </button>
 
         <button
           type="button"
           onClick={() => onNavigate({ category: "settings" })}
-          className={`p-2 rounded-md transition-colors cursor-pointer shrink-0 ${
-            view.category === "settings"
-              ? "bg-surface text-white"
-              : "text-[#a1a1aa] hover:text-white hover:bg-white/5"
-          }`}
+          className={`topnav-icon-btn${view.category === "settings" ? " topnav-icon-btn-active" : ""}`}
           title="Settings"
         >
-          <Settings className="w-4 h-4" />
+          <Settings size={16} />
         </button>
       </div>
 
       {openScript && scriptContext && (
-        <div className="flex items-center gap-2 px-4 py-2 border-t border-[#1c1c1c] bg-[#0d0d0e]">
-          <span className="text-xs text-[#71717a] truncate max-w-[140px] sm:max-w-xs">
-            {scriptDisplayName(openScript)}
-          </span>
-          <span className="text-[#2a2a2a]">|</span>
-          <nav className="flex items-center gap-1">
-            <NavLink
-              active={view.category === "edit"}
+        <div className="topnav-context">
+          <span className="topnav-context-name">{scriptDisplayName(openScript)}</span>
+          <span className="topnav-context-divider" />
+          <nav className="topnav-context-tabs">
+            <button
+              type="button"
+              className={`topnav-tab${view.category === "edit" ? " topnav-tab-active" : ""}`}
               onClick={() => onNavigate({ category: "edit", scriptId: activeId })}
             >
-              <span className="flex items-center gap-1.5">
-                <Pencil className="w-3.5 h-3.5" />
-                Edit
-              </span>
-            </NavLink>
-            <NavLink
-              active={view.category === "run"}
+              <Pencil size={12} />
+              Edit
+            </button>
+            <button
+              type="button"
+              className={`topnav-tab${view.category === "run" ? " topnav-tab-active" : ""}`}
               onClick={() => onNavigate({ category: "run", scriptId: activeId })}
             >
-              <span className="flex items-center gap-1.5">
-                <Play className="w-3.5 h-3.5" />
-                Run
-              </span>
-            </NavLink>
-            <NavLink
-              active={view.category === "script-settings"}
+              <Play size={12} />
+              Run
+            </button>
+            <button
+              type="button"
+              className={`topnav-tab${view.category === "script-settings" ? " topnav-tab-active" : ""}`}
               onClick={() => onNavigate({ category: "script-settings", scriptId: activeId })}
             >
-              <span className="flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5" />
-                Settings
-              </span>
-            </NavLink>
+              <Sliders size={12} />
+              Settings
+            </button>
           </nav>
         </div>
       )}

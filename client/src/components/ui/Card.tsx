@@ -1,16 +1,27 @@
-import type { ReactNode } from "react";
+import type { ElementType, ReactNode } from "react";
 
 interface CardProps {
   title?: string;
+  icon?: ElementType;
   children: ReactNode;
   className?: string;
+  variant?: "default" | "dark";
 }
 
-export function Card({ title, children, className = "" }: CardProps) {
+export function Card({ title, icon: Icon, children, className = "", variant = "default" }: CardProps) {
   return (
-    <section className={`bg-white border border-[#0a0a0b14] rounded-xl p-6 shadow-sm ${className}`}>
-      {title && <h3 className="font-semibold text-ink mb-4">{title}</h3>}
-      {children}
+    <section className={`card card-${variant} ${className}`.trim()}>
+      {(title || Icon) && (
+        <header className="card-header">
+          {Icon && (
+            <span className="card-icon">
+              <Icon aria-hidden />
+            </span>
+          )}
+          {title && <h3 className="card-title">{title}</h3>}
+        </header>
+      )}
+      <div className="card-body">{children}</div>
     </section>
   );
 }

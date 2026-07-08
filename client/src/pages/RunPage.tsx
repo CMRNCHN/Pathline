@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Play } from "lucide-react";
 import {
   mintToken,
@@ -23,6 +23,7 @@ import { scriptDisplayName } from "../script/storage";
 import { useScriptStore } from "../store/ScriptStore";
 import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
+import { RunStepBar } from "../components/ui/RunStepBar";
 
 type Step = "consent" | "configure" | "active";
 
@@ -47,13 +48,14 @@ export function RunPage({ scriptId }: RunPageProps) {
 
   return (
     <PageLayout
-      title={script ? scriptDisplayName(script) : "Run Template"}
+      eyebrow="Execution"
+      title={script ? scriptDisplayName(script) : "Run"}
       subtitle="Run Configuration injects runtime variables. Audio stays on your device."
       action={
-        <div className="flex items-center gap-2 text-xs text-muted bg-white border border-[#0a0a0b14] px-3 py-1.5 rounded-md">
-          <Play className="w-3.5 h-3.5 text-accent" />
-          Client-mediated run
-        </div>
+        <span className="run-badge">
+          <Play size={14} />
+          Client-mediated
+        </span>
       }
     >
       <RunFlow
@@ -195,8 +197,15 @@ function RunFlow({
     setConsentChecked(false);
   };
 
+  const wrap = (body: ReactNode) => (
+    <div className="run-panel-wrap">
+      <RunStepBar current={step} />
+      {body}
+    </div>
+  );
+
   if (step === "consent") {
-    return (
+    return wrap(
       <div className="consent-panel">
         <h2>Consent & Authorization</h2>
         <p className="consent-intro">
@@ -240,22 +249,22 @@ function RunFlow({
 
   if (step === "configure") {
     if (loadingScripts) {
-      return <p className="hint">Loading scripts…</p>;
+      return wrap(<p className="hint">Loading scripts…</p>);
     }
 
     if (scriptError) {
-      return <div className="error-banner">{scriptError}</div>;
+      return wrap(<div className="error-banner">{scriptError}</div>);
     }
 
     if (!script) {
-      return (
+      return wrap(
         <div className="call-form">
-          <p className="hint">No scripts yet. Create one on the <strong>Scripts</strong> tab.</p>
+          <p className="hint">No scripts yet. Create one from the Scripts library.</p>
         </div>
       );
     }
 
-    return (
+    return wrap(
       <>
         <form className="call-form" onSubmit={handleStart}>
           <div className="mode-badge">{scriptDisplayName(script)}</div>
@@ -321,7 +330,7 @@ function RunFlow({
 
   if (!session || !activeRun) return null;
 
-  return (
+  return wrap(
     <div className="session-status">
       <h3>Active run (local)</h3>
       <dl>

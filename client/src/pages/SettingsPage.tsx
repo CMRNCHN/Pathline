@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Palette, Mic, HardDrive, Info } from "lucide-react";
 import { PageLayout } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
+import { Toggle } from "../components/ui/Toggle";
 import { clearLocalKeys } from "../crypto";
 import { ACTIVE_SCRIPT_KEY, CUSTOM_SCRIPTS_KEY } from "../script/storage";
 
@@ -23,67 +25,52 @@ export function SettingsPage() {
   };
 
   return (
-    <PageLayout title="Settings" subtitle="Theme, defaults, and local data controls.">
-      <div className="space-y-6 max-w-lg">
-        <Card title="Appearance">
-          <p className="text-sm text-[#595959]">
-            Light theme with accent <span className="text-accent font-medium">#7D88F1</span>
+    <PageLayout
+      eyebrow="Preferences"
+      title="Settings"
+      subtitle="Appearance, run defaults, and local data controls."
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "32rem" }}>
+        <Card title="Appearance" icon={Palette}>
+          <p className="hint">
+            Light canvas with ink navigation and accent{" "}
+            <span className="mono" style={{ color: "var(--accent)", fontWeight: 600 }}>#7D88F1</span>
           </p>
         </Card>
 
-        <Card title="Run defaults">
-          <label className="flex items-center justify-between gap-4 cursor-pointer">
+        <Card title="Run defaults" icon={Mic}>
+          <div className="setting-row">
             <div>
-              <div className="text-sm font-medium text-ink">Auto-listen on run start</div>
-              <div className="text-xs text-[#595959] mt-0.5">Enable Web Speech when a run begins</div>
+              <p className="setting-row-title">Auto-listen on run start</p>
+              <p className="setting-row-desc">Enable Web Speech when a run begins</p>
             </div>
-            <Toggle checked={autoListen} onChange={persistAutoListen} />
-          </label>
+            <Toggle checked={autoListen} onChange={persistAutoListen} label="Auto-listen" />
+          </div>
         </Card>
 
-        <Card title="Data">
+        <Card title="Data" icon={HardDrive}>
           <button
             type="button"
             onClick={() => {
               clearLocalKeys();
               alert("Session encryption keys cleared.");
             }}
-            className="text-sm text-[#595959] hover:text-ink underline mr-4"
+            className="link-btn"
+            style={{ marginRight: "1rem" }}
           >
             Clear encryption keys
           </button>
-          <button
-            type="button"
-            onClick={clearAllLocalData}
-            className="text-sm text-red-600 hover:text-red-700 underline"
-          >
+          <button type="button" onClick={clearAllLocalData} className="link-btn link-btn-danger">
             Clear all local data
           </button>
         </Card>
 
-        <Card title="About">
-          <p className="text-sm text-[#595959]">
-            PromptPath v1 · Known scripts only · Client-mediated · Encrypted status
+        <Card title="About" icon={Info}>
+          <p className="hint" style={{ margin: 0 }}>
+            PromptPath v1 · Known scripts · Client-mediated · Encrypted status export
           </p>
         </Card>
       </div>
     </PageLayout>
-  );
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className="w-10 h-5 rounded-full transition-all relative shrink-0 cursor-pointer"
-      style={{ background: checked ? "#7d88f1" : "#d4d4d8" }}
-      aria-pressed={checked}
-    >
-      <span
-        className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow-sm"
-        style={{ left: checked ? "22px" : "2px" }}
-      />
-    </button>
   );
 }

@@ -28,7 +28,7 @@ export function EditPage({ scriptId, onNavigate }: EditPageProps) {
   const readOnly = isBundledScript(bundledScripts, scriptId);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="editor-page">
       <EditForm
         script={activeScript}
         readOnly={readOnly}

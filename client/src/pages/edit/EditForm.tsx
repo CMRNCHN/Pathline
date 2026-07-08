@@ -14,6 +14,7 @@ import {
   newSchemaField,
 } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
+import { SectionBlock } from "../../components/ui/SectionBlock";
 
 const FLOW_ACTIONS: { value: FlowAction; label: string }[] = [
   { value: "trigger", label: "Trigger" },
@@ -63,16 +64,18 @@ export function EditForm({
       <header className="editor-topbar">
         <h1 className="editor-title">{scriptDisplayName(script)}</h1>
         {onTest && (
-          <button type="button" className="btn btn-primary btn-sm" onClick={onTest}>
-            Test
+          <button type="button" className="btn btn-accent btn-sm" onClick={onTest}>
+            Run test
           </button>
         )}
       </header>
 
       <div className="editor-body">
-        <section className="editor-section">
-          <h2 className="editor-section-heading">Script Setup</h2>
-          <p className="editor-section-desc">Template defaults — target, timeout, and speech preferences.</p>
+        <SectionBlock
+          index="01"
+          title="Script Setup"
+          description="Template defaults — target, timeout, and speech preferences."
+        >
           <div className="editor-field-grid">
             <label className="editor-field">
               <span>Name</span>
@@ -126,13 +129,18 @@ export function EditForm({
               />
             </label>
           </div>
-        </section>
+        </SectionBlock>
 
-        <section className="editor-section editor-section-wide">
-          <h2 className="editor-section-heading">IVR Rules</h2>
-          <p className="editor-section-desc">
-            What to send. Use <code className="mono">{"{{variable}}"}</code> references — never literal secrets.
-          </p>
+        <SectionBlock
+          index="02"
+          title="IVR Rules"
+          description={
+            <>
+              What to send. Use <code className="mono">{"{{variable}}"}</code> references — never literal secrets.
+            </>
+          }
+          wide
+        >
           <div className="editor-table-wrap">
             <table className="editor-table">
               <thead>
@@ -222,13 +230,14 @@ export function EditForm({
               + Rule
             </button>
           )}
-        </section>
+        </SectionBlock>
 
-        <section className="editor-section editor-section-wide">
-          <h2 className="editor-section-heading">Conversation Flow</h2>
-          <p className="editor-section-desc">
-            Detect → Trigger (IVR rule label) · Extract (schema field + map) · End · Pass.
-          </p>
+        <SectionBlock
+          index="03"
+          title="Conversation Flow"
+          description="Detect → Trigger · Extract + map · End · Pass."
+          wide
+        >
           <div className="editor-table-wrap">
             <table className="editor-table">
               <thead>
@@ -270,11 +279,13 @@ export function EditForm({
               + Step
             </button>
           )}
-        </section>
+        </SectionBlock>
 
-        <section className="editor-section">
-          <h2 className="editor-section-heading">Extracted Data Schema</h2>
-          <p className="editor-section-desc">Fields the flow can populate at runtime.</p>
+        <SectionBlock
+          index="04"
+          title="Extracted Data Schema"
+          description="Fields the flow can populate at runtime."
+        >
           <div className="editor-table-wrap">
             <table className="editor-table">
               <thead>
@@ -346,7 +357,7 @@ export function EditForm({
               + Field
             </button>
           )}
-        </section>
+        </SectionBlock>
       </div>
     </div>
   );

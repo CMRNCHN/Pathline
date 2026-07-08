@@ -1,3 +1,4 @@
+import { Copy, Download, Trash2 } from "lucide-react";
 import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript } from "../script/selectors";
 import type { ScriptDocument } from "../script/types";
@@ -28,8 +29,8 @@ export function ScriptSettingsPage({ scriptId, onNavigate }: ScriptSettingsPageP
 
   if (!activeScript || activeScript.id !== scriptId) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted text-sm">
-        Script not found.
+      <div className="page">
+        <p className="hint">Script not found.</p>
       </div>
     );
   }
@@ -50,45 +51,49 @@ export function ScriptSettingsPage({ scriptId, onNavigate }: ScriptSettingsPageP
 
   return (
     <PageLayout
-      title="Script Settings"
+      eyebrow="Template"
+      title="Script settings"
       subtitle={scriptDisplayName(activeScript)}
     >
-      <Card className="max-w-xl space-y-4">
-        <dl className="text-sm space-y-2">
-          <div className="flex justify-between gap-4">
-            <dt className="text-[#595959]">IVR rules</dt>
-            <dd className="font-medium">{activeScript.ivrRules.length}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-[#595959]">Flow steps</dt>
-            <dd className="font-medium">{activeScript.conversationFlow.length}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-[#595959]">Schema fields</dt>
-            <dd className="font-medium">{activeScript.extractedSchema.length}</dd>
-          </div>
+      <Card className="max-w-xl">
+        <dl style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginBottom: "1.25rem" }}>
+          <StatRow label="IVR rules" value={activeScript.ivrRules.length} />
+          <StatRow label="Flow steps" value={activeScript.conversationFlow.length} />
+          <StatRow label="Schema fields" value={activeScript.extractedSchema.length} />
         </dl>
 
         {readOnly && (
-          <p className="text-sm text-muted">
+          <p className="hint" style={{ marginBottom: "1rem" }}>
             Bundled example — duplicate to edit.
           </p>
         )}
 
-        <div className="flex flex-wrap gap-3 pt-2 border-t border-[#0a0a0b14]">
-          <button type="button" className="btn btn-secondary" onClick={() => exportScriptJson(activeScript)}>
-            Export template
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.65rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportScriptJson(activeScript)}>
+            <Download size={14} />
+            Export
           </button>
-          <button type="button" className="btn btn-secondary" onClick={handleDuplicate}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={handleDuplicate}>
+            <Copy size={14} />
             Duplicate
           </button>
           {!readOnly && (
-            <button type="button" className="btn btn-danger" onClick={handleDelete}>
-              Delete script
+            <button type="button" className="btn btn-danger btn-sm" onClick={handleDelete}>
+              <Trash2 size={14} />
+              Delete
             </button>
           )}
         </div>
       </Card>
     </PageLayout>
+  );
+}
+
+function StatRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="data-row">
+      <span className="data-row-label">{label}</span>
+      <span className="data-row-value mono">{value}</span>
+    </div>
   );
 }
