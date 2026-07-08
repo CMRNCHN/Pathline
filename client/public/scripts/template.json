@@ -2,29 +2,38 @@
   "id": "template",
   "version": 2,
   "setup": {
-    "name": "",
-    "description": "",
-    "target": "",
+    "name": "Claim status check",
+    "description": "Submit account number, capture claim status from the IVR.",
+    "target": "+18005551234",
     "timeoutMs": 30000,
     "speechPreferences": { "autoListen": false },
-    "runtimeVariables": []
+    "runtimeVariables": ["account_number"]
   },
   "ivrRules": [
     {
       "id": "rule-1",
-      "label": "rule_1",
+      "label": "submit_account_number",
+      "trigger": "account number",
+      "response": "{{account_number}}",
+      "rule": "Inject DTMF after detect",
+      "output": ""
+    },
+    {
+      "id": "rule-2",
+      "label": "capture_claim_status",
+      "trigger": "claim status",
+      "response": "",
+      "rule": "Capture value after detect",
+      "output": "claim_status"
+    },
+    {
+      "id": "rule-3",
+      "label": "end_call",
       "trigger": "",
       "response": "",
-      "rule": "Inject DTMF after detect",
+      "rule": "End call",
       "output": ""
     }
   ],
-  "conversationFlow": [
-    {
-      "id": "step-1",
-      "detect": "",
-      "action": "trigger",
-      "triggerLabel": "rule_1"
-    }
-  ]
+  "conversationFlow": []
 }

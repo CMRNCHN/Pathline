@@ -1,6 +1,7 @@
 import type { ScriptDocument } from "./types";
 import { SCRIPT_VERSION } from "./types";
-import { newFlowStep, newIvrRule } from "./compile";
+import { newIvrRule } from "./compile";
+import { withSyncedRules } from "./sync";
 
 export const CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts";
 export const ACTIVE_SCRIPT_KEY = "promptpath-active-script";
@@ -12,7 +13,7 @@ export function newId(): string {
 }
 
 export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
-  return {
+  const base: ScriptDocument = {
     id: newId(),
     version: SCRIPT_VERSION,
     setup: {
@@ -24,9 +25,10 @@ export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
       runtimeVariables: [],
     },
     ivrRules: [newIvrRule(1)],
-    conversationFlow: [newFlowStep("trigger")],
+    conversationFlow: [],
     ...partial,
   };
+  return { ...base, ...withSyncedRules(base, base.ivrRules) };
 }
 
 export function loadCustomScripts(): ScriptDocument[] {

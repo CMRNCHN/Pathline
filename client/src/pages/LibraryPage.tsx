@@ -64,7 +64,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
           }
         >
           {scripts.length === 0
-            ? "Templates define IVR rules, conversation flow, and extracted data schema."
+            ? "Each RUN template has Setup, Rules, and Results — outputs are defined on rules."
             : "Try a different search term."}
         </EmptyState>
       ) : (
@@ -86,7 +86,6 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
                 </p>
                 <div className="script-card-stats">
                   <span className="stat-pill">{script.ivrRules.length} rules</span>
-                  <span className="stat-pill">{script.conversationFlow.length} steps</span>
                   <span className="stat-pill">
                     {script.ivrRules.filter((r) => r.output.trim()).length} outputs
                   </span>

@@ -1,6 +1,7 @@
 import type { FlowStep, IvrRule, ScriptDocument, ScriptSetup } from "./types";
 import { SCRIPT_VERSION } from "./types";
 import { newId } from "./storage";
+import { withSyncedRules } from "./sync";
 
 /** v1 shape — used only for one-time migration. */
 interface V1ConversationStep {
@@ -193,11 +194,16 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
   }
   setup.runtimeVariables = [...runtimeVariables].sort();
 
-  return {
+  const doc: ScriptDocument = {
     id: o.id ?? newId(),
     version: SCRIPT_VERSION,
     setup,
     ivrRules,
     conversationFlow,
+  };
+
+  return {
+    ...doc,
+    ...withSyncedRules(doc, ivrRules),
   };
 }

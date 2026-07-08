@@ -1,6 +1,7 @@
 import type { FlowStep, IvrRule, ScriptDocument, ScriptSetup } from "./types";
 import { SCRIPT_VERSION } from "./types";
 import { migrateV1ToV2 } from "./migrate";
+import { withSyncedRules } from "./sync";
 import { newId } from "./storage";
 
 function isV2Shape(raw: unknown): boolean {
@@ -29,6 +30,7 @@ function normalizeIvrRule(raw: Partial<IvrRule> & { expectedInput?: string; valu
     response: raw.response ?? raw.valueReference ?? "",
     rule: raw.rule ?? "Inject DTMF after detect",
     output: raw.output ?? "",
+    waitSeconds: raw.waitSeconds,
   };
 }
 
@@ -125,12 +127,17 @@ function normalizeV2(raw: unknown): ScriptDocument {
     conversationFlow = migrated.conversationFlow;
   }
 
-  return {
+  const doc: ScriptDocument = {
     id: o.id ?? newId(),
     version: SCRIPT_VERSION,
     setup: normalizeSetup(o.setup ?? {}),
     ivrRules,
     conversationFlow,
+  };
+
+  return {
+    ...doc,
+    ...withSyncedRules(doc, ivrRules),
   };
 }
 
@@ -184,3 +191,5 @@ export function findIvrRule(doc: ScriptDocument, label: string): IvrRule | undef
 export function extractOutputRules(doc: ScriptDocument): IvrRule[] {
   return doc.ivrRules.filter((r) => r.label.trim() && r.output.trim());
 }
+
+export { syncConversationFlowFromRules, syncRuntimeVariablesFromRules, withSyncedRules } from "./sync";

@@ -1,21 +1,10 @@
-import type { FlowAction, FlowStep, IvrRule, ScriptDocument } from "../../script/types";
-import {
-  extractOutputRules,
-  formatVariableRef,
-  newFlowStep,
-  newIvrRule,
-} from "../../script/compile";
-import { IVR_EXECUTION_RULES } from "../../script/types";
+import { useState } from "react";
+import type { IvrRule, ScriptDocument } from "../../script/types";
+import { extractOutputRules, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
 import { SectionBlock } from "../../components/ui/SectionBlock";
-
-const FLOW_ACTIONS: { value: FlowAction; label: string }[] = [
-  { value: "trigger", label: "Trigger" },
-  { value: "extract", label: "Extract" },
-  { value: "validate", label: "Validate" },
-  { value: "end", label: "End" },
-  { value: "pass", label: "Pass" },
-];
+import { RuleBuilder } from "./RuleBuilder";
+import { RuleCard } from "./RuleCard";
 
 export interface EditFormProps {
   script: ScriptDocument;
@@ -32,33 +21,46 @@ export function EditForm({
   onDuplicate,
   onTest,
 }: EditFormProps) {
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+
   const patchSetup = (patch: Partial<ScriptDocument["setup"]>) =>
     onPatch({ setup: { ...script.setup, ...patch } });
 
-  const runtimeVariables = script.setup.runtimeVariables.filter(Boolean);
-  const labeledRules = script.ivrRules.filter((r) => r.label.trim());
   const outputRules = extractOutputRules(script);
+  const editingRule = editingRuleId
+    ? script.ivrRules.find((r) => r.id === editingRuleId)
+    : undefined;
 
-  const updateRules = (ivrRules: IvrRule[], conversationFlow?: FlowStep[]) =>
-    onPatch(conversationFlow ? { ivrRules, conversationFlow } : { ivrRules });
-  const updateFlow = (conversationFlow: FlowStep[]) => onPatch({ conversationFlow });
+  const updateRules = (ivrRules: IvrRule[]) => onPatch(withSyncedRules(script, ivrRules));
 
-  const updateRuleAt = (index: number, patch: Partial<IvrRule>) => {
-    const prev = script.ivrRules[index];
-    const ivrRules = [...script.ivrRules];
-    ivrRules[index] = { ...prev, ...patch };
-    if (patch.label !== undefined && prev.label && patch.label !== prev.label) {
-      const conversationFlow = script.conversationFlow.map((step) =>
-        step.triggerLabel === prev.label ? { ...step, triggerLabel: patch.label } : step
-      );
-      updateRules(ivrRules, conversationFlow);
-    } else {
-      updateRules(ivrRules);
-    }
+  const addVariable = (name: string) => {
+    const runtimeVariables = [...new Set([...script.setup.runtimeVariables, name])].sort();
+    onPatch({ setup: { ...script.setup, runtimeVariables } });
   };
 
-  const updateRuntimeVariables = (runtimeVariables: string[]) =>
-    onPatch({ setup: { ...script.setup, runtimeVariables } });
+  const closeBuilder = () => {
+    setBuilderOpen(false);
+    setEditingRuleId(null);
+  };
+
+  const handleSaveRule = (rule: IvrRule) => {
+    const ivrRules = editingRuleId
+      ? script.ivrRules.map((r) => (r.id === editingRuleId ? rule : r))
+      : [...script.ivrRules, rule];
+    updateRules(ivrRules);
+    closeBuilder();
+  };
+
+  const openAdd = () => {
+    setEditingRuleId(null);
+    setBuilderOpen(true);
+  };
+
+  const openEdit = (id: string) => {
+    setEditingRuleId(id);
+    setBuilderOpen(true);
+  };
 
   return (
     <div className="script-editor-panel">
@@ -72,7 +74,10 @@ export function EditForm({
       )}
 
       <header className="editor-topbar">
-        <h1 className="editor-title">{scriptDisplayName(script)}</h1>
+        <div>
+          <p className="editor-eyebrow">RUN</p>
+          <h1 className="editor-title">{scriptDisplayName(script)}</h1>
+        </div>
         {onTest && (
           <button type="button" className="btn btn-accent btn-sm" onClick={onTest}>
             Run test
@@ -80,12 +85,23 @@ export function EditForm({
         )}
       </header>
 
+      <div className="editor-model-strip" aria-label="Run structure">
+        <div className="editor-model-card">
+          <span className="editor-model-index">Setup</span>
+          <strong>Where and how long to run</strong>
+        </div>
+        <div className="editor-model-card editor-model-card-accent">
+          <span className="editor-model-index">Steps</span>
+          <strong>What the assistant should do</strong>
+        </div>
+        <div className="editor-model-card">
+          <span className="editor-model-index">Results</span>
+          <strong>What gets collected</strong>
+        </div>
+      </div>
+
       <div className="editor-body">
-        <SectionBlock
-          index="01"
-          title="Run Setup"
-          description="Template defaults — target, timeout, speech preferences, and runtime variable names."
-        >
+        <SectionBlock index="01" title="Setup" description="Defaults for this run template.">
           <div className="editor-field-grid">
             <label className="editor-field">
               <span>Name</span>
@@ -125,77 +141,52 @@ export function EditForm({
                 disabled={readOnly}
               />
             </label>
-            <label className="editor-field editor-field-check">
-              <span>Auto-listen default</span>
-              <input
-                type="checkbox"
-                checked={script.setup.speechPreferences.autoListen}
-                onChange={(e) =>
-                  patchSetup({
-                    speechPreferences: { autoListen: e.target.checked },
-                  })
-                }
-                disabled={readOnly}
-              />
-            </label>
           </div>
 
-          <div className="editor-field editor-field-wide" style={{ marginTop: "1rem" }}>
-            <span>Runtime variables</span>
-            <p className="section-desc" style={{ marginBottom: "0.65rem" }}>
-              Names for Run Configuration — referenced as {"{{name}}"} in IVR rules.
+          <div className="setup-values-block">
+            <h4 className="setup-values-title">Run values</h4>
+            <p className="section-desc">
+              Names only — you fill in the real values when you start a run.
             </p>
-            <div className="editor-table-wrap">
-              <table className="editor-table">
-                <thead>
-                  <tr>
-                    <th>Variable</th>
-                    <th className="editor-table-col-actions" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {script.setup.runtimeVariables.map((name, i) => (
-                    <tr key={i} className="editor-table-row">
-                      <td>
-                        <input
-                          className="editor-input mono"
-                          value={name}
-                          onChange={(e) => {
-                            const runtimeVariables = [...script.setup.runtimeVariables];
-                            runtimeVariables[i] = e.target.value.replace(/\s/g, "_");
-                            updateRuntimeVariables(runtimeVariables);
-                          }}
-                          disabled={readOnly}
-                          placeholder="card_number"
-                        />
-                      </td>
-                      <td className="editor-table-actions">
-                        {!readOnly && (
-                          <button
-                            type="button"
-                            className="btn-icon"
-                            onClick={() =>
-                              updateRuntimeVariables(
-                                script.setup.runtimeVariables.filter((_, j) => j !== i)
-                              )
-                            }
-                          >
-                            ×
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="setup-values-list">
+              {script.setup.runtimeVariables.map((name, i) => (
+                <div key={i} className="setup-value-chip">
+                  <input
+                    className="editor-input mono setup-value-input"
+                    value={name}
+                    onChange={(e) => {
+                      const runtimeVariables = [...script.setup.runtimeVariables];
+                      runtimeVariables[i] = e.target.value.replace(/\s/g, "_");
+                      patchSetup({ runtimeVariables });
+                    }}
+                    disabled={readOnly}
+                    placeholder="customer_account"
+                  />
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={() =>
+                        patchSetup({
+                          runtimeVariables: script.setup.runtimeVariables.filter((_, j) => j !== i),
+                        })
+                      }
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
             {!readOnly && (
               <button
                 type="button"
-                className="btn btn-secondary btn-sm editor-table-add"
-                onClick={() => updateRuntimeVariables([...script.setup.runtimeVariables, ""])}
+                className="btn btn-secondary btn-sm"
+                onClick={() =>
+                  patchSetup({ runtimeVariables: [...script.setup.runtimeVariables, ""] })
+                }
               >
-                + Variable
+                + Run value
               </button>
             )}
           </div>
@@ -203,264 +194,58 @@ export function EditForm({
 
         <SectionBlock
           index="02"
-          title="IVR Rules"
-          description={
-            <>
-              What to do and what data comes back. Use <code className="mono">{"{{variable}}"}</code> in
-              response — never literal secrets.
-            </>
-          }
+          title="Steps"
+          description="Tell the assistant what to do when it hears the IVR."
           wide
         >
-          {runtimeVariables.length === 0 && (
-            <p className="field-hint warn" style={{ marginBottom: "0.75rem" }}>
-              Add runtime variables in Run Setup before assigning response references.
-            </p>
-          )}
-          <div className="editor-table-wrap">
-            <table className="editor-table">
-              <thead>
-                <tr>
-                  <th>Label</th>
-                  <th>Trigger</th>
-                  <th>Response</th>
-                  <th>Rule</th>
-                  <th>Output</th>
-                  <th className="editor-table-col-actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {script.ivrRules.map((rule, i) => (
-                  <tr key={rule.id} className="editor-table-row">
-                    <td>
-                      <input
-                        className="editor-input mono"
-                        value={rule.label}
-                        onChange={(e) => updateRuleAt(i, { label: e.target.value.replace(/\s/g, "_") })}
-                        disabled={readOnly}
-                        placeholder="claim_status_request"
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="editor-input"
-                        value={rule.trigger}
-                        onChange={(e) => updateRuleAt(i, { trigger: e.target.value })}
-                        disabled={readOnly}
-                        placeholder="your claim number"
-                      />
-                    </td>
-                    <td>
-                      <select
-                        className="editor-input mono"
-                        value={rule.response}
-                        onChange={(e) => updateRuleAt(i, { response: e.target.value })}
-                        disabled={readOnly || runtimeVariables.length === 0}
-                      >
-                        <option value="">Select variable…</option>
-                        {runtimeVariables.map((v) => (
-                          <option key={v} value={formatVariableRef(v)}>
-                            {formatVariableRef(v)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <select
-                        className="editor-input"
-                        value={rule.rule}
-                        onChange={(e) => updateRuleAt(i, { rule: e.target.value })}
-                        disabled={readOnly}
-                      >
-                        {IVR_EXECUTION_RULES.map((r) => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                        {!IVR_EXECUTION_RULES.includes(rule.rule as (typeof IVR_EXECUTION_RULES)[number]) &&
-                          rule.rule && (
-                            <option value={rule.rule}>{rule.rule}</option>
-                          )}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        className="editor-input mono"
-                        value={rule.output}
-                        onChange={(e) =>
-                          updateRuleAt(i, { output: e.target.value.replace(/\s/g, "_") })
-                        }
-                        disabled={readOnly}
-                        placeholder="claim_status"
-                      />
-                    </td>
-                    <td className="editor-table-actions">
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          className="btn-icon"
-                          onClick={() => updateRules(script.ivrRules.filter((r) => r.id !== rule.id))}
-                        >
-                          ×
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rule-card-list">
+            {script.ivrRules.map((rule) => (
+              <RuleCard
+                key={rule.id}
+                rule={rule}
+                readOnly={readOnly}
+                onEdit={() => openEdit(rule.id)}
+                onRemove={() => updateRules(script.ivrRules.filter((r) => r.id !== rule.id))}
+              />
+            ))}
           </div>
-          {!readOnly && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm editor-table-add"
-              onClick={() => updateRules([...script.ivrRules, newIvrRule(script.ivrRules.length + 1)])}
-            >
-              + Rule
+
+          {!readOnly && !builderOpen && (
+            <button type="button" className="btn btn-secondary btn-sm editor-table-add" onClick={openAdd}>
+              + Add step
             </button>
+          )}
+
+          {!readOnly && builderOpen && (
+            <RuleBuilder
+              runtimeVariables={script.setup.runtimeVariables.filter(Boolean)}
+              existingLabels={script.ivrRules.map((r) => r.label)}
+              editingRule={editingRule}
+              onAddVariable={addVariable}
+              onSave={handleSaveRule}
+              onCancel={closeBuilder}
+            />
           )}
         </SectionBlock>
 
         <SectionBlock
           index="03"
-          title="Conversation Flow"
-          description="When to execute rules — Detect, then Trigger, Extract, Validate, End, or Pass."
-          wide
+          title="Results"
+          description="Information captured during the call — defined by your capture steps."
         >
-          <div className="editor-table-wrap">
-            <table className="editor-table">
-              <thead>
-                <tr>
-                  <th className="editor-table-col-num">#</th>
-                  <th>Detect</th>
-                  <th className="editor-table-col-type">Action</th>
-                  <th>Rule label</th>
-                  <th className="editor-table-col-actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {script.conversationFlow.map((step, i) => (
-                  <FlowStepRow
-                    key={step.id}
-                    step={step}
-                    index={i}
-                    labeledRules={labeledRules}
-                    outputRules={outputRules}
-                    readOnly={readOnly}
-                    onChange={(patch) => {
-                      const conversationFlow = [...script.conversationFlow];
-                      conversationFlow[i] = { ...step, ...patch };
-                      updateFlow(conversationFlow);
-                    }}
-                    onRemove={() => updateFlow(script.conversationFlow.filter((s) => s.id !== step.id))}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {!readOnly && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm editor-table-add"
-              onClick={() => updateFlow([...script.conversationFlow, newFlowStep("trigger")])}
-            >
-              + Step
-            </button>
+          {outputRules.length === 0 ? (
+            <p className="field-hint">Add a capture step to collect information from the IVR.</p>
+          ) : (
+            <ul className="results-list">
+              {outputRules.map((rule) => (
+                <li key={rule.id} className="results-list-item mono">
+                  {rule.output}
+                </li>
+              ))}
+            </ul>
           )}
         </SectionBlock>
       </div>
     </div>
-  );
-}
-
-function FlowStepRow({
-  step,
-  index,
-  labeledRules,
-  outputRules,
-  readOnly,
-  onChange,
-  onRemove,
-}: {
-  step: FlowStep;
-  index: number;
-  labeledRules: IvrRule[];
-  outputRules: IvrRule[];
-  readOnly: boolean;
-  onChange: (patch: Partial<FlowStep>) => void;
-  onRemove: () => void;
-}) {
-  const setAction = (action: FlowAction) => {
-    const defaultLabel =
-      action === "extract"
-        ? outputRules[0]?.label ?? ""
-        : action === "trigger"
-          ? labeledRules[0]?.label ?? ""
-          : undefined;
-    onChange({
-      action,
-      triggerLabel: action === "trigger" || action === "extract" ? step.triggerLabel ?? defaultLabel : undefined,
-    });
-  };
-
-  const ruleOptions = step.action === "extract" ? outputRules : labeledRules;
-
-  return (
-    <tr className="editor-table-row">
-      <td className="editor-table-num">{index + 1}</td>
-      <td>
-        <input
-          className="editor-input"
-          value={step.detect}
-          onChange={(e) => onChange({ detect: e.target.value })}
-          placeholder="IVR phrase"
-          disabled={readOnly}
-        />
-      </td>
-      <td>
-        <select
-          className="editor-input editor-input-sm"
-          value={step.action}
-          onChange={(e) => setAction(e.target.value as FlowAction)}
-          disabled={readOnly}
-        >
-          {FLOW_ACTIONS.map((a) => (
-            <option key={a.value} value={a.value}>{a.label}</option>
-          ))}
-        </select>
-      </td>
-      <td>
-        {step.action === "trigger" || step.action === "extract" ? (
-          ruleOptions.length === 0 ? (
-            <span className="field-hint warn">
-              {step.action === "extract" ? "Set output on an IVR rule first" : "Add IVR rules first"}
-            </span>
-          ) : (
-            <select
-              className="editor-input"
-              value={step.triggerLabel ?? ""}
-              onChange={(e) => onChange({ triggerLabel: e.target.value })}
-              disabled={readOnly}
-            >
-              <option value="">Select rule…</option>
-              {ruleOptions.map((r) => (
-                <option key={r.id} value={r.label}>
-                  {r.label}
-                  {step.action === "trigger" && r.response ? ` → ${r.response}` : ""}
-                  {step.action === "extract" && r.output ? ` → ${r.output}` : ""}
-                </option>
-              ))}
-            </select>
-          )
-        ) : (
-          <span className="editor-table-dash">—</span>
-        )}
-      </td>
-      <td className="editor-table-actions">
-        {!readOnly && (
-          <button type="button" className="btn-icon" onClick={onRemove} title="Remove">
-            ×
-          </button>
-        )}
-      </td>
-    </tr>
   );
 }

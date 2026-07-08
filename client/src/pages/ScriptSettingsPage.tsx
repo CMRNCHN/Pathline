@@ -58,9 +58,8 @@ export function ScriptSettingsPage({ scriptId, onNavigate }: ScriptSettingsPageP
     >
       <Card className="max-w-xl">
         <dl style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginBottom: "1.25rem" }}>
-          <StatRow label="IVR rules" value={activeScript.ivrRules.length} />
-          <StatRow label="Flow steps" value={activeScript.conversationFlow.length} />
-          <StatRow label="Output fields" value={extractOutputRules(activeScript).length} />
+          <StatRow label="Rules" value={activeScript.ivrRules.length} />
+          <StatRow label="Collected outputs" value={extractOutputRules(activeScript).length} />
         </dl>
 
         {readOnly && (

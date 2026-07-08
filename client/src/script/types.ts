@@ -19,6 +19,8 @@ export const IVR_EXECUTION_RULES = [
   "Inject speech after detect",
   "Wait for IVR response",
   "Capture value after detect",
+  "Validate collected outputs",
+  "End call",
 ] as const;
 
 export interface IvrRule {
@@ -31,6 +33,8 @@ export interface IvrRule {
   rule: string;
   /** Run output field name when this rule captures data. */
   output: string;
+  /** Pause duration for wait rules (seconds). */
+  waitSeconds?: number;
 }
 
 export interface FlowStep {

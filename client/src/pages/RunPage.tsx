@@ -11,7 +11,7 @@ import {
 import { encryptStatusPayload, generateUserId, generateSessionId, clearLocalKeys } from "../crypto";
 import type { LocalSession } from "../types";
 import type { KnownScript } from "../script/types";
-import { extractVariableNames } from "../script/compile";
+import { extractOutputRules, extractVariableNames } from "../script/compile";
 import {
   hashCollected,
   initialRunState,
@@ -94,6 +94,11 @@ function RunFlow({
   const variableNames = useMemo(() => {
     if (!script) return [];
     return extractVariableNames(script);
+  }, [script]);
+
+  const outputFields = useMemo(() => {
+    if (!script) return [];
+    return extractOutputRules(script).map((r) => r.output);
   }, [script]);
 
   useEffect(() => {
@@ -303,6 +308,18 @@ function RunFlow({
             </div>
           )}
 
+          {outputFields.length > 0 && (
+            <div className="run-outputs-preview">
+              <h3>Results</h3>
+              <p className="field-hint">Collected outputs — populated during the call from rule output fields.</p>
+              <div className="output-chip-row">
+                {outputFields.map((field) => (
+                  <span key={field} className="output-chip mono">{field}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="form-group">
             <label htmlFor="target">Target number — local only</label>
             <input
@@ -354,7 +371,7 @@ function RunFlow({
 
       {session.status === "completed" && session.collected && (
         <div className="transcript-preview">
-          <h4>Collected status</h4>
+          <h4>Run output</h4>
           <pre>{JSON.stringify(session.collected, null, 2)}</pre>
           <p className="hint">Only a hash of this payload was included in the encrypted status sent to the server.</p>
         </div>
@@ -506,7 +523,7 @@ function MatcherPanel({
 
       {Object.keys(run.collected).length > 0 && (
         <div className="collected-json">
-          <h5>Extracted data</h5>
+          <h5>Run output</h5>
           <pre>{JSON.stringify(run.collected, null, 2)}</pre>
         </div>
       )}
