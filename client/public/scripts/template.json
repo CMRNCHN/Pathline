@@ -6,15 +6,17 @@
     "description": "",
     "target": "",
     "timeoutMs": 30000,
-    "speechPreferences": { "autoListen": false }
+    "speechPreferences": { "autoListen": false },
+    "runtimeVariables": []
   },
   "ivrRules": [
     {
       "id": "rule-1",
-      "label": "",
-      "valueReference": "",
-      "expectedInput": "",
-      "rule": "Inject DTMF after detect"
+      "label": "rule_1",
+      "trigger": "",
+      "response": "",
+      "rule": "Inject DTMF after detect",
+      "output": ""
     }
   ],
   "conversationFlow": [
@@ -22,8 +24,7 @@
       "id": "step-1",
       "detect": "",
       "action": "trigger",
-      "triggerLabel": ""
+      "triggerLabel": "rule_1"
     }
-  ],
-  "extractedSchema": []
+  ]
 }

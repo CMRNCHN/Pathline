@@ -1,8 +1,6 @@
 export const SCRIPT_VERSION = 2 as const;
 
-export type SchemaFieldType = "text" | "currency" | "number";
-
-export type FlowAction = "trigger" | "extract" | "end" | "pass";
+export type FlowAction = "trigger" | "extract" | "validate" | "end" | "pass";
 
 export interface ScriptSetup {
   name: string;
@@ -12,35 +10,35 @@ export interface ScriptSetup {
   speechPreferences: {
     autoListen: boolean;
   };
+  /** Names only — values are filled at Run Configuration. */
+  runtimeVariables: string[];
 }
+
+export const IVR_EXECUTION_RULES = [
+  "Inject DTMF after detect",
+  "Inject speech after detect",
+  "Wait for IVR response",
+  "Capture value after detect",
+] as const;
 
 export interface IvrRule {
   id: string;
   label: string;
-  valueReference: string;
-  expectedInput: string;
+  /** Expected IVR prompt / phrase that activates this rule. */
+  trigger: string;
+  /** Response action — typically a {{variable}} reference for DTMF/speech. */
+  response: string;
   rule: string;
-}
-
-export interface ExtractMapEntry {
-  id: string;
-  detect: string;
-  value: string;
+  /** Run output field name when this rule captures data. */
+  output: string;
 }
 
 export interface FlowStep {
   id: string;
   detect: string;
   action: FlowAction;
+  /** IVR rule label — Trigger fires response; Extract stores detected speech to rule.output. */
   triggerLabel?: string;
-  extractField?: string;
-  map?: ExtractMapEntry[];
-}
-
-export interface ExtractedSchemaField {
-  id: string;
-  field: string;
-  type: SchemaFieldType;
 }
 
 export interface ScriptDocument {
@@ -49,7 +47,6 @@ export interface ScriptDocument {
   setup: ScriptSetup;
   ivrRules: IvrRule[];
   conversationFlow: FlowStep[];
-  extractedSchema: ExtractedSchemaField[];
 }
 
 /** Runtime values for a single run — never stored in the template. */
@@ -61,7 +58,7 @@ export interface RunConfiguration {
   };
 }
 
-/** Output produced when a run completes. */
+/** Output produced when a run completes — schema lives here, not in the template. */
 export interface ExportPackage {
   sessionId: string;
   scriptId: string;
@@ -74,7 +71,7 @@ export interface ExportPackage {
 export interface RunLogEntry {
   at: string;
   message: string;
-  kind: "trigger" | "extract" | "pass" | "end" | "unknown" | "info";
+  kind: "trigger" | "extract" | "validate" | "pass" | "end" | "unknown" | "info";
 }
 
 export interface RunState {

@@ -4,6 +4,7 @@ import { isBundledScript } from "../script/selectors";
 import type { ScriptDocument } from "../script/types";
 import { PageLayout } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
+import { extractOutputRules } from "../script/compile";
 import { scriptDisplayName } from "../script/storage";
 import type { AppView } from "../navigation";
 
@@ -59,7 +60,7 @@ export function ScriptSettingsPage({ scriptId, onNavigate }: ScriptSettingsPageP
         <dl style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginBottom: "1.25rem" }}>
           <StatRow label="IVR rules" value={activeScript.ivrRules.length} />
           <StatRow label="Flow steps" value={activeScript.conversationFlow.length} />
-          <StatRow label="Schema fields" value={activeScript.extractedSchema.length} />
+          <StatRow label="Output fields" value={extractOutputRules(activeScript).length} />
         </dl>
 
         {readOnly && (

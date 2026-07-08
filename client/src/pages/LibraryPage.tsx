@@ -87,7 +87,9 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
                 <div className="script-card-stats">
                   <span className="stat-pill">{script.ivrRules.length} rules</span>
                   <span className="stat-pill">{script.conversationFlow.length} steps</span>
-                  <span className="stat-pill">{script.extractedSchema.length} fields</span>
+                  <span className="stat-pill">
+                    {script.ivrRules.filter((r) => r.output.trim()).length} outputs
+                  </span>
                 </div>
               </button>
               <button

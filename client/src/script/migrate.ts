@@ -1,10 +1,4 @@
-import type {
-  ExtractedSchemaField,
-  FlowStep,
-  IvrRule,
-  ScriptDocument,
-  ScriptSetup,
-} from "./types";
+import type { FlowStep, IvrRule, ScriptDocument, ScriptSetup } from "./types";
 import { SCRIPT_VERSION } from "./types";
 import { newId } from "./storage";
 
@@ -43,21 +37,39 @@ function slugLabel(prefix: string, index: number): string {
   return `${prefix}_${index}`;
 }
 
-function toValueReference(keys: string, index: number): string {
+function toResponseRef(keys: string, index: number): string {
   if (!keys.trim()) return `{{dtmf_${index}}}`;
   const doubled = keys.replace(/\{(\w+)\}/g, "{{$1}}");
   if (doubled.includes("{{")) return doubled;
   return `{{dtmf_${index}}}`;
 }
 
+function ensureExtractRule(
+  ivrRules: IvrRule[],
+  field: string,
+  trigger: string
+): { ivrRules: IvrRule[]; label: string } {
+  const existing = ivrRules.find((r) => r.output === field);
+  if (existing) return { ivrRules, label: existing.label };
+
+  const label = field || slugLabel("capture", ivrRules.length + 1);
+  const rule: IvrRule = {
+    id: newId(),
+    label,
+    trigger,
+    response: "",
+    rule: "Capture value after detect",
+    output: field || label,
+  };
+  return { ivrRules: [...ivrRules, rule], label };
+}
+
 function migrateLegacyRulesToFlow(rules: V1StatusRule[]): {
   ivrRules: IvrRule[];
   conversationFlow: FlowStep[];
-  schema: Map<string, ExtractedSchemaField>;
 } {
-  const ivrRules: IvrRule[] = [];
+  let ivrRules: IvrRule[] = [];
   const conversationFlow: FlowStep[] = [];
-  const schema = new Map<string, ExtractedSchemaField>();
   let ruleIndex = 0;
 
   for (const rule of rules) {
@@ -68,9 +80,10 @@ function migrateLegacyRulesToFlow(rules: V1StatusRule[]): {
       ivrRules.push({
         id: newId(),
         label,
-        valueReference: toValueReference(rule.dtmf ?? "", ruleIndex),
-        expectedInput: rule.trigger ?? "",
+        response: toResponseRef(rule.dtmf ?? "", ruleIndex),
+        trigger: rule.trigger ?? "",
         rule: "Inject DTMF after detect",
+        output: "",
       });
       conversationFlow.push({
         id: newId(),
@@ -80,18 +93,13 @@ function migrateLegacyRulesToFlow(rules: V1StatusRule[]): {
       });
     } else if (rule.response?.trim()) {
       const field = rule.key?.trim() || slugLabel("field", ruleIndex + 1);
-      if (!schema.has(field)) {
-        schema.set(field, { id: newId(), field, type: "text" });
-      }
-      const map = rule.status
-        ? [{ id: newId(), detect: rule.status.toLowerCase(), value: rule.status }]
-        : [];
+      const ensured = ensureExtractRule(ivrRules, field, rule.response);
+      ivrRules = ensured.ivrRules;
       conversationFlow.push({
         id: newId(),
         detect: rule.response,
         action: "extract",
-        extractField: field,
-        map,
+        triggerLabel: ensured.label,
       });
       if (rule.endCall) {
         conversationFlow.push({ id: newId(), detect: rule.response, action: "end" });
@@ -101,7 +109,7 @@ function migrateLegacyRulesToFlow(rules: V1StatusRule[]): {
     }
   }
 
-  return { ivrRules, conversationFlow, schema };
+  return { ivrRules, conversationFlow };
 }
 
 export function migrateV1ToV2(raw: unknown): ScriptDocument {
@@ -113,18 +121,17 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
     target: o.target ?? "",
     timeoutMs: o.timeoutMs ?? 30000,
     speechPreferences: { autoListen: false },
+    runtimeVariables: [],
   };
 
   let ivrRules: IvrRule[] = [];
   let conversationFlow: FlowStep[] = [];
-  const schema = new Map<string, ExtractedSchemaField>();
 
-  let conversation = o.conversation ?? [];
+  const conversation = o.conversation ?? [];
   if (conversation.length === 0 && o.rules?.length) {
     const migrated = migrateLegacyRulesToFlow(o.rules);
     ivrRules = migrated.ivrRules;
     conversationFlow = migrated.conversationFlow;
-    for (const [k, v] of migrated.schema) schema.set(k, v);
   } else {
     let ruleIndex = 0;
     for (const step of conversation) {
@@ -134,9 +141,10 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
         ivrRules.push({
           id: newId(),
           label,
-          valueReference: toValueReference(step.keys ?? "", ruleIndex),
-          expectedInput: step.listenFor ?? "",
+          response: toResponseRef(step.keys ?? "", ruleIndex),
+          trigger: step.listenFor ?? "",
           rule: "Inject DTMF after detect",
+          output: "",
         });
         conversationFlow.push({
           id: step.id ?? newId(),
@@ -146,18 +154,13 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
         });
       } else if (step.action === "save_value") {
         const field = step.resultKey?.trim() || slugLabel("field", ruleIndex + 1);
-        if (!schema.has(field)) {
-          schema.set(field, { id: newId(), field, type: "text" });
-        }
-        const map = step.value
-          ? [{ id: newId(), detect: step.value.toLowerCase(), value: step.value }]
-          : [];
+        const ensured = ensureExtractRule(ivrRules, field, step.listenFor ?? "");
+        ivrRules = ensured.ivrRules;
         conversationFlow.push({
           id: step.id ?? newId(),
           detect: step.listenFor ?? "",
           action: "extract",
-          extractField: field,
-          map,
+          triggerLabel: ensured.label,
         });
       } else if (step.action === "hang_up") {
         conversationFlow.push({
@@ -176,10 +179,19 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
   }
 
   for (const r of o.results ?? []) {
-    if (r.key?.trim() && !schema.has(r.key)) {
-      schema.set(r.key, { id: r.id ?? newId(), field: r.key, type: "text" });
+    if (r.key?.trim()) {
+      const ensured = ensureExtractRule(ivrRules, r.key, "");
+      ivrRules = ensured.ivrRules;
     }
   }
+
+  const runtimeVariables = new Set<string>();
+  for (const rule of ivrRules) {
+    for (const m of rule.response.matchAll(/\{\{(\w+)\}\}/g)) {
+      runtimeVariables.add(m[1]);
+    }
+  }
+  setup.runtimeVariables = [...runtimeVariables].sort();
 
   return {
     id: o.id ?? newId(),
@@ -187,6 +199,5 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
     setup,
     ivrRules,
     conversationFlow,
-    extractedSchema: [...schema.values()],
   };
 }

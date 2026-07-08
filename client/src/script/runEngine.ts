@@ -1,9 +1,5 @@
 import type { ScriptDocument, RunLogEntry, RunState } from "./types";
-import {
-  applyExtractMap,
-  findIvrRule,
-  resolveReference,
-} from "./compile";
+import { extractOutputRules, findIvrRule, resolveReference } from "./compile";
 
 export type { RunState, RunLogEntry };
 
@@ -89,9 +85,7 @@ export function processPhrase(
 
     case "trigger": {
       const ivrRule = step.triggerLabel ? findIvrRule(doc, step.triggerLabel) : undefined;
-      const resolved = ivrRule
-        ? resolveReference(ivrRule.valueReference, variables)
-        : undefined;
+      const resolved = ivrRule ? resolveReference(ivrRule.response, variables) : undefined;
       const log = [
         ...prev.log,
         logEntry(
@@ -111,22 +105,38 @@ export function processPhrase(
     }
 
     case "extract": {
-      const field = step.extractField ?? "";
-      const mapped = step.map?.length ? applyExtractMap(phrase, step.map) : undefined;
-      const value = mapped ?? "";
+      const ivrRule = step.triggerLabel ? findIvrRule(doc, step.triggerLabel) : undefined;
+      const field = ivrRule?.output ?? "";
+      const value = field ? phrase : "";
       const collected = value ? { ...prev.collected, [field]: value } : prev.collected;
       const log = [
         ...prev.log,
         logEntry(
-          value ? `Extract ${field} = ${value}` : `Extract ${field} — no map match`,
-          value ? "extract" : "unknown"
+          value && field
+            ? `Extract ${field} = ${value.slice(0, 80)}${value.length > 80 ? "…" : ""} (via ${step.triggerLabel})`
+            : `Extract ${step.triggerLabel ?? "?"} — rule or output not found`,
+          value && field ? "extract" : "unknown"
         ),
       ];
       return {
         state: { ...base, collected, log },
-        matched: Boolean(value),
+        matched: Boolean(value && field),
         shouldComplete: false,
       };
+    }
+
+    case "validate": {
+      const outputs = extractOutputRules(doc).map((r) => r.output);
+      const missing = outputs.filter((k) => !prev.collected[k]?.trim());
+      const ok = missing.length === 0;
+      const log = [
+        ...prev.log,
+        logEntry(
+          ok ? "Validate — all outputs captured" : `Validate — missing: ${missing.join(", ")}`,
+          ok ? "validate" : "unknown"
+        ),
+      ];
+      return { state: { ...base, log }, matched: ok, shouldComplete: false };
     }
 
     case "end": {

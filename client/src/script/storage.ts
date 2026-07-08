@@ -21,10 +21,10 @@ export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
       target: "",
       timeoutMs: 30000,
       speechPreferences: { autoListen: false },
+      runtimeVariables: [],
     },
-    ivrRules: [newIvrRule()],
+    ivrRules: [newIvrRule(1)],
     conversationFlow: [newFlowStep("trigger")],
-    extractedSchema: [],
     ...partial,
   };
 }
