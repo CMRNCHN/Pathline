@@ -5,6 +5,7 @@ import { scriptDisplayName } from "../../script/storage";
 import { SectionBlock } from "../../components/ui/SectionBlock";
 import { RuleWizard } from "./ruleWizard/RuleWizard";
 import { RuleCard } from "./RuleCard";
+import { outputsSection } from "../../script/ruleCopy";
 import { isPlaceholderRule } from "../../script/ruleIntent";
 
 export interface EditFormProps {
@@ -170,16 +171,16 @@ export function EditForm({
 
         <SectionBlock
           index="02"
-          title="Outputs"
-          description="Variables this script produces or requires — defined by your rules."
+          title={outputsSection.title}
+          description={outputsSection.description}
         >
           {outputRules.length === 0 && inputVariables.length === 0 ? (
-            <p className="field-hint">Outputs and required inputs are declared by your rules.</p>
+            <p className="field-hint">{outputsSection.empty}</p>
           ) : (
             <div className="outputs-block">
               {inputVariables.length > 0 && (
                 <>
-                  <h4 className="outputs-subtitle">Required inputs</h4>
+                  <h4 className="outputs-subtitle">{outputsSection.runValues}</h4>
                   <ul className="results-list">
                     {inputVariables.map((name) => (
                       <li key={name} className="results-list-item mono">
@@ -191,7 +192,7 @@ export function EditForm({
               )}
               {outputRules.length > 0 && (
                 <>
-                  <h4 className="outputs-subtitle">Available captures</h4>
+                  <h4 className="outputs-subtitle">{outputsSection.savedFromIvr}</h4>
                   <ul className="results-list">
                     {outputRules.map((rule) => (
                       <li key={rule.id} className="results-list-item mono">

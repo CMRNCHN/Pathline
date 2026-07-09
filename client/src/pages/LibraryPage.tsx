@@ -43,7 +43,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
     <PageLayout
       eyebrow="Template library"
       title="Scripts"
-      subtitle="Author IVR templates, then run them locally with runtime variables injected at configuration time."
+      subtitle="Author scripts with rules, then run them locally — you enter values when you start a call."
       action={
         <button type="button" onClick={handleCreate} className="btn btn-primary">
           <Plus size={16} />
@@ -64,7 +64,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
           }
         >
           {scripts.length === 0
-            ? "Each script has a header, rules, and outputs — values are supplied when you run."
+            ? "Each script has a header, rules, and outputs — you enter values when you run."
             : "Try a different search term."}
         </EmptyState>
       ) : (

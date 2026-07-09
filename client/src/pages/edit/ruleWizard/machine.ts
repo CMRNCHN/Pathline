@@ -1,4 +1,5 @@
 import type { RuleWizardType } from "../../../script/ruleIntent";
+import { ruleFieldHint } from "../../../script/ruleCopy";
 import type { WizardState, WizardStep } from "./types";
 
 export function stepLabel(step: WizardStep, intent: RuleWizardType | null): string {
@@ -7,20 +8,20 @@ export function stepLabel(step: WizardStep, intent: RuleWizardType | null): stri
 
   switch (intent) {
     case "capture":
-      if (step === "capture-info") return "What information are you collecting?";
-      if (step === "capture-trigger") return "How do you know the IVR is providing this?";
-      if (step === "capture-save") return "Should we save this value?";
+      if (step === "capture-info") return "What will the IVR tell you?";
+      if (step === "capture-trigger") return "What words will the IVR say?";
+      if (step === "capture-save") return "Save what the IVR says?";
       break;
     case "navigate":
-      if (step === "navigate-mode") return "How should we navigate?";
-      if (step === "navigate-action") return "What should the assistant do?";
-      if (step === "navigate-trigger") return "What tells us to perform this action?";
+      if (step === "navigate-mode") return "How should you move forward?";
+      if (step === "navigate-action") return "What should you send?";
+      if (step === "navigate-trigger") return ruleFieldHint.navigateTrigger;
       break;
     case "respond":
-      if (step === "respond-info") return "What information does the IVR need?";
-      if (step === "respond-delivery") return "How should it be provided?";
-      if (step === "respond-variable") return "Which variable does the IVR need?";
-      if (step === "respond-trigger") return "What tells us the IVR is asking?";
+      if (step === "respond-info") return "What will the IVR ask for?";
+      if (step === "respond-delivery") return "How will you send it?";
+      if (step === "respond-variable") return "Name the value you'll enter at run time";
+      if (step === "respond-trigger") return "What words will the IVR use?";
       break;
     case "end":
       break;

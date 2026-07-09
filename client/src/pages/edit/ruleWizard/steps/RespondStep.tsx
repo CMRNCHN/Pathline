@@ -3,6 +3,7 @@ import {
   findRespondPreset,
   RESPOND_PRESETS,
 } from "../../../../script/rulePresets";
+import { ruleFieldHint, ruleFieldLabel } from "../../../../script/ruleCopy";
 import { stepLabel } from "../machine";
 import { canProceedFromStep } from "../selectors";
 import type { StepProps } from "../types";
@@ -39,13 +40,13 @@ export function RespondStep({ state, dispatch }: StepProps) {
             className={`intent-card${respond.presetId === CUSTOM_PRESET_ID ? " selected" : ""}`}
             onClick={() => dispatch({ type: "SET_RESPOND_PRESET", presetId: CUSTOM_PRESET_ID })}
           >
-            <span className="intent-card-label">Custom value</span>
+            <span className="intent-card-label">Custom</span>
           </button>
         </div>
         {respond.presetId === CUSTOM_PRESET_ID && (
           <>
             <label className="rule-builder-field">
-              <span>Variable name</span>
+              <span>{ruleFieldLabel.runValue}</span>
               <input
                 className="editor-input mono"
                 value={respond.variable}
@@ -58,6 +59,7 @@ export function RespondStep({ state, dispatch }: StepProps) {
                 placeholder="credit_card_number"
                 autoFocus
               />
+              <span className="field-hint">{ruleFieldHint.runValue}</span>
               <span className="field-hint mono">{`{{${respond.variable || "field_name"}}}`}</span>
             </label>
             <div className="rule-builder-actions">
@@ -119,7 +121,7 @@ export function RespondStep({ state, dispatch }: StepProps) {
       <div className="rule-builder-step">
         <p className="rule-builder-prompt">{stepLabel(step, intent)}</p>
         <label className="rule-builder-field">
-          <span>Variable the IVR will receive at run time</span>
+          <span>{ruleFieldLabel.runValue}</span>
           <input
             className="editor-input mono"
             value={variable}
@@ -133,7 +135,7 @@ export function RespondStep({ state, dispatch }: StepProps) {
             disabled={respond.presetId !== CUSTOM_PRESET_ID && Boolean(preset)}
           />
           <span className="field-hint mono">{`{{${variable || "field_name"}}}`}</span>
-          <span className="field-hint">Filled in when you start a run — not stored in the script.</span>
+          <span className="field-hint">{ruleFieldHint.runValue}</span>
         </label>
         <div className="rule-builder-actions">
           <button
@@ -158,7 +160,7 @@ export function RespondStep({ state, dispatch }: StepProps) {
     return (
       <div className="rule-builder-step">
         <p className="rule-builder-prompt">{stepLabel(step, intent)}</p>
-        <p className="field-hint">Trigger phrase</p>
+        <p className="field-hint">{ruleFieldHint.respondTrigger}</p>
         <div className="intent-grid intent-grid-single">
           {hints.map((phrase) => (
             <button
@@ -179,7 +181,7 @@ export function RespondStep({ state, dispatch }: StepProps) {
           </button>
         </div>
         <label className="rule-builder-field">
-          <span>Detection phrase</span>
+          <span>{ruleFieldLabel.whenIvrAsks}</span>
           <input
             className="editor-input"
             value={respond.trigger}

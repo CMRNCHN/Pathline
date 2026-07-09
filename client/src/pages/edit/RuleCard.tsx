@@ -1,5 +1,6 @@
 import type { IvrRule } from "../../script/types";
 import { inferIntent, ruleSummary, truncateTrigger } from "../../script/ruleIntent";
+import { ruleFieldLabel, triggerLabelForIntent } from "../../script/ruleCopy";
 
 interface RuleCardProps {
   rule: IvrRule;
@@ -19,26 +20,26 @@ export function RuleCard({ rule, readOnly, onEdit, onRemove }: RuleCardProps) {
 
         {intent !== "end" && summary.trigger !== "—" && (
           <div className="rule-card-row">
-            <span className="rule-card-key">Trigger</span>
+            <span className="rule-card-key">{triggerLabelForIntent(intent)}</span>
             <span className="rule-card-val">{truncateTrigger(summary.trigger)}</span>
           </div>
         )}
 
         <div className="rule-card-row">
-          <span className="rule-card-key">Action</span>
+          <span className="rule-card-key">{ruleFieldLabel.action}</span>
           <span className="rule-card-val">{summary.action}</span>
         </div>
 
         {summary.inputVariable && (
           <div className="rule-card-row">
-            <span className="rule-card-key">Input</span>
+            <span className="rule-card-key">{ruleFieldLabel.runValue}</span>
             <span className="rule-card-val mono">{summary.inputVariable}</span>
           </div>
         )}
 
         {summary.outputVariable && (
           <div className="rule-card-row">
-            <span className="rule-card-key">Output</span>
+            <span className="rule-card-key">{ruleFieldLabel.saveAs}</span>
             <span className="rule-card-val mono">{summary.outputVariable}</span>
           </div>
         )}

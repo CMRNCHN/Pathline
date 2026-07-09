@@ -1,4 +1,5 @@
 import { DTMF_KEYPAD, NAVIGATE_TRIGGER_PRESETS, sanitizeDtmf } from "../../../../script/rulePresets";
+import { ruleFieldHint, ruleFieldLabel } from "../../../../script/ruleCopy";
 import { stepLabel } from "../machine";
 import { canProceedFromStep } from "../selectors";
 import type { StepProps } from "../types";
@@ -125,7 +126,7 @@ export function NavigateStep({ state, dispatch }: StepProps) {
     return (
       <div className="rule-builder-step">
         <p className="rule-builder-prompt">{stepLabel(step, intent)}</p>
-        <p className="field-hint">Trigger phrase</p>
+        <p className="field-hint">{ruleFieldHint.navigateTrigger}</p>
         <div className="intent-grid intent-grid-single">
           {NAVIGATE_TRIGGER_PRESETS.map((preset) => (
             <button
@@ -146,7 +147,7 @@ export function NavigateStep({ state, dispatch }: StepProps) {
           </button>
         </div>
         <label className="rule-builder-field">
-          <span>Detection phrase</span>
+          <span>{ruleFieldLabel.whenYouHear}</span>
           <input
             className="editor-input"
             value={navigate.trigger}

@@ -23,6 +23,7 @@ import { scriptDisplayName } from "../script/storage";
 import { useScriptStore } from "../store/ScriptStore";
 import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
+import { runCopy } from "../script/ruleCopy";
 import { RunStepBar } from "../components/ui/RunStepBar";
 import { DtmfGuide } from "../components/DtmfGuide";
 
@@ -51,7 +52,7 @@ export function RunPage({ scriptId }: RunPageProps) {
     <PageLayout
       eyebrow="Execution"
       title={script ? scriptDisplayName(script) : "Run"}
-      subtitle="Run Configuration injects runtime variables. Audio stays on your device."
+      subtitle="Enter values for this call on your device. Audio never leaves your phone."
       action={
         <span className="run-badge">
           <Play size={14} />
@@ -275,9 +276,7 @@ function RunFlow({
         <form className="call-form" onSubmit={handleStart}>
           <div className="mode-badge">{scriptDisplayName(script)}</div>
 
-          <p className="hint privacy-note">
-            Run Configuration — runtime variables stay on your device.
-          </p>
+          <p className="hint privacy-note">{runCopy.configureHint}</p>
 
           <div className="form-group">
             <label htmlFor="script">Script</label>
@@ -291,7 +290,7 @@ function RunFlow({
 
           {variableNames.length > 0 && (
             <div className="secrets-section">
-              <h3>Runtime variables</h3>
+              <h3>{runCopy.configureValues}</h3>
               {variableNames.map((name) => (
                 <div key={name} className="form-group">
                   <label htmlFor={`var-${name}`}>{name}</label>
@@ -311,8 +310,8 @@ function RunFlow({
 
           {outputFields.length > 0 && (
             <div className="run-outputs-preview">
-              <h3>Outputs</h3>
-              <p className="field-hint">Variables this run will capture — populated during the call.</p>
+              <h3>{runCopy.savedDuringCall}</h3>
+              <p className="field-hint">Fields your listen & save rules will capture from the IVR.</p>
               <div className="output-chip-row">
                 {outputFields.map((field) => (
                   <span key={field} className="output-chip mono">{field}</span>
@@ -519,7 +518,7 @@ function MatcherPanel({
 
       {Object.keys(run.collected).length > 0 && (
         <div className="collected-json">
-          <h5>Run output</h5>
+          <h5>{runCopy.savedDuringCall}</h5>
           <pre>{JSON.stringify(run.collected, null, 2)}</pre>
         </div>
       )}
