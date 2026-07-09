@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import type { IvrRule, ScriptDocument } from "../../script/types";
 import {
   extractOutputRules,
@@ -7,9 +8,36 @@ import {
 } from "../../script/compile";
 import { IVR_EXECUTION_RULES } from "../../script/types";
 import { scriptDisplayName } from "../../script/storage";
-import { SectionBlock } from "../../components/ui/SectionBlock";
 
 const WAIT_RULE = "Wait for IVR response";
+
+type RunSectionId = "setup" | "rules" | "results";
+
+const RUN_SECTIONS: {
+  id: RunSectionId;
+  index: string;
+  title: string;
+  summary: string;
+}[] = [
+  {
+    id: "setup",
+    index: "01",
+    title: "Setup",
+    summary: "Name · Target · Description · Timeout",
+  },
+  {
+    id: "rules",
+    index: "02",
+    title: "Rules",
+    summary: "Label · Trigger · Response · Execution · Output",
+  },
+  {
+    id: "results",
+    index: "03",
+    title: "Results",
+    summary: "Collected outputs",
+  },
+];
 
 export interface EditFormProps {
   script: ScriptDocument;
@@ -26,6 +54,13 @@ export function EditForm({
   onDuplicate,
   onTest,
 }: EditFormProps) {
+  const [activeSection, setActiveSection] = useState<RunSectionId>("setup");
+  const sectionRefs = useRef<Record<RunSectionId, HTMLElement | null>>({
+    setup: null,
+    rules: null,
+    results: null,
+  });
+
   const patchSetup = (patch: Partial<ScriptDocument["setup"]>) =>
     onPatch({ setup: { ...script.setup, ...patch } });
 
@@ -50,6 +85,17 @@ export function EditForm({
   const ruleCount = script.ivrRules.length;
   const outputCount = outputRules.length;
 
+  const sectionMeta: Record<RunSectionId, string> = {
+    setup: `${runtimeVariables.length} variable${runtimeVariables.length === 1 ? "" : "s"}`,
+    rules: `${ruleCount} step${ruleCount === 1 ? "" : "s"}`,
+    results: `${outputCount} field${outputCount === 1 ? "" : "s"}`,
+  };
+
+  const jumpToSection = (id: RunSectionId) => {
+    setActiveSection(id);
+    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="script-editor-panel">
       {readOnly && (
@@ -68,11 +114,6 @@ export function EditForm({
           {script.setup.description && (
             <p className="editor-subtitle">{script.setup.description}</p>
           )}
-          <div className="editor-topbar-meta">
-            <span className="editor-meta-pill">{ruleCount} rules</span>
-            <span className="editor-meta-pill">{runtimeVariables.length} variables</span>
-            <span className="editor-meta-pill">{outputCount} outputs</span>
-          </div>
         </div>
         {onTest && (
           <div className="editor-topbar-actions">
@@ -83,28 +124,36 @@ export function EditForm({
         )}
       </header>
 
-      <div className="editor-model-strip" aria-label="Run structure">
-        <div className="editor-model-card">
-          <span className="editor-model-index">01 · Setup</span>
-          <strong>Name · Target · Description · Timeout</strong>
-          <span className="editor-model-meta">
-            {runtimeVariables.length} runtime variable{runtimeVariables.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div className="editor-model-card editor-model-card-accent">
-          <span className="editor-model-index">02 · Rules</span>
-          <strong>Label · Trigger · Response · Execution · Output</strong>
-          <span className="editor-model-meta">{ruleCount} step{ruleCount === 1 ? "" : "s"}</span>
-        </div>
-        <div className="editor-model-card">
-          <span className="editor-model-index">03 · Results</span>
-          <strong>Collected outputs</strong>
-          <span className="editor-model-meta">{outputCount} field{outputCount === 1 ? "" : "s"}</span>
-        </div>
-      </div>
+      <nav className="editor-model-strip" aria-label="Run structure">
+        {RUN_SECTIONS.map((section) => (
+          <button
+            key={section.id}
+            id={`run-nav-${section.id}`}
+            type="button"
+            className={`editor-model-card${
+              activeSection === section.id ? " editor-model-card-active" : ""
+            }`}
+            onClick={() => jumpToSection(section.id)}
+            aria-current={activeSection === section.id ? "true" : undefined}
+          >
+            <span className="editor-model-index">
+              {section.index} · {section.title}
+            </span>
+            <strong>{section.summary}</strong>
+            <span className="editor-model-meta">{sectionMeta[section.id]}</span>
+          </button>
+        ))}
+      </nav>
 
       <div className="editor-body">
-        <SectionBlock index="01" title="Setup" description="Run defaults for this template.">
+        <section
+          id="run-setup"
+          ref={(el) => {
+            sectionRefs.current.setup = el;
+          }}
+          className="editor-section"
+          aria-labelledby="run-nav-setup"
+        >
           <div className="editor-field-grid">
             <label className="editor-field">
               <span>Name</span>
@@ -166,19 +215,19 @@ export function EditForm({
               </div>
             )}
           </div>
-        </SectionBlock>
+        </section>
 
-        <SectionBlock
-          index="02"
-          title="Rules"
-          description={
-            <>
-              Each rule defines what to listen for and how to respond. Use{" "}
-              <code className="mono">{"{{variable}}"}</code> in response for run-time values.
-            </>
-          }
-          wide
+        <section
+          id="run-rules"
+          ref={(el) => {
+            sectionRefs.current.rules = el;
+          }}
+          className="editor-section editor-section-wide"
+          aria-labelledby="run-nav-rules"
         >
+          <p className="editor-section-hint">
+            Use <code className="mono">{"{{variable}}"}</code> in response for run-time values.
+          </p>
           <div className="editor-table-wrap">
             <table className="editor-table">
               <thead>
@@ -331,12 +380,15 @@ export function EditForm({
               + Rule
             </button>
           )}
-        </SectionBlock>
+        </section>
 
-        <SectionBlock
-          index="03"
-          title="Results"
-          description="Collected outputs — derived from rules with an output field. Populated at runtime."
+        <section
+          id="run-results"
+          ref={(el) => {
+            sectionRefs.current.results = el;
+          }}
+          className="editor-section"
+          aria-labelledby="run-nav-results"
         >
           {outputRules.length === 0 ? (
             <p className="results-empty">
@@ -351,7 +403,7 @@ export function EditForm({
               ))}
             </ul>
           )}
-        </SectionBlock>
+        </section>
       </div>
     </div>
   );
