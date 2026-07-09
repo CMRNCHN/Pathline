@@ -5,6 +5,8 @@ export type FlowAction = "trigger" | "extract" | "validate" | "end" | "pass";
 export interface ScriptSetup {
   name: string;
   description: string;
+  /** Local path hint for this template — never sent to the server. */
+  localPath: string;
   target: string;
   timeoutMs: number;
   speechPreferences: {

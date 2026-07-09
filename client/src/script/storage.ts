@@ -19,6 +19,7 @@ export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
     setup: {
       name: "",
       description: "",
+      localPath: "",
       target: "",
       timeoutMs: 30000,
       speechPreferences: { autoListen: false },

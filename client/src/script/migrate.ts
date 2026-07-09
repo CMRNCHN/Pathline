@@ -119,6 +119,7 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
   const setup: ScriptSetup = {
     name: o.name ?? "",
     description: o.description ?? "",
+    localPath: "",
     target: o.target ?? "",
     timeoutMs: o.timeoutMs ?? 30000,
     speechPreferences: { autoListen: false },

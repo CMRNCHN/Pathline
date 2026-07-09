@@ -96,6 +96,16 @@ export function EditForm({
           }
         >
           <div className="editor-field-grid">
+            <label className="editor-field editor-field-wide">
+              <span>Local intended file path</span>
+              <input
+                className="editor-input mono"
+                value={script.setup.localPath}
+                onChange={(e) => patchSetup({ localPath: e.target.value })}
+                disabled={readOnly}
+                placeholder="/path/to/script.json"
+              />
+            </label>
             <label className="editor-field">
               <span>Target</span>
               <input
