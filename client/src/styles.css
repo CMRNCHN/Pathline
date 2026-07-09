@@ -1510,7 +1510,7 @@ button {
 }
 
 .editor-body {
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 2rem;
@@ -1532,6 +1532,58 @@ button {
   display: flex;
   gap: 1rem;
   margin-bottom: 1.15rem;
+  align-items: flex-start;
+}
+
+.section-block-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.section-block-actions {
+  flex-shrink: 0;
+  padding-top: 0.15rem;
+}
+
+.section-kicker {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.section-desc-sep {
+  color: var(--muted-light);
+}
+
+.editor-script-title {
+  display: block;
+  width: 100%;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0 0 0.35rem;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+.editor-script-title::placeholder {
+  color: var(--muted-light);
+}
+
+.editor-script-title:focus {
+  outline: none;
+}
+
+.editor-script-title:focus-visible {
+  box-shadow: 0 2px 0 var(--accent);
+}
+
+.editor-script-title:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .section-index {

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { IvrRule, ScriptDocument } from "../../script/types";
 import { extractOutputRules, withSyncedRules } from "../../script/compile";
-import { scriptDisplayName } from "../../script/storage";
 import { SectionBlock } from "../../components/ui/SectionBlock";
 import { RuleBuilder } from "./RuleBuilder";
 import { RuleCard } from "./RuleCard";
@@ -73,30 +72,30 @@ export function EditForm({
         </div>
       )}
 
-      <header className="editor-topbar">
-        <div>
-          <p className="editor-eyebrow">RUN</p>
-          <h1 className="editor-title">{scriptDisplayName(script)}</h1>
-        </div>
-        {onTest && (
-          <button type="button" className="btn btn-accent btn-sm" onClick={onTest}>
-            Run test
-          </button>
-        )}
-      </header>
-
       <div className="editor-body">
-        <SectionBlock index="01" title="Setup" description="Defaults for this run template.">
+        <SectionBlock
+          index="01"
+          title="Setup"
+          description="Defaults for this run template."
+          heroTitle={
+            <input
+              className="editor-script-title"
+              value={script.setup.name}
+              onChange={(e) => patchSetup({ name: e.target.value })}
+              disabled={readOnly}
+              placeholder="Untitled"
+              aria-label="Script name"
+            />
+          }
+          actions={
+            onTest ? (
+              <button type="button" className="btn btn-accent btn-sm" onClick={onTest}>
+                Run test
+              </button>
+            ) : undefined
+          }
+        >
           <div className="editor-field-grid">
-            <label className="editor-field">
-              <span>Name</span>
-              <input
-                className="editor-input"
-                value={script.setup.name}
-                onChange={(e) => patchSetup({ name: e.target.value })}
-                disabled={readOnly}
-              />
-            </label>
             <label className="editor-field">
               <span>Target</span>
               <input
