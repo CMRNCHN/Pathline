@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchHealth } from "../api";
-import { isSpeechRecognitionAvailable } from "../localStt";
 
 export type ApiStatus = "checking" | "online" | "offline";
 
@@ -10,7 +9,6 @@ export interface RuntimeStatus {
   templates: "loading" | "ready" | "error";
   templateCount: number;
   customCount: number;
-  stt: boolean;
   vault: "ready" | "idle";
   lastChecked: Date | null;
   refresh: () => void;
@@ -61,7 +59,6 @@ export function useRuntimeStatus(
     templates,
     templateCount: bundledCount + customCount,
     customCount,
-    stt: isSpeechRecognitionAvailable(),
     vault,
     lastChecked,
     refresh: checkApi,

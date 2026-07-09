@@ -9,7 +9,7 @@ import {
 } from "../../script/ruleIntent";
 
 const INTENTS: { value: RuleIntent; label: string; hint: string }[] = [
-  { value: "navigate", label: "Navigate the IVR", hint: "Respond when the system asks for input" },
+  { value: "navigate", label: "Navigate the IVR", hint: "Send DTMF when the IVR asks for input" },
   { value: "capture", label: "Capture information", hint: "Save something the IVR says aloud" },
   { value: "wait", label: "Wait", hint: "Pause before the next step" },
   { value: "end", label: "End the call", hint: "Finish when this step runs" },
@@ -41,9 +41,7 @@ export function RuleBuilder({
   const [trigger, setTrigger] = useState(
     initial && "trigger" in initial ? initial.trigger : ""
   );
-  const [mode, setMode] = useState<NavigateMode>(
-    initial?.intent === "navigate" ? initial.mode : "keypad"
-  );
+  const [mode] = useState<NavigateMode>("keypad");
   const [variable, setVariable] = useState(
     initial?.intent === "navigate" ? initial.variable : runtimeVariables[0] ?? ""
   );
@@ -136,27 +134,8 @@ export function RuleBuilder({
               </label>
 
               <fieldset className="rule-builder-field">
-                <legend>How should it respond?</legend>
-                <div className="radio-row">
-                  <label className="radio-pill">
-                    <input
-                      type="radio"
-                      name="nav-mode"
-                      checked={mode === "keypad"}
-                      onChange={() => setMode("keypad")}
-                    />
-                    Press keypad buttons
-                  </label>
-                  <label className="radio-pill">
-                    <input
-                      type="radio"
-                      name="nav-mode"
-                      checked={mode === "speak"}
-                      onChange={() => setMode("speak")}
-                    />
-                    Speak a value
-                  </label>
-                </div>
+                <legend>Response</legend>
+                <p className="field-hint">Press keypad buttons on your phone when this phrase is matched.</p>
               </fieldset>
 
               <label className="rule-builder-field">

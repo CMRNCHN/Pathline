@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Play } from "lucide-react";
 import {
   mintToken,
@@ -21,7 +21,6 @@ import {
 import { getActiveScript, mergeScripts } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
 import { useScriptStore } from "../store/ScriptStore";
-import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
 import { RunStepBar } from "../components/ui/RunStepBar";
 
@@ -228,13 +227,13 @@ function RunFlow({
         <h2>Consent & Authorization</h2>
         <p className="consent-intro">
           PromptPath v1 uses a client-mediated architecture. Your device places the call,
-          holds your secrets, and processes audio locally. The server only receives encrypted status blobs.
+          holds your secrets, and sends DTMF on your phone when prompted. The server only receives encrypted status blobs.
         </p>
 
         <div className="consent-terms">
           <ul>
             <li>Your secrets and target number stay on this device — never sent to our servers</li>
-            <li>Speech recognition runs locally when available</li>
+            <li>Runs use DTMF keypad input on your phone — no voice sent to PromptPath</li>
             <li>Only encrypted status is reported to PromptPath</li>
             <li>Session data is auto-purged; you can revoke and delete anytime</li>
             <li>Carriers still see calling/called numbers, times, and duration</li>
@@ -434,9 +433,6 @@ function MatcherPanel({
 }) {
   const [run, setRun] = useState<RunState>(initialRunState);
   const [ivrText, setIvrText] = useState("");
-  const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
-  const [listenError, setListenError] = useState<string | null>(null);
-  const debounceRef = useRef<number | undefined>(undefined);
 
   const applyPhraseNow = useCallback(
     (text: string) => {
@@ -452,32 +448,6 @@ function MatcherPanel({
     [script, variables, onStatusCaptured]
   );
 
-  const applyPhraseDebounced = useCallback(
-    (text: string) => {
-      window.clearTimeout(debounceRef.current);
-      debounceRef.current = window.setTimeout(() => applyPhraseNow(text), 150);
-    },
-    [applyPhraseNow]
-  );
-
-  useEffect(() => {
-    if (!autoListen || run.completed) return;
-
-    setListenError(null);
-    const stop = startContinuousRecognition(
-      (phrase) => applyPhraseDebounced(phrase),
-      (msg) => setListenError(msg)
-    );
-
-    if (!stop) {
-      setAutoListen(false);
-      setListenError("Web Speech API unavailable in this browser");
-      return;
-    }
-
-    return stop;
-  }, [autoListen, run.completed, applyPhraseDebounced]);
-
   const handleManualMatch = () => {
     if (!ivrText.trim()) return;
     applyPhraseNow(ivrText.trim());
@@ -492,31 +462,18 @@ function MatcherPanel({
     <div className="navigator-panel run-panel">
       <div className="run-panel-header">
         <h4>{scriptDisplayName(script)}</h4>
-        {isSpeechRecognitionAvailable() && !run.completed && (
-          <button
-            type="button"
-            className={`btn btn-sm ${autoListen ? "btn-primary" : "btn-secondary"}`}
-            onClick={() => setAutoListen((v) => !v)}
-          >
-            {autoListen ? "● Listening" : "Auto-listen"}
-          </button>
-        )}
       </div>
 
       <p className="hint">
-        {autoListen
-          ? "Listening locally — IVR phrases auto-match against your script."
-          : "Paste what you hear, or enable auto-listen."}
+        Paste what you hear to match the next step. When DTMF is shown, press those keys on your phone.
       </p>
-
-      {listenError && <p className="field-hint warn">{listenError}</p>}
 
       {run.pendingDtmf && (
         <div className="dtmf-action-card">
-          <span className="dtmf-action-label">Send on your phone</span>
+          <span className="dtmf-action-label">Press on your phone</span>
           <code className="dtmf-action-value">{run.pendingDtmf}</code>
           {run.pendingTrigger && (
-            <span className="dtmf-action-trigger">Heard: {run.pendingTrigger}</span>
+            <span className="dtmf-action-trigger">After: {run.pendingTrigger}</span>
           )}
           <button type="button" className="btn btn-sm btn-secondary" onClick={dismissDtmf}>
             Sent ✓
@@ -527,12 +484,13 @@ function MatcherPanel({
       {!run.completed && (
         <>
           <div className="form-group">
-            <label htmlFor="ivr-phrase">Listen</label>
+            <label htmlFor="ivr-phrase">Match phrase</label>
             <textarea
               id="ivr-phrase"
               rows={2}
               value={ivrText}
               onChange={(e) => setIvrText(e.target.value)}
+              placeholder="Paste what the IVR said…"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();

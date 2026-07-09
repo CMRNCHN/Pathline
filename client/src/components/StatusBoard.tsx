@@ -1,4 +1,4 @@
-import { Activity, Mic, Server, Shield, Sparkles } from "lucide-react";
+import { Activity, Hash, Server, Shield, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { RuntimeStatus } from "../hooks/useRuntimeStatus";
 
@@ -66,11 +66,11 @@ function buildTiles(status: RuntimeStatus): Tile[] {
       delay: 60,
     },
     {
-      id: "stt",
-      icon: Mic,
-      label: "Listen",
-      value: status.stt ? "Auto-listen" : "Manual paste",
-      state: status.stt ? "ok" : "idle",
+      id: "input",
+      icon: Hash,
+      label: "Input",
+      value: "DTMF keypad",
+      state: "ok",
       delay: 120,
     },
     {

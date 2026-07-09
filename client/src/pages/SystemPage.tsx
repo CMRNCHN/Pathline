@@ -1,7 +1,6 @@
 import { Shield, Database, Activity, Download } from "lucide-react";
 import { useScriptStore } from "../store/ScriptStore";
 import { mergeScripts } from "../script/selectors";
-import { isSpeechRecognitionAvailable } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
 
@@ -49,11 +48,7 @@ export function SystemPage() {
         </Card>
 
         <Card title="Health" icon={Activity}>
-          <DataRow
-            label="Web Speech API"
-            value={isSpeechRecognitionAvailable() ? "Available" : "Manual entry only"}
-            ok={isSpeechRecognitionAvailable()}
-          />
+          <DataRow label="Run input" value="DTMF keypad on your device" ok />
           <DataRow label="API endpoint" value="/api → :8000" ok />
           <DataRow label="Scripts loaded" value={`${scripts.length} templates`} ok={scripts.length > 0} />
           <DataRow label="Activity log" value="In-session only" />
