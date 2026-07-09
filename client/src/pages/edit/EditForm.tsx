@@ -3,8 +3,9 @@ import type { IvrRule, ScriptDocument } from "../../script/types";
 import { extractOutputRules, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
 import { SectionBlock } from "../../components/ui/SectionBlock";
-import { RuleBuilder } from "./RuleBuilder";
+import { RuleWizard } from "./RuleWizard";
 import { RuleCard } from "./RuleCard";
+import { isPlaceholderRule } from "../../script/ruleIntent";
 
 export interface EditFormProps {
   script: ScriptDocument;
@@ -28,6 +29,7 @@ export function EditForm({
     onPatch({ setup: { ...script.setup, ...patch } });
 
   const outputRules = extractOutputRules(script);
+  const visibleRules = script.ivrRules.filter((r) => !isPlaceholderRule(r));
   const editingRule = editingRuleId
     ? script.ivrRules.find((r) => r.id === editingRuleId)
     : undefined;
@@ -45,9 +47,10 @@ export function EditForm({
   };
 
   const handleSaveRule = (rule: IvrRule) => {
+    const baseRules = script.ivrRules.filter((r) => !isPlaceholderRule(r));
     const ivrRules = editingRuleId
-      ? script.ivrRules.map((r) => (r.id === editingRuleId ? rule : r))
-      : [...script.ivrRules, rule];
+      ? baseRules.map((r) => (r.id === editingRuleId ? rule : r))
+      : [...baseRules, rule];
     updateRules(ivrRules);
     closeBuilder();
   };
@@ -199,7 +202,7 @@ export function EditForm({
           wide
         >
           <div className="rule-card-list">
-            {script.ivrRules.map((rule) => (
+            {visibleRules.map((rule) => (
               <RuleCard
                 key={rule.id}
                 rule={rule}
@@ -217,7 +220,7 @@ export function EditForm({
           )}
 
           {!readOnly && builderOpen && (
-            <RuleBuilder
+            <RuleWizard
               runtimeVariables={script.setup.runtimeVariables.filter(Boolean)}
               existingLabels={script.ivrRules.map((r) => r.label)}
               editingRule={editingRule}

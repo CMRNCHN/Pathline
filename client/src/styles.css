@@ -1713,6 +1713,80 @@ button {
   line-height: 1.35;
 }
 
+.intent-card.selected {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
+.intent-grid-single {
+  grid-template-columns: 1fr;
+}
+
+.rule-wizard-step-indicator {
+  margin: 0 0 0.65rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.rule-wizard-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.rule-wizard-summary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8125rem;
+}
+
+.rule-wizard-summary-key {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rule-wizard-summary-val {
+  color: var(--text);
+}
+
+.key-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.key-btn {
+  min-width: 2.5rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  cursor: pointer;
+}
+
+.key-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--card-raised);
+}
+
+.key-btn.selected {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
 .radio-row {
   display: flex;
   flex-wrap: wrap;
