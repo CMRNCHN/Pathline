@@ -1,10 +1,13 @@
-import { useState } from "react";
 import type { IvrRule, ScriptDocument } from "../../script/types";
-import { extractOutputRules, withSyncedRules } from "../../script/compile";
+import {
+  extractOutputRules,
+  formatVariableRef,
+  newIvrRule,
+  withSyncedRules,
+} from "../../script/compile";
+import { IVR_EXECUTION_RULES } from "../../script/types";
 import { scriptDisplayName } from "../../script/storage";
 import { SectionBlock } from "../../components/ui/SectionBlock";
-import { RuleBuilder } from "./RuleBuilder";
-import { RuleCard } from "./RuleCard";
 
 export interface EditFormProps {
   script: ScriptDocument;
@@ -21,45 +24,18 @@ export function EditForm({
   onDuplicate,
   onTest,
 }: EditFormProps) {
-  const [builderOpen, setBuilderOpen] = useState(false);
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-
   const patchSetup = (patch: Partial<ScriptDocument["setup"]>) =>
     onPatch({ setup: { ...script.setup, ...patch } });
 
   const outputRules = extractOutputRules(script);
-  const editingRule = editingRuleId
-    ? script.ivrRules.find((r) => r.id === editingRuleId)
-    : undefined;
+  const runtimeVariables = script.setup.runtimeVariables.filter(Boolean);
 
   const updateRules = (ivrRules: IvrRule[]) => onPatch(withSyncedRules(script, ivrRules));
 
-  const addVariable = (name: string) => {
-    const runtimeVariables = [...new Set([...script.setup.runtimeVariables, name])].sort();
-    onPatch({ setup: { ...script.setup, runtimeVariables } });
-  };
-
-  const closeBuilder = () => {
-    setBuilderOpen(false);
-    setEditingRuleId(null);
-  };
-
-  const handleSaveRule = (rule: IvrRule) => {
-    const ivrRules = editingRuleId
-      ? script.ivrRules.map((r) => (r.id === editingRuleId ? rule : r))
-      : [...script.ivrRules, rule];
+  const updateRuleAt = (index: number, patch: Partial<IvrRule>) => {
+    const ivrRules = [...script.ivrRules];
+    ivrRules[index] = { ...ivrRules[index], ...patch };
     updateRules(ivrRules);
-    closeBuilder();
-  };
-
-  const openAdd = () => {
-    setEditingRuleId(null);
-    setBuilderOpen(true);
-  };
-
-  const openEdit = (id: string) => {
-    setEditingRuleId(id);
-    setBuilderOpen(true);
   };
 
   return (
@@ -88,20 +64,20 @@ export function EditForm({
       <div className="editor-model-strip" aria-label="Run structure">
         <div className="editor-model-card">
           <span className="editor-model-index">Setup</span>
-          <strong>Where and how long to run</strong>
+          <strong>Name · Target · Description · Timeout</strong>
         </div>
         <div className="editor-model-card editor-model-card-accent">
-          <span className="editor-model-index">Steps</span>
-          <strong>What the assistant should do</strong>
+          <span className="editor-model-index">Rules</span>
+          <strong>Label · Trigger · Response · Execution · Output</strong>
         </div>
         <div className="editor-model-card">
           <span className="editor-model-index">Results</span>
-          <strong>What gets collected</strong>
+          <strong>Collected outputs</strong>
         </div>
       </div>
 
       <div className="editor-body">
-        <SectionBlock index="01" title="Setup" description="Defaults for this run template.">
+        <SectionBlock index="01" title="Setup" description="Run defaults for this template.">
           <div className="editor-field-grid">
             <label className="editor-field">
               <span>Name</span>
@@ -132,109 +108,165 @@ export function EditForm({
               />
             </label>
             <label className="editor-field">
-              <span>Timeout (seconds)</span>
+              <span>Timeout</span>
               <input
                 className="editor-input"
                 type="number"
+                min={1}
                 value={Math.round(script.setup.timeoutMs / 1000)}
                 onChange={(e) => patchSetup({ timeoutMs: Number(e.target.value) * 1000 })}
                 disabled={readOnly}
               />
+              <span className="field-hint">seconds</span>
             </label>
-          </div>
-
-          <div className="setup-values-block">
-            <h4 className="setup-values-title">Run values</h4>
-            <p className="section-desc">
-              Names only — you fill in the real values when you start a run.
-            </p>
-            <div className="setup-values-list">
-              {script.setup.runtimeVariables.map((name, i) => (
-                <div key={i} className="setup-value-chip">
-                  <input
-                    className="editor-input mono setup-value-input"
-                    value={name}
-                    onChange={(e) => {
-                      const runtimeVariables = [...script.setup.runtimeVariables];
-                      runtimeVariables[i] = e.target.value.replace(/\s/g, "_");
-                      patchSetup({ runtimeVariables });
-                    }}
-                    disabled={readOnly}
-                    placeholder="customer_account"
-                  />
-                  {!readOnly && (
-                    <button
-                      type="button"
-                      className="btn-icon"
-                      onClick={() =>
-                        patchSetup({
-                          runtimeVariables: script.setup.runtimeVariables.filter((_, j) => j !== i),
-                        })
-                      }
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            {!readOnly && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() =>
-                  patchSetup({ runtimeVariables: [...script.setup.runtimeVariables, ""] })
-                }
-              >
-                + Run value
-              </button>
-            )}
           </div>
         </SectionBlock>
 
         <SectionBlock
           index="02"
-          title="Steps"
-          description="Tell the assistant what to do when it hears the IVR."
+          title="Rules"
+          description={
+            <>
+              Each rule defines what to listen for and how to respond. Use{" "}
+              <code className="mono">{"{{variable}}"}</code> in response for run-time values.
+            </>
+          }
           wide
         >
-          <div className="rule-card-list">
-            {script.ivrRules.map((rule) => (
-              <RuleCard
-                key={rule.id}
-                rule={rule}
-                readOnly={readOnly}
-                onEdit={() => openEdit(rule.id)}
-                onRemove={() => updateRules(script.ivrRules.filter((r) => r.id !== rule.id))}
-              />
-            ))}
+          <div className="editor-table-wrap">
+            <table className="editor-table">
+              <thead>
+                <tr>
+                  <th>Label</th>
+                  <th>Trigger</th>
+                  <th>Response</th>
+                  <th>Execution rule</th>
+                  <th>Output</th>
+                  <th className="editor-table-col-actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {script.ivrRules.map((rule, i) => (
+                  <tr key={rule.id} className="editor-table-row">
+                    <td>
+                      <input
+                        className="editor-input mono"
+                        value={rule.label}
+                        onChange={(e) =>
+                          updateRuleAt(i, { label: e.target.value.replace(/\s/g, "_") })
+                        }
+                        disabled={readOnly}
+                        placeholder="submit_account"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="editor-input"
+                        value={rule.trigger}
+                        onChange={(e) => updateRuleAt(i, { trigger: e.target.value })}
+                        disabled={readOnly}
+                        placeholder="account number"
+                      />
+                    </td>
+                    <td>
+                      {runtimeVariables.length > 0 ? (
+                        <select
+                          className="editor-input mono"
+                          value={rule.response}
+                          onChange={(e) => updateRuleAt(i, { response: e.target.value })}
+                          disabled={readOnly}
+                        >
+                          <option value="">—</option>
+                          {runtimeVariables.map((v) => (
+                            <option key={v} value={formatVariableRef(v)}>
+                              {formatVariableRef(v)}
+                            </option>
+                          ))}
+                          {!runtimeVariables.some(
+                            (v) => formatVariableRef(v) === rule.response
+                          ) &&
+                            rule.response && (
+                              <option value={rule.response}>{rule.response}</option>
+                            )}
+                        </select>
+                      ) : (
+                        <input
+                          className="editor-input mono"
+                          value={rule.response}
+                          onChange={(e) => updateRuleAt(i, { response: e.target.value })}
+                          disabled={readOnly}
+                          placeholder="{{variable}}"
+                        />
+                      )}
+                    </td>
+                    <td>
+                      <select
+                        className="editor-input"
+                        value={rule.rule}
+                        onChange={(e) => updateRuleAt(i, { rule: e.target.value })}
+                        disabled={readOnly}
+                      >
+                        {IVR_EXECUTION_RULES.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                        {!IVR_EXECUTION_RULES.includes(
+                          rule.rule as (typeof IVR_EXECUTION_RULES)[number]
+                        ) &&
+                          rule.rule && <option value={rule.rule}>{rule.rule}</option>}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="editor-input mono"
+                        value={rule.output}
+                        onChange={(e) =>
+                          updateRuleAt(i, { output: e.target.value.replace(/\s/g, "_") })
+                        }
+                        disabled={readOnly}
+                        placeholder="claim_status"
+                      />
+                    </td>
+                    <td className="editor-table-actions">
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          onClick={() =>
+                            updateRules(script.ivrRules.filter((r) => r.id !== rule.id))
+                          }
+                        >
+                          ×
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-
-          {!readOnly && !builderOpen && (
-            <button type="button" className="btn btn-secondary btn-sm editor-table-add" onClick={openAdd}>
-              + Add step
+          {!readOnly && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm editor-table-add"
+              onClick={() => updateRules([...script.ivrRules, newIvrRule(script.ivrRules.length + 1)])}
+            >
+              + Rule
             </button>
-          )}
-
-          {!readOnly && builderOpen && (
-            <RuleBuilder
-              runtimeVariables={script.setup.runtimeVariables.filter(Boolean)}
-              existingLabels={script.ivrRules.map((r) => r.label)}
-              editingRule={editingRule}
-              onAddVariable={addVariable}
-              onSave={handleSaveRule}
-              onCancel={closeBuilder}
-            />
           )}
         </SectionBlock>
 
         <SectionBlock
           index="03"
           title="Results"
-          description="Information captured during the call — defined by your capture steps."
+          description="Collected outputs — derived from rules with an output field. Populated at runtime."
         >
+          <h4 className="setup-values-title" style={{ marginTop: 0 }}>
+            Collected outputs
+          </h4>
           {outputRules.length === 0 ? (
-            <p className="field-hint">Add a capture step to collect information from the IVR.</p>
+            <p className="field-hint">Set an output field on a capture rule to define a collected result.</p>
           ) : (
             <ul className="results-list">
               {outputRules.map((rule) => (
