@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { IvrRule, ScriptDocument } from "../../script/types";
-import { extractOutputRules, withSyncedRules } from "../../script/compile";
+import { extractOutputRules, extractVariableNames, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
 import { SectionBlock } from "../../components/ui/SectionBlock";
 import { RuleWizard } from "./ruleWizard/RuleWizard";
@@ -29,6 +29,7 @@ export function EditForm({
     onPatch({ setup: { ...script.setup, ...patch } });
 
   const outputRules = extractOutputRules(script);
+  const inputVariables = extractVariableNames(script);
   const visibleRules = script.ivrRules.filter((r) => !isPlaceholderRule(r));
   const editingRule = editingRuleId
     ? script.ivrRules.find((r) => r.id === editingRuleId)
@@ -169,19 +170,38 @@ export function EditForm({
 
         <SectionBlock
           index="02"
-          title="Results"
-          description="Output variables captured during a run — defined by capture rules."
+          title="Outputs"
+          description="Variables this script produces or requires — defined by your rules."
         >
-          {outputRules.length === 0 ? (
-            <p className="field-hint">Add a capture rule to collect information from the IVR.</p>
+          {outputRules.length === 0 && inputVariables.length === 0 ? (
+            <p className="field-hint">Outputs and required inputs are declared by your rules.</p>
           ) : (
-            <ul className="results-list">
-              {outputRules.map((rule) => (
-                <li key={rule.id} className="results-list-item mono">
-                  {rule.output}
-                </li>
-              ))}
-            </ul>
+            <div className="outputs-block">
+              {inputVariables.length > 0 && (
+                <>
+                  <h4 className="outputs-subtitle">Required inputs</h4>
+                  <ul className="results-list">
+                    {inputVariables.map((name) => (
+                      <li key={name} className="results-list-item mono">
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {outputRules.length > 0 && (
+                <>
+                  <h4 className="outputs-subtitle">Available captures</h4>
+                  <ul className="results-list">
+                    {outputRules.map((rule) => (
+                      <li key={rule.id} className="results-list-item mono">
+                        {rule.output}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
           )}
         </SectionBlock>
       </div>

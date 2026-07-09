@@ -310,8 +310,8 @@ function RunFlow({
 
           {outputFields.length > 0 && (
             <div className="run-outputs-preview">
-              <h3>Results</h3>
-              <p className="field-hint">Collected outputs — populated during the call from rule output fields.</p>
+              <h3>Outputs</h3>
+              <p className="field-hint">Variables this run will capture — populated during the call.</p>
               <div className="output-chip-row">
                 {outputFields.map((field) => (
                   <span key={field} className="output-chip mono">{field}</span>

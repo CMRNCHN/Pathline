@@ -1913,33 +1913,17 @@ button {
   color: var(--muted);
 }
 
-.setup-values-block {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-}
-
-.setup-values-title {
-  margin: 0 0 0.25rem;
-  font-size: 0.875rem;
-}
-
-.setup-values-list {
+.outputs-block {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  margin: 0.65rem 0;
+  gap: 1rem;
 }
 
-.setup-value-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  max-width: 18rem;
-}
-
-.setup-value-input {
-  flex: 1;
+.outputs-subtitle {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .results-list {

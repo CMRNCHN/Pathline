@@ -12,6 +12,7 @@ function flowActionForRule(rule: IvrRule): FlowStep["action"] {
 }
 
 export function syncRuntimeVariablesFromRules(rules: IvrRule[]): string[] {
+  // Rules are the source of truth: respond rules reference {{var}} in response.
   const names = new Set<string>();
   for (const rule of rules) {
     for (const m of rule.response.matchAll(VAR_REF)) {
