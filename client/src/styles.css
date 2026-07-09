@@ -216,28 +216,6 @@ button {
   color: #fff;
 }
 
-.topnav-new {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--ink);
-  background: #fff;
-  border: none;
-  border-radius: 999px;
-  transition: background 0.15s, transform 0.1s;
-}
-
-.topnav-new:hover {
-  background: #f4f4f5;
-}
-
-.topnav-new:active {
-  transform: scale(0.98);
-}
-
 .topnav-icon-btn {
   display: flex;
   align-items: center;

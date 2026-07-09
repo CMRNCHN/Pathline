@@ -1,6 +1,5 @@
 import { useRef } from "react";
 import {
-  Plus,
   Search,
   Settings,
   Radio,
@@ -25,19 +24,13 @@ interface TopNavProps {
 }
 
 export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNavProps) {
-  const { bundledScripts, customScripts, activeId, setActiveId, addCustom, importScript } =
+  const { bundledScripts, customScripts, activeId, setActiveId, importScript } =
     useScriptStore();
   const importRef = useRef<HTMLInputElement>(null);
 
   const openScript = activeId ? getActiveScript(bundledScripts, customScripts, activeId) : undefined;
   const scriptContext =
     view.category === "edit" || view.category === "run" || view.category === "script-settings";
-
-  const handleNewScript = () => {
-    const created = addCustom();
-    setActiveId(created.id);
-    onNavigate({ category: "edit", scriptId: created.id });
-  };
 
   return (
     <header className="topnav">
@@ -112,11 +105,6 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
             e.target.value = "";
           }}
         />
-
-        <button type="button" onClick={handleNewScript} className="topnav-new">
-          <Plus size={16} />
-          <span className="hidden sm:inline">New script</span>
-        </button>
 
         <button
           type="button"
