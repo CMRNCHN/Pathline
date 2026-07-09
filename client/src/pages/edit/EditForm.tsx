@@ -1,15 +1,9 @@
 import { useRef, useState } from "react";
 import type { IvrRule, ScriptDocument } from "../../script/types";
-import {
-  extractOutputRules,
-  formatVariableRef,
-  newIvrRule,
-  withSyncedRules,
-} from "../../script/compile";
-import { IVR_EXECUTION_RULES } from "../../script/types";
+import { extractOutputRules, formatVariableRef, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
-
-const WAIT_RULE = "Wait for IVR response";
+import { RuleBuilder } from "./RuleBuilder";
+import { RuleCard } from "./RuleCard";
 
 type RunSectionId = "setup" | "rules" | "results";
 
@@ -29,7 +23,7 @@ const RUN_SECTIONS: {
     id: "rules",
     index: "02",
     title: "Rules",
-    summary: "Label · Trigger · Response · Execution · Output",
+    summary: "Navigate · Capture · Wait · End",
   },
   {
     id: "results",
@@ -55,6 +49,8 @@ export function EditForm({
   onTest,
 }: EditFormProps) {
   const [activeSection, setActiveSection] = useState<RunSectionId>("setup");
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const sectionRefs = useRef<Record<RunSectionId, HTMLElement | null>>({
     setup: null,
     rules: null,
@@ -69,17 +65,44 @@ export function EditForm({
 
   const updateRules = (ivrRules: IvrRule[]) => onPatch(withSyncedRules(script, ivrRules));
 
-  const updateRuleAt = (index: number, patch: Partial<IvrRule>) => {
-    const ivrRules = [...script.ivrRules];
-    const next = { ...ivrRules[index], ...patch };
-    if (patch.rule && patch.rule !== WAIT_RULE) {
-      delete next.waitSeconds;
-    }
-    if (patch.rule === WAIT_RULE && next.waitSeconds == null) {
-      next.waitSeconds = 3;
-    }
-    ivrRules[index] = next;
+  const editingRule = editingRuleId
+    ? script.ivrRules.find((r) => r.id === editingRuleId)
+    : undefined;
+
+  const openNewStep = () => {
+    setEditingRuleId(null);
+    setShowBuilder(true);
+  };
+
+  const openEditStep = (ruleId: string) => {
+    setEditingRuleId(ruleId);
+    setShowBuilder(true);
+  };
+
+  const closeBuilder = () => {
+    setShowBuilder(false);
+    setEditingRuleId(null);
+  };
+
+  const saveRule = (rule: IvrRule) => {
+    const exists = script.ivrRules.some((r) => r.id === rule.id);
+    const ivrRules = exists
+      ? script.ivrRules.map((r) => (r.id === rule.id ? rule : r))
+      : [...script.ivrRules, rule];
     updateRules(ivrRules);
+    closeBuilder();
+  };
+
+  const removeRule = (ruleId: string) => {
+    updateRules(script.ivrRules.filter((r) => r.id !== ruleId));
+    if (editingRuleId === ruleId) closeBuilder();
+  };
+
+  const addVariable = (name: string) => {
+    const normalized = name.replace(/\s/g, "_").trim();
+    if (!normalized) return;
+    const runtimeVariables = [...new Set([...script.setup.runtimeVariables, normalized])].sort();
+    onPatch({ setup: { ...script.setup, runtimeVariables } });
   };
 
   const ruleCount = script.ivrRules.length;
@@ -200,11 +223,10 @@ export function EditForm({
           <div className="setup-values-block">
             <p className="setup-values-title">Runtime variables</p>
             <p className="setup-values-hint">
-              Derived from <code className="mono">{"{{variable}}"}</code> references in rule responses.
-              Values are filled in at run configuration.
+              Names you use in navigate steps. Values are filled in at run configuration.
             </p>
             {runtimeVariables.length === 0 ? (
-              <p className="results-empty">Add a variable reference to a rule response to define one.</p>
+              <p className="results-empty">Add a step that uses a run-time value to define one.</p>
             ) : (
               <div className="runtime-vars-row">
                 {runtimeVariables.map((name) => (
@@ -225,159 +247,41 @@ export function EditForm({
           className="editor-section editor-section-wide"
           aria-labelledby="run-nav-rules"
         >
-          <p className="editor-section-hint">
-            Use <code className="mono">{"{{variable}}"}</code> in response for run-time values.
-          </p>
-          <div className="editor-table-wrap">
-            <table className="editor-table">
-              <thead>
-                <tr>
-                  <th className="editor-table-col-num">#</th>
-                  <th>Label</th>
-                  <th>Trigger</th>
-                  <th>Response</th>
-                  <th>Execution rule</th>
-                  <th className="editor-table-col-wait">Wait</th>
-                  <th>Output</th>
-                  <th className="editor-table-col-actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {script.ivrRules.length === 0 ? (
-                  <tr className="editor-table-row editor-table-row-static">
-                    <td colSpan={8} className="editor-table-empty">
-                      No rules yet. Add a step to define how this template navigates the IVR.
-                    </td>
-                  </tr>
-                ) : (
-                  script.ivrRules.map((rule, i) => (
-                    <tr key={rule.id} className="editor-table-row">
-                      <td className="editor-table-num">{i + 1}</td>
-                      <td>
-                        <input
-                          className="editor-input mono"
-                          value={rule.label}
-                          onChange={(e) =>
-                            updateRuleAt(i, { label: e.target.value.replace(/\s/g, "_") })
-                          }
-                          disabled={readOnly}
-                          placeholder="submit_account"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="editor-input"
-                          value={rule.trigger}
-                          onChange={(e) => updateRuleAt(i, { trigger: e.target.value })}
-                          disabled={readOnly}
-                          placeholder="account number"
-                        />
-                      </td>
-                      <td>
-                        {runtimeVariables.length > 0 ? (
-                          <select
-                            className="editor-input mono"
-                            value={rule.response}
-                            onChange={(e) => updateRuleAt(i, { response: e.target.value })}
-                            disabled={readOnly}
-                          >
-                            <option value="">—</option>
-                            {runtimeVariables.map((v) => (
-                              <option key={v} value={formatVariableRef(v)}>
-                                {formatVariableRef(v)}
-                              </option>
-                            ))}
-                            {!runtimeVariables.some(
-                              (v) => formatVariableRef(v) === rule.response
-                            ) &&
-                              rule.response && (
-                                <option value={rule.response}>{rule.response}</option>
-                              )}
-                          </select>
-                        ) : (
-                          <input
-                            className="editor-input mono"
-                            value={rule.response}
-                            onChange={(e) => updateRuleAt(i, { response: e.target.value })}
-                            disabled={readOnly}
-                            placeholder="{{variable}}"
-                          />
-                        )}
-                      </td>
-                      <td>
-                        <select
-                          className="editor-input"
-                          value={rule.rule}
-                          onChange={(e) => updateRuleAt(i, { rule: e.target.value })}
-                          disabled={readOnly}
-                        >
-                          {IVR_EXECUTION_RULES.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                          {!IVR_EXECUTION_RULES.includes(
-                            rule.rule as (typeof IVR_EXECUTION_RULES)[number]
-                          ) &&
-                            rule.rule && <option value={rule.rule}>{rule.rule}</option>}
-                        </select>
-                      </td>
-                      <td>
-                        {rule.rule === WAIT_RULE ? (
-                          <input
-                            className="editor-input editor-input-sm"
-                            type="number"
-                            min={0}
-                            step={0.5}
-                            value={rule.waitSeconds ?? 3}
-                            onChange={(e) =>
-                              updateRuleAt(i, { waitSeconds: Number(e.target.value) })
-                            }
-                            disabled={readOnly}
-                            aria-label="Wait seconds"
-                          />
-                        ) : (
-                          <span className="editor-table-dash">—</span>
-                        )}
-                      </td>
-                      <td>
-                        <input
-                          className="editor-input mono"
-                          value={rule.output}
-                          onChange={(e) =>
-                            updateRuleAt(i, { output: e.target.value.replace(/\s/g, "_") })
-                          }
-                          disabled={readOnly}
-                          placeholder="claim_status"
-                        />
-                      </td>
-                      <td className="editor-table-actions">
-                        {!readOnly && (
-                          <button
-                            type="button"
-                            className="btn-icon"
-                            aria-label={`Remove rule ${i + 1}`}
-                            onClick={() =>
-                              updateRules(script.ivrRules.filter((r) => r.id !== rule.id))
-                            }
-                          >
-                            ×
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {!readOnly && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm editor-table-add"
-              onClick={() => updateRules([...script.ivrRules, newIvrRule(script.ivrRules.length + 1)])}
-            >
-              + Rule
+          {script.ivrRules.length > 0 && (
+            <ol className="rule-card-list">
+              {script.ivrRules.map((rule) => (
+                <li key={rule.id}>
+                  <RuleCard
+                    rule={rule}
+                    readOnly={readOnly}
+                    onEdit={() => openEditStep(rule.id)}
+                    onRemove={() => removeRule(rule.id)}
+                  />
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {script.ivrRules.length === 0 && !showBuilder && (
+            <p className="results-empty">
+              No steps yet. Add your first step — you&apos;ll answer a few short questions for each one.
+            </p>
+          )}
+
+          {!readOnly && showBuilder && (
+            <RuleBuilder
+              runtimeVariables={runtimeVariables}
+              existingLabels={script.ivrRules.map((r) => r.label)}
+              editingRule={editingRule}
+              onAddVariable={addVariable}
+              onSave={saveRule}
+              onCancel={closeBuilder}
+            />
+          )}
+
+          {!readOnly && !showBuilder && (
+            <button type="button" className="btn btn-secondary btn-sm editor-table-add" onClick={openNewStep}>
+              + Add step
             </button>
           )}
         </section>
@@ -392,7 +296,7 @@ export function EditForm({
         >
           {outputRules.length === 0 ? (
             <p className="results-empty">
-              Set an output field on a capture rule to define a collected result.
+              Add a capture step to define what this template collects at runtime.
             </p>
           ) : (
             <ul className="results-list">

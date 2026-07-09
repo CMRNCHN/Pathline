@@ -172,7 +172,7 @@ export function RuleBuilder({
                     ))}
                   </select>
                 ) : (
-                  <p className="field-hint warn">Add a run value in Setup first.</p>
+                  <p className="field-hint">Name a run-time value below, then add it.</p>
                 )}
               </label>
 

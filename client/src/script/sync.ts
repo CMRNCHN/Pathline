@@ -57,12 +57,15 @@ export function withSyncedRules(
   doc: ScriptDocument,
   ivrRules: IvrRule[]
 ): Pick<ScriptDocument, "ivrRules" | "conversationFlow" | "setup"> {
+  const fromRules = syncRuntimeVariablesFromRules(ivrRules);
+  const runtimeVariables = [...new Set([...doc.setup.runtimeVariables.filter(Boolean), ...fromRules])].sort();
+
   return {
     ivrRules,
     conversationFlow: syncConversationFlowFromRules(ivrRules, doc.conversationFlow),
     setup: {
       ...doc.setup,
-      runtimeVariables: syncRuntimeVariablesFromRules(ivrRules),
+      runtimeVariables,
     },
   };
 }
