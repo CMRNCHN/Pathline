@@ -85,21 +85,6 @@ export function EditForm({
         )}
       </header>
 
-      <div className="editor-model-strip" aria-label="Run structure">
-        <div className="editor-model-card">
-          <span className="editor-model-index">Setup</span>
-          <strong>Where and how long to run</strong>
-        </div>
-        <div className="editor-model-card editor-model-card-accent">
-          <span className="editor-model-index">Steps</span>
-          <strong>What the assistant should do</strong>
-        </div>
-        <div className="editor-model-card">
-          <span className="editor-model-index">Results</span>
-          <strong>What gets collected</strong>
-        </div>
-      </div>
-
       <div className="editor-body">
         <SectionBlock index="01" title="Setup" description="Defaults for this run template.">
           <div className="editor-field-grid">
