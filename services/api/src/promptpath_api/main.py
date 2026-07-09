@@ -17,7 +17,8 @@ from sqlalchemy.orm import DeclarativeBase
 
 from promptpath_shared.crypto import hash_session_id
 from promptpath_shared.logging_config import configure_logging, get_logger
-from promptpath_shared.models import ConsentRecord, TokenRequest, TokenResponse
+from promptpath_shared.models import ConsentRecord as ConsentPayload
+from promptpath_shared.models import TokenRequest, TokenResponse
 
 configure_logging("api")
 logger = get_logger("api")
@@ -66,6 +67,22 @@ class NotificationRecord(Base):
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 
+class ConsentAudit(Base):
+    """Immutable consent acceptance tied to ephemeral token (jti) and optional run session."""
+
+    __tablename__ = "consent_audits"
+
+    jti = Column(String(36), primary_key=True)
+    hashed_user_id = Column(String(64), nullable=False, index=True)
+    terms_version = Column(String(32), nullable=False)
+    consent_at = Column(DateTime(timezone=True), nullable=False)
+    call_mode = Column(String(32), nullable=False)
+    hashed_session_id = Column(String(64), nullable=True, index=True)
+    session_linked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+
 class EncryptedStatusIngest(BaseModel):
     """Opaque client-encrypted status — server cannot read contents."""
     session_id: str
@@ -92,12 +109,44 @@ class DeleteResponse(BaseModel):
     hashed_session_id: str
 
 
+class SessionLinkRequest(BaseModel):
+    session_id: str = Field(min_length=1)
+
+
+class SessionLinkResponse(BaseModel):
+    linked: bool
+    hashed_session_id: str
+    session_linked_at: str
+
+
+def parse_consent_timestamp(value: str) -> datetime:
+    normalized = value.replace("Z", "+00:00")
+    return datetime.fromisoformat(normalized)
+
+
+async def link_consent_to_session(
+    db: AsyncSession,
+    jti: str,
+    session_id: str,
+    *,
+    now: datetime | None = None,
+) -> ConsentAudit | None:
+    record = await db.get(ConsentAudit, jti)
+    if not record:
+        return None
+    linked_at = now or datetime.now(UTC)
+    record.hashed_session_id = hash_session_id(session_id, settings.session_pepper)
+    record.session_linked_at = linked_at
+    return record
+
+
 async def purge_expired():
     while True:
         try:
             now = datetime.now(UTC)
             async with SessionLocal() as db:
                 await db.execute(delete(StatusRecord).where(StatusRecord.expires_at < now))
+                await db.execute(delete(ConsentAudit).where(ConsentAudit.expires_at < now))
                 await db.commit()
             logger.info("purge_completed")
         except Exception as exc:
@@ -130,7 +179,7 @@ async def get_db():
         yield session
 
 
-def mint_token(user_id: str, consent_version: str) -> tuple[str, int]:
+def mint_token(user_id: str, consent_version: str) -> tuple[str, int, str]:
     jti = str(uuid.uuid4())
     now = datetime.now(UTC)
     expires = now + timedelta(seconds=settings.jwt_ttl_seconds)
@@ -144,7 +193,7 @@ def mint_token(user_id: str, consent_version: str) -> tuple[str, int]:
         "type": "ephemeral",
     }
     token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
-    return token, settings.jwt_ttl_seconds
+    return token, settings.jwt_ttl_seconds, jti
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> dict:
@@ -173,7 +222,7 @@ async def health():
 
 
 @app.post("/v1/token", response_model=TokenResponse)
-async def create_token(request: TokenRequest):
+async def create_token(request: TokenRequest, db: AsyncSession = Depends(get_db)):
     if not request.consent.accepted:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Consent required")
     if request.call_mode.value != "client_mediated":
@@ -182,9 +231,51 @@ async def create_token(request: TokenRequest):
             "Server-mediated calls are v3. Use client-mediated flow.",
         )
 
-    token, ttl = mint_token(request.user_id, request.consent.terms_version)
-    logger.info("token_minted", user_id=request.user_id[:8] + "...")
+    token, ttl, jti = mint_token(request.user_id, request.consent.terms_version)
+    now = datetime.now(UTC)
+    expires = now + timedelta(seconds=ttl)
+    consent_at = parse_consent_timestamp(request.consent.timestamp)
+
+    db.add(
+        ConsentAudit(
+            jti=jti,
+            hashed_user_id=hash_session_id(request.user_id, settings.session_pepper),
+            terms_version=request.consent.terms_version,
+            consent_at=consent_at,
+            call_mode=request.call_mode.value,
+            created_at=now,
+            expires_at=expires,
+        )
+    )
+    await db.commit()
+
+    logger.info("consent_recorded", jti=jti, user_id=request.user_id[:8] + "...")
     return TokenResponse(access_token=token, expires_in=ttl)
+
+
+@app.post("/v1/consent/session", response_model=SessionLinkResponse)
+async def link_session_to_consent(
+    body: SessionLinkRequest,
+    db: AsyncSession = Depends(get_db),
+    payload: dict = Depends(verify_token),
+):
+    """Associate the current run session with the consent record for this token."""
+    jti = payload.get("jti")
+    if not jti:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Token missing jti")
+
+    now = datetime.now(UTC)
+    record = await link_consent_to_session(db, jti, body.session_id, now=now)
+    if not record:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Consent record not found")
+
+    await db.commit()
+    logger.info("consent_session_linked", jti=jti, hashed_session_id=record.hashed_session_id[:8] + "...")
+    return SessionLinkResponse(
+        linked=True,
+        hashed_session_id=record.hashed_session_id or "",
+        session_linked_at=now.isoformat(),
+    )
 
 
 @app.post("/v1/status", response_model=StatusIngestResponse)
@@ -210,6 +301,10 @@ async def ingest_status(
         existing.expires_at = expires
     else:
         db.add(StatusRecord(hashed_id=hashed, encrypted_payload=stored, created_at=now, expires_at=expires))
+
+    jti = payload.get("jti")
+    if jti:
+        await link_consent_to_session(db, jti, body.session_id, now=now)
 
     notif = NotificationRecord(
         id=str(uuid.uuid4()),

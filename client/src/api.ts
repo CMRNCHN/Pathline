@@ -1,4 +1,4 @@
-import type { TokenResponse, StatusIngestResponse } from "./types";
+import type { TokenResponse, StatusIngestResponse, SessionLinkResponse } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -18,6 +18,25 @@ export async function mintToken(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `Auth failed: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function linkConsentSession(
+  token: string,
+  sessionId: string
+): Promise<SessionLinkResponse> {
+  const res = await fetch(`${API_URL}/v1/consent/session`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Consent link failed: ${res.statusText}`);
   }
   return res.json();
 }

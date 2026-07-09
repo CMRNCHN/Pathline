@@ -9,6 +9,12 @@ export interface StatusIngestResponse {
   expires_at: string;
 }
 
+export interface SessionLinkResponse {
+  linked: boolean;
+  hashed_session_id: string;
+  session_linked_at: string;
+}
+
 export interface LocalSession {
   sessionId: string;
   scriptId: string;

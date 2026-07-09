@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Play } from "lucide-react";
 import {
   mintToken,
+  linkConsentSession,
   placeCallLocally,
   submitEncryptedStatus,
   exportStatus,
@@ -130,11 +131,12 @@ function RunFlow({
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!script) return;
+    if (!script || !token) return;
     setLoading(true);
     setError(null);
     try {
       const sessionId = generateSessionId();
+      await linkConsentSession(token, sessionId);
       setActiveRun({ script, variables });
       setSession({
         sessionId,
