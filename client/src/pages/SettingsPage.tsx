@@ -1,27 +1,35 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Palette, Mic, HardDrive, Info } from "lucide-react";
 import { PageLayout } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
 import { Toggle } from "../components/ui/Toggle";
 import { clearLocalKeys } from "../crypto";
-import { ACTIVE_SCRIPT_KEY, CUSTOM_SCRIPTS_KEY } from "../script/storage";
+import {
+  clearAllPersistence,
+  readPreferences,
+  savePreferences,
+} from "../persistence";
 
 export function SettingsPage() {
-  const [autoListen, setAutoListen] = useState(
-    () => localStorage.getItem("pp-auto-listen") === "1"
-  );
+  const [autoListen, setAutoListen] = useState(false);
+
+  useEffect(() => {
+    void readPreferences().then((prefs) => {
+      setAutoListen(prefs.autoListen);
+    });
+  }, []);
 
   const persistAutoListen = (value: boolean) => {
     setAutoListen(value);
-    localStorage.setItem("pp-auto-listen", value ? "1" : "0");
+    void savePreferences({ autoListen: value });
   };
 
   const clearAllLocalData = () => {
-    if (!confirm("Delete all local scripts and reset app data? This cannot be undone.")) return;
-    localStorage.removeItem(CUSTOM_SCRIPTS_KEY);
-    localStorage.removeItem(ACTIVE_SCRIPT_KEY);
-    clearLocalKeys();
-    window.location.reload();
+    if (!confirm("Delete all local scripts, run configs, and history? This cannot be undone.")) return;
+    void clearAllPersistence().then(() => {
+      clearLocalKeys();
+      window.location.reload();
+    });
   };
 
   return (
@@ -34,7 +42,7 @@ export function SettingsPage() {
         <Card title="Appearance" icon={Palette}>
           <p className="hint">
             Light canvas with ink navigation and accent{" "}
-            <span className="mono" style={{ color: "var(--accent)", fontWeight: 600 }}>#7D88F1</span>
+            <span className="mono" style={{ color: "var(--accent)", fontWeight: 600 }}>#5C5C9A</span>
           </p>
         </Card>
 
@@ -49,6 +57,9 @@ export function SettingsPage() {
         </Card>
 
         <Card title="Data" icon={HardDrive}>
+          <p className="hint" style={{ marginBottom: "0.85rem" }}>
+            Scripts, run configs, and history are stored in IndexedDB on this device.
+          </p>
           <button
             type="button"
             onClick={() => {

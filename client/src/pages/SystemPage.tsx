@@ -1,13 +1,25 @@
+import { useEffect, useState } from "react";
 import { Shield, Database, Activity, Download } from "lucide-react";
 import { useScriptStore } from "../store/ScriptStore";
 import { mergeScripts } from "../script/selectors";
 import { isSpeechRecognitionAvailable } from "../localStt";
+import { persistenceStats } from "../persistence";
 import { PageLayout } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
 
 export function SystemPage() {
   const { customScripts, bundledScripts, loading, error } = useScriptStore();
   const scripts = mergeScripts(bundledScripts, customScripts);
+  const [stats, setStats] = useState({
+    scriptCount: 0,
+    runConfigCount: 0,
+    runHistoryCount: 0,
+    storage: "IndexedDB" as const,
+  });
+
+  useEffect(() => {
+    void persistenceStats().then(setStats);
+  }, [customScripts.length]);
 
   const exportAll = () => {
     const blob = new Blob([JSON.stringify(scripts, null, 2)], { type: "application/json" });
@@ -38,8 +50,10 @@ export function SystemPage() {
         </Card>
 
         <Card title="Local store" icon={Database}>
-          <DataRow label="Custom scripts" value={`${customScripts.length} in localStorage`} />
-          <DataRow label="Bundled templates" value={`${bundledScripts.length} loaded`} />
+          <DataRow label="Storage engine" value={stats.storage} ok />
+          <DataRow label="Custom scripts" value={`${stats.scriptCount} persisted`} />
+          <DataRow label="Saved run configs" value={`${stats.runConfigCount} scripts`} />
+          <DataRow label="Run history" value={`${stats.runHistoryCount} completed`} />
           <DataRow
             label="API sync"
             value={loading ? "Loading…" : error ? "Error" : "Ready"}
@@ -56,10 +70,10 @@ export function SystemPage() {
           />
           <DataRow label="API endpoint" value="/api → :8000" ok />
           <DataRow label="Scripts loaded" value={`${scripts.length} templates`} ok={scripts.length > 0} />
-          <DataRow label="Activity log" value="In-session only" />
+          <DataRow label="Activity log" value="Persisted per run" ok />
           <div className="terminal-block">
             <div>[ready] Client-mediated runtime active</div>
-            <div>[vault] Variables bound to browser session</div>
+            <div>[vault] Variables stored in IndexedDB on device</div>
             <div>[diag] No exceptions detected</div>
           </div>
         </Card>

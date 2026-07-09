@@ -8,10 +8,17 @@ import {
   deleteStatus,
   revokeToken,
 } from "../api";
-import { encryptStatusPayload, generateUserId, generateSessionId, clearLocalKeys } from "../crypto";
+import { encryptStatusPayload, generateSessionId, clearLocalKeys } from "../crypto";
 import type { LocalSession } from "../types";
 import type { KnownScript } from "../script/types";
 import { extractOutputRules, extractVariableNames } from "../script/compile";
+import {
+  getOrCreateUserId,
+  loadRunConfig,
+  readPreferences,
+  recordCompletedRun,
+  saveRunConfig,
+} from "../persistence";
 import {
   hashCollected,
   initialRunState,
@@ -83,10 +90,17 @@ function RunFlow({
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userId] = useState(() => generateUserId());
+  const [userId, setUserId] = useState<string | null>(null);
+  const [prefsAutoListen, setPrefsAutoListen] = useState(false);
 
   const [targetNumber, setTargetNumber] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>({});
+  const configLoadedFor = useRef<string>("");
+
+  useEffect(() => {
+    void getOrCreateUserId().then(setUserId);
+    void readPreferences().then((prefs) => setPrefsAutoListen(prefs.autoListen));
+  }, []);
 
   const scripts = mergeScripts(bundledScripts, customScripts);
   const script = getActiveScript(bundledScripts, customScripts, activeId) ?? scripts[0];
@@ -102,13 +116,33 @@ function RunFlow({
   }, [script]);
 
   useEffect(() => {
-    if (script?.setup.target) setTargetNumber(script.setup.target);
-    else setTargetNumber("");
+    if (!script?.id) return;
+    let cancelled = false;
+    configLoadedFor.current = "";
+    (async () => {
+      const saved = await loadRunConfig(script.id);
+      if (cancelled) return;
+      setTargetNumber(saved?.target || script.setup.target || "");
+      setVariables(saved?.variables ?? {});
+      configLoadedFor.current = script.id;
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [script?.id, script?.setup.target]);
+
+  useEffect(() => {
+    if (!script?.id || configLoadedFor.current !== script.id) return;
+    const timer = window.setTimeout(() => {
+      void saveRunConfig(script.id, targetNumber, variables);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [script?.id, targetNumber, variables]);
 
   const missingVariables = variableNames.filter((name) => !variables[name]?.trim());
 
   const handleConsent = async () => {
+    if (!userId) return;
     setLoading(true);
     setError(null);
     try {
@@ -165,7 +199,9 @@ function RunFlow({
 
       await submitEncryptedStatus(token, session.sessionId, encrypted.ciphertext, encrypted.nonce);
 
-      setSession({ ...session, status: "completed", collected });
+      const completed: LocalSession = { ...session, status: "completed", collected };
+      setSession(completed);
+      await recordCompletedRun(completed, activeRun?.variables ?? variables);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit status");
     } finally {
@@ -365,6 +401,7 @@ function RunFlow({
         <MatcherPanel
           script={activeRun.script}
           variables={activeRun.variables}
+          defaultAutoListen={prefsAutoListen || activeRun.script.setup.speechPreferences.autoListen}
           onStatusCaptured={handleComplete}
         />
       )}
@@ -396,15 +433,17 @@ function RunFlow({
 function MatcherPanel({
   script,
   variables,
+  defaultAutoListen,
   onStatusCaptured,
 }: {
   script: KnownScript;
   variables: Record<string, string>;
+  defaultAutoListen: boolean;
   onStatusCaptured: (collected: Record<string, string>, transcriptHash: string) => void;
 }) {
   const [run, setRun] = useState<RunState>(initialRunState);
   const [ivrText, setIvrText] = useState("");
-  const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
+  const [autoListen, setAutoListen] = useState(defaultAutoListen);
   const [listenError, setListenError] = useState<string | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 

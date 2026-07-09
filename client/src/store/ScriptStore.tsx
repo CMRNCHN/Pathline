@@ -7,17 +7,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { initPersistence, saveActiveScriptId, saveCustomScripts } from "../persistence";
 import type { ScriptDocument } from "../script/types";
 import { normalizeScript } from "../script/compile";
 import { getActiveScript, isBundledScript } from "../script/selectors";
 import {
   BUNDLED_SCRIPT_FILES,
   duplicateScript,
-  loadActiveScriptId,
-  loadCustomScripts,
   newScript,
-  saveActiveScriptId,
-  saveCustomScripts,
 } from "../script/storage";
 
 export interface ScriptStore {
@@ -27,6 +24,7 @@ export interface ScriptStore {
   activeScript: ScriptDocument | undefined;
   loading: boolean;
   error: string | null;
+  persistReady: boolean;
   setActiveId: (id: string) => void;
   updateCustom: (id: string, patch: Partial<ScriptDocument>) => void;
   addCustom: (script?: ScriptDocument) => ScriptDocument;
@@ -39,10 +37,9 @@ const ScriptStoreContext = createContext<ScriptStore | null>(null);
 
 function useScriptStoreState(): ScriptStore {
   const [bundledScripts, setBundledScripts] = useState<ScriptDocument[]>([]);
-  const [customScripts, setCustomScripts] = useState<ScriptDocument[]>(() =>
-    loadCustomScripts().map((s) => normalizeScript(s))
-  );
-  const [activeId, setActiveId] = useState(loadActiveScriptId);
+  const [customScripts, setCustomScripts] = useState<ScriptDocument[]>([]);
+  const [activeId, setActiveId] = useState("");
+  const [persistReady, setPersistReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const bundledRef = useRef(bundledScripts);
@@ -55,12 +52,31 @@ function useScriptStoreState(): ScriptStore {
     let cancelled = false;
     (async () => {
       try {
+        const persisted = await initPersistence();
+        if (cancelled) return;
+        setCustomScripts(persisted.customScripts);
+        setActiveId(persisted.activeScriptId);
+        setPersistReady(true);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load local storage");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
         const loaded = await Promise.all(
           BUNDLED_SCRIPT_FILES.map(async (file) => {
             const res = await fetch(`/scripts/${file}`);
             if (!res.ok) throw new Error(`Failed to load ${file}`);
-            const doc = normalizeScript(await res.json());
-            return doc;
+            return normalizeScript(await res.json());
           })
         );
         if (!cancelled) setBundledScripts(loaded);
@@ -78,12 +94,14 @@ function useScriptStoreState(): ScriptStore {
   }, []);
 
   useEffect(() => {
-    saveCustomScripts(customScripts);
-  }, [customScripts]);
+    if (!persistReady) return;
+    void saveCustomScripts(customScripts);
+  }, [customScripts, persistReady]);
 
   useEffect(() => {
-    saveActiveScriptId(activeId);
-  }, [activeId]);
+    if (!persistReady) return;
+    void saveActiveScriptId(activeId);
+  }, [activeId, persistReady]);
 
   useEffect(() => {
     if (activeId) return;
@@ -142,6 +160,7 @@ function useScriptStoreState(): ScriptStore {
     activeScript,
     loading,
     error,
+    persistReady,
     setActiveId,
     updateCustom,
     addCustom,
