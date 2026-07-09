@@ -337,10 +337,11 @@ function RunFlow({
             <div className="lab-run-guide">
               <h3>Lab softphone setup</h3>
               <ol>
-                <li>Start lab Asterisk: <code>./scripts/lab.sh</code></li>
-                <li>Register softphone — server <code>127.0.0.1:5060</code>, user <code>lab</code>, password <code>lab</code></li>
-                <li>Dial extension <code>1000</code> (Linphone, Zoiper, or similar)</li>
-                <li>Paste IVR phrases below during the call; press DTMF on the softphone when prompted</li>
+                <li>Start lab: <code>./scripts/lab.sh</code> (generates TLS creds in <code>.env</code>)</li>
+                <li>Register softphone — <strong>TLS</strong> <code>127.0.0.1:5061</code>, user/pass from <code>lab/asterisk/generated/credentials.env</code></li>
+                <li>Accept the self-signed certificate</li>
+                <li>Dial extension <code>1000</code></li>
+                <li>Paste IVR phrases below; press DTMF on the softphone when prompted</li>
               </ol>
               <p className="field-hint">
                 Suggested paste sequence: <span className="mono">account</span> → <span className="mono">touch tone</span> → <span className="mono">pin</span> → <span className="mono">last four</span> → <span className="mono">balance</span> → <span className="mono">your dollars</span> → <span className="mono">goodbye</span>

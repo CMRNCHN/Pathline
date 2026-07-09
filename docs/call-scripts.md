@@ -232,7 +232,7 @@ See [docs/call-scripts.md](./docs/call-scripts.md) for the full guide.
 ./scripts/lab.sh
 ```
 
-Register softphone `lab` / `lab` @ `127.0.0.1:5060`, dial extension `1000`, and use the web **Lab account status** script.
+Register softphone with **TLS** credentials from `.env` @ `127.0.0.1:5061`, dial extension `1000`, and use the web **Lab account status** script.
 
 ## Privacy
 
