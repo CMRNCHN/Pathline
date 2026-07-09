@@ -43,7 +43,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
     <PageLayout
       eyebrow="Template library"
       title="Scripts"
-      subtitle="Author IVR templates, then run them locally with runtime variables injected at configuration time."
+      subtitle="Author RUN templates with Setup, Rules, and Results — then execute locally with runtime variables."
       action={
         <button type="button" onClick={handleCreate} className="btn btn-primary">
           <Plus size={16} />
@@ -85,6 +85,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
                   {script.setup.description || "No description"}
                 </p>
                 <div className="script-card-stats">
+                  <span className="stat-pill">Setup</span>
                   <span className="stat-pill">{script.ivrRules.length} rules</span>
                   <span className="stat-pill">
                     {script.ivrRules.filter((r) => r.output.trim()).length} outputs

@@ -120,6 +120,24 @@ export function EditForm({
               <span className="field-hint">seconds</span>
             </label>
           </div>
+
+          <div className="setup-values-block">
+            <p className="setup-values-title">Runtime variables</p>
+            <p className="field-hint" style={{ marginTop: 0 }}>
+              Derived from <code className="mono">{"{{variable}}"}</code> references in rule responses. Values are set at run time.
+            </p>
+            {runtimeVariables.length === 0 ? (
+              <p className="field-hint">Add a variable reference to a rule response to define one.</p>
+            ) : (
+              <div className="runtime-vars-row">
+                {runtimeVariables.map((name) => (
+                  <span key={name} className="runtime-var-chip">
+                    {formatVariableRef(name)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </SectionBlock>
 
         <SectionBlock
@@ -262,11 +280,10 @@ export function EditForm({
           title="Results"
           description="Collected outputs — derived from rules with an output field. Populated at runtime."
         >
-          <h4 className="setup-values-title" style={{ marginTop: 0 }}>
-            Collected outputs
-          </h4>
           {outputRules.length === 0 ? (
-            <p className="field-hint">Set an output field on a capture rule to define a collected result.</p>
+            <p className="results-empty">
+              Set an output field on a capture rule to define a collected result.
+            </p>
           ) : (
             <ul className="results-list">
               {outputRules.map((rule) => (

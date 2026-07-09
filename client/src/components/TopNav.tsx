@@ -5,7 +5,7 @@ import {
   Settings,
   Radio,
   FileText,
-  Pencil,
+  Workflow,
   Play,
   Sliders,
   LayoutDashboard,
@@ -138,8 +138,8 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
               className={`topnav-tab${view.category === "edit" ? " topnav-tab-active" : ""}`}
               onClick={() => onNavigate({ category: "edit", scriptId: activeId })}
             >
-              <Pencil size={12} />
-              Edit
+              <Workflow size={12} />
+              RUN
             </button>
             <button
               type="button"

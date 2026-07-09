@@ -41,8 +41,7 @@ export function SettingsPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "32rem" }}>
         <Card title="Appearance" icon={Palette}>
           <p className="hint">
-            Light canvas with ink navigation and accent{" "}
-            <span className="mono" style={{ color: "var(--accent)", fontWeight: 600 }}>#5C5C9A</span>
+            Clean ink-on-canvas palette with high-contrast navigation and neutral accents.
           </p>
         </Card>
 
