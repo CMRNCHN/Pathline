@@ -54,21 +54,21 @@ export function ScriptSettingsPage({ scriptId, onNavigate }: ScriptSettingsPageP
     <PageLayout
       eyebrow="Template"
       title="Script settings"
-      subtitle={scriptDisplayName(activeScript)}
+      subtitle={`${scriptDisplayName(activeScript)} — export, duplicate, or delete this RUN template.`}
     >
-      <Card className="max-w-xl">
-        <dl style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginBottom: "1.25rem" }}>
+      <Card className="script-settings-card">
+        <div className="script-settings-stats">
+          <StatRow label="Setup fields" value="Name · Target · Description · Timeout" />
+          <StatRow label="Runtime variables" value={activeScript.setup.runtimeVariables.length} />
           <StatRow label="Rules" value={activeScript.ivrRules.length} />
           <StatRow label="Collected outputs" value={extractOutputRules(activeScript).length} />
-        </dl>
+        </div>
 
         {readOnly && (
-          <p className="hint" style={{ marginBottom: "1rem" }}>
-            Bundled example — duplicate to edit.
-          </p>
+          <p className="hint script-settings-note">Bundled example — duplicate to edit.</p>
         )}
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.65rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+        <div className="script-settings-actions">
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportScriptJson(activeScript)}>
             <Download size={14} />
             Export
@@ -89,7 +89,7 @@ export function ScriptSettingsPage({ scriptId, onNavigate }: ScriptSettingsPageP
   );
 }
 
-function StatRow({ label, value }: { label: string; value: number }) {
+function StatRow({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="data-row">
       <span className="data-row-label">{label}</span>

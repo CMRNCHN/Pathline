@@ -19,8 +19,11 @@ export function EditPage({ scriptId, onNavigate }: EditPageProps) {
 
   if (!activeScript || activeScript.id !== scriptId) {
     return (
-      <div className="flex items-center justify-center h-full text-muted text-sm">
-        Loading script…
+      <div className="editor-page">
+        <div className="editor-loading">
+          <span className="editor-loading-dot" />
+          Loading template…
+        </div>
       </div>
     );
   }
