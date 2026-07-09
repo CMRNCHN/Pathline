@@ -24,6 +24,7 @@ import { useScriptStore } from "../store/ScriptStore";
 import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
 import { RunStepBar } from "../components/ui/RunStepBar";
+import { DtmfGuide } from "../components/DtmfGuide";
 
 type Step = "consent" | "configure" | "active";
 
@@ -482,16 +483,11 @@ function MatcherPanel({
       {listenError && <p className="field-hint warn">{listenError}</p>}
 
       {run.pendingDtmf && (
-        <div className="dtmf-action-card">
-          <span className="dtmf-action-label">Send on your phone</span>
-          <code className="dtmf-action-value">{run.pendingDtmf}</code>
-          {run.pendingTrigger && (
-            <span className="dtmf-action-trigger">Heard: {run.pendingTrigger}</span>
-          )}
-          <button type="button" className="btn btn-sm btn-secondary" onClick={dismissDtmf}>
-            Sent ✓
-          </button>
-        </div>
+        <DtmfGuide
+          sequence={run.pendingDtmf}
+          trigger={run.pendingTrigger}
+          onComplete={dismissDtmf}
+        />
       )}
 
       {!run.completed && (

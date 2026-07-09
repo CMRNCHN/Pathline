@@ -54,7 +54,7 @@ export function NavigateStep({ state, dispatch }: StepProps) {
                 autoFocus
                 inputMode="numeric"
               />
-              <span className="field-hint">Digits, #, and * — sent as touch-tones when this step runs.</span>
+              <span className="field-hint">Digits, #, and * — paced automatically when you run the script.</span>
             </label>
             <p className="field-hint">Tap to append</p>
             <div className="key-grid key-grid-dtmf">
