@@ -106,6 +106,17 @@ function RunFlow({
     else setTargetNumber("");
   }, [script?.id, script?.setup.target]);
 
+  const isLabScript = script?.id === "lab-account-status";
+
+  useEffect(() => {
+    if (!isLabScript) return;
+    setVariables((prev) => ({
+      ...prev,
+      account_pin: prev.account_pin || "1234",
+      ssn_last4: prev.ssn_last4 || "5678",
+    }));
+  }, [isLabScript]);
+
   const missingVariables = variableNames.filter((name) => !variables[name]?.trim());
 
   const handleConsent = async () => {
@@ -143,7 +154,9 @@ function RunFlow({
         startedAt: new Date().toISOString(),
       });
       setStep("active");
-      placeCallLocally(targetNumber);
+      if (targetNumber.trim()) {
+        placeCallLocally(targetNumber);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start session");
     } finally {
@@ -320,6 +333,21 @@ function RunFlow({
             </div>
           )}
 
+          {isLabScript && (
+            <div className="lab-run-guide">
+              <h3>Lab softphone setup</h3>
+              <ol>
+                <li>Start lab Asterisk: <code>./scripts/lab.sh</code></li>
+                <li>Register softphone — server <code>127.0.0.1:5060</code>, user <code>lab</code>, password <code>lab</code></li>
+                <li>Dial extension <code>1000</code> (Linphone, Zoiper, or similar)</li>
+                <li>Paste IVR phrases below during the call; press DTMF on the softphone when prompted</li>
+              </ol>
+              <p className="field-hint">
+                Suggested paste sequence: <span className="mono">account</span> → <span className="mono">touch tone</span> → <span className="mono">pin</span> → <span className="mono">last four</span> → <span className="mono">balance</span> → <span className="mono">your dollars</span> → <span className="mono">goodbye</span>
+              </p>
+            </div>
+          )}
+
           <div className="form-group">
             <label htmlFor="target">Target number — local only</label>
             <input
@@ -327,7 +355,8 @@ function RunFlow({
               type="tel"
               value={targetNumber}
               onChange={(e) => setTargetNumber(e.target.value)}
-              required
+              placeholder={isLabScript ? "Leave empty — use softphone to dial 1000" : undefined}
+              required={!isLabScript}
             />
           </div>
 

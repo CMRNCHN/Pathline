@@ -6,7 +6,7 @@ import { withSyncedRules } from "./sync";
 export const CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts";
 export const ACTIVE_SCRIPT_KEY = "promptpath-active-script";
 
-export const BUNDLED_SCRIPT_FILES: string[] = ["template.json"];
+export const BUNDLED_SCRIPT_FILES: string[] = ["template.json", "lab-account-status.json"];
 
 export function newId(): string {
   return crypto.randomUUID();

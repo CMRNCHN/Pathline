@@ -224,13 +224,15 @@ See [docs/call-scripts.md](./docs/call-scripts.md) for the full guide.
 
 ## Lab IVR
 
-`flows/lab-account-status.yaml` maps to the Asterisk lab IVR:
+`flows/lab-account-status.yaml` maps to the Asterisk lab IVR.
+
+**Full walkthrough:** [docs/lab-run.md](./lab-run.md)
 
 ```bash
-docker compose --profile lab up asterisk
+./scripts/lab.sh
 ```
 
-Dial extension `1000` and map phrase by phrase.
+Register softphone `lab` / `lab` @ `127.0.0.1:5060`, dial extension `1000`, and use the web **Lab account status** script.
 
 ## Privacy
 
