@@ -1043,6 +1043,11 @@ button {
   background: var(--accent);
 }
 
+.toggle-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .toggle-thumb {
   position: absolute;
   top: 3px;
@@ -2152,6 +2157,33 @@ button {
   font-size: 0.75rem;
   color: var(--muted);
   margin: 0;
+}
+
+.setting-row-muted {
+  opacity: 0.72;
+}
+
+.radio-pill-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.badge-planned {
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  background: var(--card-muted);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.input-mode-placeholder:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .link-btn {

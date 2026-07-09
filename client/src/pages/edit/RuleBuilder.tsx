@@ -7,6 +7,7 @@ import {
   type RuleIntent,
   ruleToDraft,
 } from "../../script/ruleIntent";
+import { voiceInputPlaceholder } from "../../runCapabilities";
 
 const INTENTS: { value: RuleIntent; label: string; hint: string }[] = [
   { value: "navigate", label: "Navigate the IVR", hint: "Send DTMF when the IVR asks for input" },
@@ -134,8 +135,19 @@ export function RuleBuilder({
               </label>
 
               <fieldset className="rule-builder-field">
-                <legend>Response</legend>
-                <p className="field-hint">Press keypad buttons on your phone when this phrase is matched.</p>
+                <legend>How should it respond?</legend>
+                <div className="radio-row">
+                  <label className="radio-pill">
+                    <input type="radio" name="nav-mode" checked readOnly />
+                    Press keypad (DTMF)
+                  </label>
+                  <label className="radio-pill radio-pill-disabled" title={voiceInputPlaceholder}>
+                    <input type="radio" name="nav-mode" disabled />
+                    Speak a value
+                    <span className="badge-planned">Planned</span>
+                  </label>
+                </div>
+                <p className="field-hint">v1 uses DTMF only — voice response is reserved for a future release.</p>
               </fieldset>
 
               <label className="rule-builder-field">

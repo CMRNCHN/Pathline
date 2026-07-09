@@ -3,6 +3,7 @@ import { useScriptStore } from "../store/ScriptStore";
 import { mergeScripts } from "../script/selectors";
 import { PageLayout } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
+import { voiceInputPlaceholder } from "../runCapabilities";
 
 export function SystemPage() {
   const { customScripts, bundledScripts, loading, error } = useScriptStore();
@@ -48,7 +49,8 @@ export function SystemPage() {
         </Card>
 
         <Card title="Health" icon={Activity}>
-          <DataRow label="Run input" value="DTMF keypad on your device" ok />
+          <DataRow label="DTMF input" value="Active — required for runs" ok />
+          <DataRow label="Voice input" value={voiceInputPlaceholder} />
           <DataRow label="API endpoint" value="/api → :8000" ok />
           <DataRow label="Scripts loaded" value={`${scripts.length} templates`} ok={scripts.length > 0} />
           <DataRow label="Activity log" value="In-session only" />

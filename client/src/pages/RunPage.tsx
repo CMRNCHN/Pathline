@@ -23,6 +23,7 @@ import { scriptDisplayName } from "../script/storage";
 import { useScriptStore } from "../store/ScriptStore";
 import { PageLayout } from "../components/ui/PageHeader";
 import { RunStepBar } from "../components/ui/RunStepBar";
+import { voiceInputPlaceholder, VOICE_INPUT_ENABLED } from "../runCapabilities";
 
 type Step = "consent" | "configure" | "active";
 
@@ -233,7 +234,8 @@ function RunFlow({
         <div className="consent-terms">
           <ul>
             <li>Your secrets and target number stay on this device — never sent to our servers</li>
-            <li>Runs use DTMF keypad input on your phone — no voice sent to PromptPath</li>
+            <li>Runs use <strong>DTMF keypad</strong> on your phone — required in v1</li>
+            <li>Voice input is planned for a later release; not used today</li>
             <li>Only encrypted status is reported to PromptPath</li>
             <li>Session data is auto-purged; you can revoke and delete anytime</li>
             <li>Carriers still see calling/called numbers, times, and duration</li>
@@ -462,10 +464,21 @@ function MatcherPanel({
     <div className="navigator-panel run-panel">
       <div className="run-panel-header">
         <h4>{scriptDisplayName(script)}</h4>
+        {!run.completed && (
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary input-mode-placeholder"
+            disabled
+            title={voiceInputPlaceholder}
+          >
+            {voiceInputPlaceholder}
+          </button>
+        )}
       </div>
 
       <p className="hint">
-        Paste what you hear to match the next step. When DTMF is shown, press those keys on your phone.
+        Paste what you hear to match the next step. Press DTMF on your phone when prompted
+        {VOICE_INPUT_ENABLED ? "" : " (voice input not enabled yet)"}.
       </p>
 
       {run.pendingDtmf && (
