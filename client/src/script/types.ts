@@ -10,7 +10,7 @@ export interface ScriptSetup {
   speechPreferences: {
     autoListen: boolean;
   };
-  /** Names only — values are filled at Run Configuration. */
+  /** Input variable names referenced by respond rules — derived from rules on sync. */
   runtimeVariables: string[];
 }
 

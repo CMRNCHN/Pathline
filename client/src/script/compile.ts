@@ -1,7 +1,7 @@
 import type { FlowStep, IvrRule, ScriptDocument, ScriptSetup } from "./types";
 import { SCRIPT_VERSION } from "./types";
 import { migrateV1ToV2 } from "./migrate";
-import { withSyncedRules } from "./sync";
+import { syncRuntimeVariablesFromRules, withSyncedRules } from "./sync";
 import { newId } from "./storage";
 
 function isV2Shape(raw: unknown): boolean {
@@ -148,17 +148,9 @@ export function normalizeScript(raw: unknown): ScriptDocument {
 
 const VAR_REF = /\{\{(\w+)\}\}/g;
 
+/** Input variable names required at run time — always derived from rules, never from setup. */
 export function extractVariableNames(doc: ScriptDocument): string[] {
-  const fromSetup = doc.setup.runtimeVariables.filter(Boolean);
-  if (fromSetup.length) return [...fromSetup].sort();
-
-  const names = new Set<string>();
-  for (const rule of doc.ivrRules) {
-    for (const m of rule.response.matchAll(VAR_REF)) {
-      names.add(m[1]);
-    }
-  }
-  return [...names].sort();
+  return syncRuntimeVariablesFromRules(doc.ivrRules);
 }
 
 export function formatVariableRef(name: string): string {

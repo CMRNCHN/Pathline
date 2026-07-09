@@ -1,6 +1,5 @@
 import type { ScriptDocument } from "./types";
 import { SCRIPT_VERSION } from "./types";
-import { newIvrRule } from "./compile";
 import { withSyncedRules } from "./sync";
 
 export const CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts";
@@ -24,7 +23,7 @@ export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
       speechPreferences: { autoListen: false },
       runtimeVariables: [],
     },
-    ivrRules: [newIvrRule(1)],
+    ivrRules: [],
     conversationFlow: [],
     ...partial,
   };

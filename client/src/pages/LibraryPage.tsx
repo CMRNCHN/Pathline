@@ -64,7 +64,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
           }
         >
           {scripts.length === 0
-            ? "Each RUN template has Setup, Rules, and Results — outputs are defined on rules."
+            ? "Each script has a header, rules, and outputs — values are supplied when you run."
             : "Try a different search term."}
         </EmptyState>
       ) : (
