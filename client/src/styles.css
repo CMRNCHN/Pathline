@@ -494,6 +494,264 @@ button {
 }
 
 /* ── Script library cards ── */
+
+/* ── Runtime status board (Scripts page) ── */
+@keyframes status-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes status-beacon-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes status-beacon-busy {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@keyframes status-scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes status-rail-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.status-board {
+  position: relative;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 0.85rem 0.65rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 6%, var(--card)) 0%,
+    var(--card) 55%,
+    color-mix(in srgb, var(--ink) 4%, var(--card-muted)) 100%
+  );
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.status-board-alert {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+
+.status-board-scan {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 50%,
+    transparent 60%
+  );
+  animation: status-scan 4s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.status-board-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+  position: relative;
+  z-index: 1;
+}
+
+.status-board-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.status-board-meta {
+  flex: 1;
+  font-size: 0.72rem;
+  color: var(--muted-light);
+  font-family: var(--mono);
+}
+
+.status-board-refresh {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+
+.status-board-refresh:hover {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.status-board-track {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: relative;
+  z-index: 1;
+  padding-bottom: 0.15rem;
+}
+
+.status-board-track::-webkit-scrollbar {
+  display: none;
+}
+
+.status-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 0;
+  min-width: 7.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ink) 3%, #fff);
+  border: 1px solid var(--border);
+  animation: status-tile-in 0.45s ease both;
+  position: relative;
+}
+
+.status-tile-beacon {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-light);
+}
+
+.status-tile-ok .status-tile-beacon {
+  background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 25%, transparent);
+  animation: status-beacon-pulse 2.4s ease-in-out infinite;
+}
+
+.status-tile-warn .status-tile-beacon {
+  background: var(--warning);
+  animation: status-beacon-pulse 2s ease-in-out infinite;
+}
+
+.status-tile-busy .status-tile-beacon {
+  background: var(--accent);
+  animation: status-beacon-busy 1s ease-in-out infinite;
+}
+
+.status-tile-err .status-tile-beacon {
+  background: var(--danger);
+  animation: status-beacon-pulse 1.2s ease-in-out infinite;
+}
+
+.status-tile-idle .status-tile-beacon {
+  background: var(--muted-light);
+  opacity: 0.7;
+}
+
+.status-tile-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 6px;
+  background: var(--card-muted);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.status-tile-ok .status-tile-icon {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.status-tile-err .status-tile-icon {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.status-tile-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.status-tile-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.status-tile-value {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-board-rail {
+  margin-top: 0.55rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.status-board-rail-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--success) 0%,
+    var(--accent-pop) 50%,
+    var(--success) 100%
+  );
+  background-size: 200% 100%;
+  animation: status-rail-shimmer 3s linear infinite;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (max-width: 720px) {
+  .status-tile {
+    min-width: 6.5rem;
+  }
+
+  .status-board-meta {
+    display: none;
+  }
+}
+
 .script-grid {
   display: grid;
   grid-template-columns: 1fr;
