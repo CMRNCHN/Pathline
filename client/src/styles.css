@@ -1853,6 +1853,12 @@ button {
   gap: 0.45rem;
 }
 
+.key-grid-dtmf {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(2.5rem, 1fr));
+  max-width: 12rem;
+}
+
 .key-btn {
   min-width: 2.5rem;
   padding: 0.55rem 0.75rem;
