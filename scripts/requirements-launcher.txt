@@ -1,2 +1,2 @@
 pillow>=10.0
-icnsutil>=1.0
+icnsutil>=1.0; sys_platform == 'darwin'

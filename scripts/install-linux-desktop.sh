@@ -16,8 +16,17 @@ if [[ "$(uname -s)" != "Linux" ]]; then
   exit 1
 fi
 
-python3 -m pip install -q -r "$ROOT/scripts/requirements-launcher.txt" 2>/dev/null || true
-python3 "$ROOT/scripts/generate-app-icon.py" >/dev/null
+ensure_launcher_png() {
+  if [[ -f "$ICON_SRC" ]]; then
+    return 0
+  fi
+  if ! python3 -c "import PIL" 2>/dev/null; then
+    python3 -m pip install -q pillow
+  fi
+  python3 "$ROOT/scripts/generate-app-icon.py" --png-only
+}
+
+ensure_launcher_png
 
 mkdir -p "$ICON_DIR" "$APPS_DIR"
 cp "$ICON_SRC" "$ICON_DIR/promptpath.png"

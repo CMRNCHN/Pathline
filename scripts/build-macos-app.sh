@@ -10,11 +10,13 @@ ICON_SRC="$ROOT/assets/icon/generated/PromptPath.icns"
 info() { echo "▸ $*"; }
 
 ensure_icon() {
-  if [[ ! -f "$ICON_SRC" ]]; then
-    info "Generating app icon..."
-    python3 -m pip install -q -r "$ROOT/scripts/requirements-launcher.txt" 2>/dev/null || true
-    python3 "$ROOT/scripts/generate-app-icon.py"
+  if [[ -f "$ICON_SRC" ]]; then
+    return 0
   fi
+  info "Generating app icon..."
+  python3 -m pip install -q -r "$ROOT/scripts/requirements-launcher.txt"
+  python3 "$ROOT/scripts/generate-app-icon.py" --icns-only
+  python3 "$ROOT/scripts/generate-app-icon.py" --png-only
 }
 
 build_app() {

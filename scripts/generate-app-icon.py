@@ -1,27 +1,37 @@
 #!/usr/bin/env python3
-"""Generate PromptPath macOS/Linux launcher icons from the brand SVG."""
+"""Generate PromptPath launcher icons (Linux PNG; macOS ICNS when icnsutil is available)."""
 
 from __future__ import annotations
 
+import argparse
+import sys
 from pathlib import Path
-
-from icnsutil import IcnsFile
-from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "assets" / "icon"
 OUT_DIR = ICON_DIR / "generated"
 ICNS_PATH = OUT_DIR / "PromptPath.icns"
-PNG_PATH = OUT_DIR / "promptpath-1024.png"
+LINUX_PNG = OUT_DIR / "promptpath-256.png"
 
 
-def draw_icon(size: int) -> Image.Image:
+def _pillow():
+    try:
+        from PIL import Image, ImageDraw
+
+        return Image, ImageDraw
+    except ImportError as exc:
+        raise SystemExit(
+            "Pillow is required. Run: python3 -m pip install pillow"
+        ) from exc
+
+
+def draw_icon(size: int):
+    Image, ImageDraw = _pillow()
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     pad = size * 0.12
     radius = size * 0.22
 
-    # Rounded square background
     draw.rounded_rectangle(
         (pad, pad, size - pad, size - pad),
         radius=radius,
@@ -36,17 +46,18 @@ def draw_icon(size: int) -> Image.Image:
     )
 
     stroke = max(4, int(size * 0.055))
-    arc_box = lambda scale: (
-        cx - size * scale,
-        cy - size * scale,
-        cx + size * scale,
-        cy + size * scale,
-    )
+
+    def arc_box(scale: float):
+        return (
+            cx - size * scale,
+            cy - size * scale,
+            cx + size * scale,
+            cy + size * scale,
+        )
 
     for scale in (0.25, 0.16, 0.09):
         draw.arc(arc_box(scale), start=200, end=340, fill=(245, 245, 244, 255), width=stroke)
 
-    # Accent crosshair on the right arc
     accent = (34, 211, 238, 255)
     hx = cx + size * 0.18
     hy = cy
@@ -57,13 +68,21 @@ def draw_icon(size: int) -> Image.Image:
     return img
 
 
-def write_png(path: Path, size: int) -> None:
-    draw_icon(size).save(path, format="PNG", optimize=True)
+def write_linux_icon() -> None:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    draw_icon(256).save(LINUX_PNG, format="PNG", optimize=True)
+    print(f"Wrote {LINUX_PNG}")
 
 
 def build_icns() -> None:
+    try:
+        from icnsutil import IcnsFile
+    except ImportError as exc:
+        raise SystemExit(
+            "icnsutil is required for macOS icons. Run: python3 -m pip install -r scripts/requirements-launcher.txt"
+        ) from exc
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    write_png(PNG_PATH, 1024)
 
     iconset = [
         ("icon_16x16.png", 16),
@@ -81,21 +100,40 @@ def build_icns() -> None:
     icns = IcnsFile()
     for name, size in iconset:
         png = OUT_DIR / name
-        image = draw_icon(size)
-        image.save(png, format="PNG", optimize=True)
+        draw_icon(size).save(png, format="PNG", optimize=True)
         icns.add_media(file=str(png))
 
     icns.write(str(ICNS_PATH))
     print(f"Wrote {ICNS_PATH}")
 
 
-def write_linux_icon() -> None:
-    """Simple 256px PNG for .desktop launchers."""
-    path = OUT_DIR / "promptpath-256.png"
-    write_png(path, 256)
-    print(f"Wrote {path}")
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--png-only",
+        action="store_true",
+        help="Generate Linux .desktop PNG only (no icnsutil needed)",
+    )
+    parser.add_argument(
+        "--icns-only",
+        action="store_true",
+        help="Generate macOS ICNS only",
+    )
+    args = parser.parse_args()
+
+    if args.png_only:
+        write_linux_icon()
+        return
+    if args.icns_only:
+        build_icns()
+        return
+
+    write_linux_icon()
+    try:
+        build_icns()
+    except SystemExit:
+        print("Skipped ICNS generation (icnsutil not installed).", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    build_icns()
-    write_linux_icon()
+    main()
