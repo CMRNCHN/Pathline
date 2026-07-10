@@ -30,7 +30,7 @@ export function SystemPage() {
         <Card title="Privacy" icon={Shield}>
           <DataRow label="Secrets & target numbers" value="Device only" ok />
           <DataRow label="IVR audio / transcripts" value="Processed locally" ok />
-          <DataRow label="Status reporting" value="Encrypted blob + hash" ok />
+          <DataRow label="Callstate reporting" value="Encrypted blob + hash" ok />
           <DataRow label="Session retention" value="Auto-purged; revoke anytime" ok />
           <p className="hint" style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
             Carriers still see call metadata on the PSTN.

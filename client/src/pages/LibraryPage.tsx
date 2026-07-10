@@ -1,14 +1,14 @@
 import { useMemo } from "react";
 import { FileText, Phone, Plus } from "lucide-react";
-import { StatusBoard } from "../components/StatusBoard";
-import { useRuntimeStatus } from "../hooks/useRuntimeStatus";
+import { CallStateBoard } from "../components/CallStateBoard";
+import { DEMO_ACTIVE_CALLSTATE, MEDICARE_PATH } from "../callstate";
 import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript, mergeScripts } from "../script/selectors";
 import { PageLayout } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Badge } from "../components/ui/Badge";
 import { scriptDisplayName } from "../script/storage";
-import { getScriptReadiness, READINESS_LABEL } from "../script/scriptStatus";
+import { getScriptReadiness, READINESS_LABEL } from "../script/scriptReadiness";
 import type { AppView } from "../navigation";
 
 interface LibraryPageProps {
@@ -19,13 +19,6 @@ interface LibraryPageProps {
 export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
   const { bundledScripts, customScripts, setActiveId, addCustom, loading, error } =
     useScriptStore();
-
-  const runtime = useRuntimeStatus(
-    loading,
-    error,
-    bundledScripts.length,
-    customScripts.length
-  );
 
   const scripts = mergeScripts(bundledScripts, customScripts);
 
@@ -54,7 +47,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
     <PageLayout
       eyebrow="Dashboard"
       title="Scripts"
-      subtitle="Your IVR templates — open a card to edit Setup, Steps, and Results on one page."
+      subtitle="Event-sourced callstate projections — open a card to edit Setup, Steps, and Results."
       action={
         <button type="button" onClick={handleCreate} className="btn btn-primary">
           <Plus size={16} />
@@ -62,7 +55,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
         </button>
       }
     >
-      <StatusBoard status={runtime} />
+      <CallStateBoard callState={DEMO_ACTIVE_CALLSTATE} path={MEDICARE_PATH} />
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -88,48 +81,51 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
               readiness === "ready" ? "success" : readiness === "needs-setup" ? "warn" : "muted";
 
             return (
-            <article
-              key={script.id}
-              className={`script-card script-card-${readiness}`}
-            >
-              <button type="button" onClick={() => openScript(script.id)} className="script-card-open">
-                <div className="script-card-top">
-                  <div className="script-card-icon">
-                    <FileText />
+              <article key={script.id} className={`script-card script-card-${readiness}`}>
+                <button type="button" onClick={() => openScript(script.id)} className="script-card-open">
+                  <div className="script-card-top">
+                    <div className="script-card-icon">
+                      <FileText />
+                    </div>
+                    <div className="script-card-badges">
+                      <Badge variant={readinessVariant}>{READINESS_LABEL[readiness]}</Badge>
+                      {isBundledScript(bundledScripts, script.id) && (
+                        <Badge variant="accent">Example</Badge>
+                      )}
+                    </div>
                   </div>
-                  <div className="script-card-badges">
-                    <Badge variant={readinessVariant}>{READINESS_LABEL[readiness]}</Badge>
-                    {isBundledScript(bundledScripts, script.id) && (
-                      <Badge variant="accent">Example</Badge>
-                    )}
+                  <h3 className="script-card-name">{scriptDisplayName(script)}</h3>
+                  <p className="script-card-desc">
+                    {script.setup.description || "No description"}
+                  </p>
+                  <div className="script-card-stats">
+                    <span className="stat-pill">{script.ivrRules.length} rules</span>
+                    <span className="stat-pill">
+                      {script.ivrRules.filter((r) => r.output.trim()).length} outputs
+                    </span>
                   </div>
-                </div>
-                <h3 className="script-card-name">{scriptDisplayName(script)}</h3>
-                <p className="script-card-desc">
-                  {script.setup.description || "No description"}
-                </p>
-                <div className="script-card-stats">
-                  <span className="stat-pill">{script.ivrRules.length} rules</span>
-                  <span className="stat-pill">
-                    {script.ivrRules.filter((r) => r.output.trim()).length} outputs
-                  </span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveId(script.id);
-                  onNavigate({ category: "run", scriptId: script.id });
-                }}
-                className="script-card-run"
-              >
-                <Phone />
-                Run
-              </button>
-            </article>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveId(script.id);
+                    onNavigate({ category: "run", scriptId: script.id });
+                  }}
+                  className="script-card-run"
+                >
+                  <Phone />
+                  Run
+                </button>
+              </article>
             );
           })}
         </div>
+      )}
+
+      {(loading || error) && (
+        <p className="field-hint" style={{ marginTop: "1rem" }}>
+          {loading ? "Loading scripts…" : error}
+        </p>
       )}
     </PageLayout>
   );

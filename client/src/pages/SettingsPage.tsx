@@ -63,7 +63,7 @@ export function SettingsPage() {
 
         <Card title="About" icon={Info}>
           <p className="hint" style={{ margin: 0 }}>
-            PromptPath v1 · DTMF runs · {voiceInputPlaceholder} · Encrypted status export
+            PromptPath v1 · DTMF runs · {voiceInputPlaceholder} · Encrypted callstate export
           </p>
         </Card>
       </div>
