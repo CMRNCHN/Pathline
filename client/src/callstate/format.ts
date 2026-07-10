@@ -1,4 +1,4 @@
-import type { CallState, Path, PathStep } from "./types";
+import type { LiveStatus, Path, PathStep } from "./types";
 
 const STEP_MARKERS = {
   done: "✓",
@@ -12,8 +12,8 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString("en-GB", { hour12: false });
 }
 
-function progressLine(step: PathStep, state: PathStep[], active: PathStep | null): string {
-  const reached = state.includes(step);
+function progressLine(step: PathStep, progress: PathStep[], active: PathStep | null): string {
+  const reached = progress.includes(step);
   const marker = !reached
     ? STEP_MARKERS.pending
     : step === active
@@ -22,23 +22,27 @@ function progressLine(step: PathStep, state: PathStep[], active: PathStep | null
   return `${marker} ${step}`;
 }
 
-export function formatCallStateText(callState: CallState, path: Path): string {
-  const lines: string[] = ["CALL", path.intent.toUpperCase(), ""];
+function formatIntent(intent: Path["intent"]): string {
+  return intent.replace(/_/g, " ");
+}
 
-  if (callState.phase === "ACTIVE" && callState.activeStep) {
-    lines.push("CURRENT STATE", `${STEP_MARKERS.active} ${callState.activeStep}`, "");
-  } else if (callState.phase === "COMPLETED") {
-    const outcome = callState.finalOutcome ?? "VERIFICATION_COMPLETE";
-    lines.push("CALL STATE", `${STEP_MARKERS.done} ${outcome}`, "");
+/** Plain-text renderer — UI/CLI layer only; not part of LiveStatus. */
+export function formatLiveStatusText(liveStatus: LiveStatus, path: Path): string {
+  const lines: string[] = ["CALL", formatIntent(path.intent), ""];
+
+  if (liveStatus.phase === "ACTIVE" && liveStatus.activeStep) {
+    lines.push("CURRENT STATE", `${STEP_MARKERS.active} ${liveStatus.activeStep}`, "");
+  } else if (liveStatus.phase === "COMPLETED" && liveStatus.finalOutcome) {
+    lines.push("CALL STATE", `${STEP_MARKERS.done} ${liveStatus.finalOutcome}`, "");
   }
 
   lines.push("CALL PROGRESS");
   for (const step of path.definedSteps) {
-    lines.push(progressLine(step, callState.progress, callState.activeStep));
+    lines.push(progressLine(step, liveStatus.progress, liveStatus.activeStep));
   }
 
   lines.push("", "EVENT TIMELINE");
-  for (const event of callState.events) {
+  for (const event of liveStatus.events) {
     lines.push(`${formatTime(event.timestamp)}  ${event.type}`);
   }
 

@@ -3,7 +3,9 @@ export type CallEventType =
   | "INPUT"
   | "API_REQUEST"
   | "TRANSFER"
-  | "VERIFICATION_COMPLETE";
+  | "VERIFICATION_COMPLETE"
+  | "FAILED"
+  | "ABANDONED";
 
 export type PathStep =
   | "GREETING"
@@ -11,15 +13,22 @@ export type PathStep =
   | "COLLECTING_MEMBER_ID"
   | "FINAL_RESPONSE";
 
-export type CallStatePhase = "ACTIVE" | "COMPLETED";
+export type StatusPhase = "ACTIVE" | "COMPLETED";
+
+export type CallOutcome =
+  | "VERIFICATION_COMPLETE"
+  | "TRANSFERRED"
+  | "FAILED"
+  | "ABANDONED";
 
 export interface Path {
   id: string;
-  intent: string;
+  intent: "MEDICARE_VERIFICATION";
   definedSteps: PathStep[];
 }
 
-export interface Source {
+/** Infrastructure metadata — not part of LiveStatus projection. */
+export interface CallSource {
   id: string;
   targetEndpoint: string;
   connectionProtocol: "SIP" | "WEBRTC";
@@ -32,12 +41,21 @@ export interface CallEvent {
   step: PathStep;
 }
 
-export interface CallState {
+/** Immutable event ledger for a single call. */
+export interface Call {
+  callId: string;
   sourceId: string;
   pathId: string;
-  phase: CallStatePhase;
-  progress: PathStep[];
   events: CallEvent[];
+}
+
+/** Read-only projection: where is this call and what happened? */
+export interface LiveStatus {
+  callId: string;
+  pathId: string;
+  phase: StatusPhase;
+  progress: PathStep[];
   activeStep: PathStep | null;
-  finalOutcome: string | null;
+  events: CallEvent[];
+  finalOutcome: CallOutcome | null;
 }

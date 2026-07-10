@@ -13,9 +13,10 @@ import type { LocalCall } from "../types";
 import { CallStateBoard } from "../components/CallStateBoard";
 import {
   pathFromScript,
-  projectCallState,
+  projectLiveStatus,
   runLogToCallEvents,
   newCallEvent,
+  callFromSession,
   type CallEvent,
 } from "../callstate";
 import type { KnownScript } from "../script/types";
@@ -396,7 +397,10 @@ function RunFlow({
     <div className="callstate-panel">
       {session.phase === "completed" && session.callEvents && (
         <CallStateBoard
-          callState={projectCallState(session.callEvents, path, session.sessionId)}
+          liveStatus={projectLiveStatus(
+            callFromSession(session.sessionId, "local-client", path.id, session.callEvents),
+            path
+          )}
           path={path}
           label="Callstate"
         />
@@ -454,7 +458,8 @@ function MatcherPanel({
   const [ivrText, setIvrText] = useState("");
   const path = pathFromScript(script);
   const callEvents = runLogToCallEvents(run.log, path);
-  const callState = projectCallState(callEvents, path, sessionId);
+  const call = callFromSession(sessionId, "local-client", path.id, callEvents);
+  const liveStatus = projectLiveStatus(call, path);
 
   const applyPhraseNow = useCallback(
     (text: string) => {
@@ -489,7 +494,7 @@ function MatcherPanel({
 
   return (
     <div className="navigator-panel run-panel">
-      <CallStateBoard callState={callState} path={path} label="Live callstate" />
+      <CallStateBoard liveStatus={liveStatus} path={path} label="Live callstate" />
 
       <div className="run-panel-header">
         <h4>{scriptDisplayName(script)}</h4>

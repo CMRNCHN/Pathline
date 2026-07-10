@@ -1,6 +1,6 @@
 import type { KnownScript } from "../script/types";
 import type { RunLogEntry } from "../script/types";
-import type { CallEvent, CallEventType, Path, PathStep } from "./types";
+import type { Call, CallEvent, CallEventType, Path, PathStep } from "./types";
 
 const DEFAULT_STEPS: PathStep[] = [
   "GREETING",
@@ -16,9 +16,18 @@ export function pathFromScript(script: KnownScript): Path {
 
   return {
     id: script.id,
-    intent: script.setup.name || "CALL",
+    intent: "MEDICARE_VERIFICATION",
     definedSteps: ruleSteps.length ? ruleSteps : DEFAULT_STEPS,
   };
+}
+
+export function callFromSession(
+  callId: string,
+  sourceId: string,
+  pathId: string,
+  events: CallEvent[]
+): Call {
+  return { callId, sourceId, pathId, events };
 }
 
 function logKindToEventType(kind: RunLogEntry["kind"]): CallEventType {

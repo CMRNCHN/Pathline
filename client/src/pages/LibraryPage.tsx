@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { FileText, Phone, Plus } from "lucide-react";
 import { CallStateBoard } from "../components/CallStateBoard";
-import { DEMO_ACTIVE_CALLSTATE, MEDICARE_PATH } from "../callstate";
+import { DEMO_ACTIVE_LIVE_STATUS, MEDICARE_PATH } from "../callstate";
 import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript, mergeScripts } from "../script/selectors";
 import { PageLayout } from "../components/ui/PageHeader";
@@ -55,7 +55,7 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
         </button>
       }
     >
-      <CallStateBoard callState={DEMO_ACTIVE_CALLSTATE} path={MEDICARE_PATH} />
+      <CallStateBoard liveStatus={DEMO_ACTIVE_LIVE_STATUS} path={MEDICARE_PATH} />
 
       {filtered.length === 0 ? (
         <EmptyState
