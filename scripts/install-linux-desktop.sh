@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
-# Linux desktop launcher (.desktop file + icon)
+# Linux desktop launcher (.desktop file + icon, optional dock pin)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ICON_DIR="$HOME/.local/share/icons"
 APPS_DIR="$HOME/.local/share/applications"
 DESKTOP="$APPS_DIR/promptpath.desktop"
+DESKTOP_ID="promptpath.desktop"
 ICON_SRC="$ROOT/assets/icon/generated/promptpath-256.png"
 
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "This installer is for Linux."
+  echo "On macOS run from the repo root:  npm run install"
+  echo "Repo root: $ROOT"
+  exit 1
+fi
+
+python3 -m pip install -q -r "$ROOT/scripts/requirements-launcher.txt" 2>/dev/null || true
 python3 "$ROOT/scripts/generate-app-icon.py" >/dev/null
 
 mkdir -p "$ICON_DIR" "$APPS_DIR"
@@ -28,5 +37,34 @@ DESKTOP
 chmod +x "$DESKTOP"
 update-desktop-database "$APPS_DIR" 2>/dev/null || true
 
+pin_gnome_dock() {
+  command -v gsettings >/dev/null 2>&1 || return 1
+  gsettings list-schemas 2>/dev/null | grep -q '^org.gnome.shell$' || return 1
+
+  local current new
+  current="$(gsettings get org.gnome.shell favorite-apps)"
+  if [[ "$current" == *"$DESKTOP_ID"* ]]; then
+    echo "  → Already pinned to GNOME dock"
+    return 0
+  fi
+
+  # Append to favorites array (gsettings format: ['a.desktop', 'b.desktop'])
+  new="${current%]}, '${DESKTOP_ID}']"
+  gsettings set org.gnome.shell favorite-apps "$new"
+  echo "  → Pinned to GNOME dock"
+}
+
 echo "Installed $DESKTOP"
-echo "Search \"PromptPath\" in your app launcher, or pin it to your dock/panel."
+echo "  Icon: $ICON_DIR/promptpath.png"
+echo "  Repo: $ROOT"
+
+if [[ -n "${XDG_CURRENT_DESKTOP:-}" ]]; then
+  pin_gnome_dock || true
+  echo ""
+  echo "Search \"PromptPath\" in your app launcher, or pin it to your dock/panel."
+else
+  echo ""
+  echo "No desktop session detected here (headless/SSH/cloud VM)."
+  echo "On a Linux machine with a desktop, run this same command there:"
+  echo "  cd $ROOT && npm run install"
+fi

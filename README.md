@@ -22,17 +22,28 @@ Device (native / web shell)
 
 ## Quick Start
 
-### First-time setup (macOS)
+### First-time setup
 
-Run once from the project folder — installs the **Dock launcher** (with icon), global commands, and `~/Applications` shortcuts:
+**From the repo root** (not `client/`). Replace the path with wherever you cloned PromptPath — e.g. `~/Developer/projects/PromptPath` on a Mac, or `/workspace` in this cloud VM:
 
 ```bash
-cd ~/Developer/projects/PromptPath
-./scripts/install-macos.sh
-source ~/.zshrc
+cd ~/Developer/projects/PromptPath   # your real path — not literally /path/to/PromptPath
+npm run install
 ```
 
-This builds `PromptPath.app` with a custom icon and **pins it to your Dock**.
+`npm run install` picks the right launcher for your OS:
+
+| OS | What it does |
+|----|----------------|
+| **macOS** | Builds `PromptPath.app` with icon, links `~/Applications`, **pins to Dock** |
+| **Linux** | Installs `~/.local/share/applications/promptpath.desktop` + icon (pins GNOME dock when available) |
+
+macOS-only / Linux-only:
+
+```bash
+npm run install:mac
+npm run install:linux
+```
 
 Then from **any directory**:
 
@@ -41,15 +52,9 @@ promptpath          # start in terminal (Ctrl+C to stop)
 promptpath-stop     # stop background services
 ```
 
-Or **Dock** / **Spotlight** → **PromptPath** → click the icon (runs in background, opens browser).
+Or **Dock** / **Spotlight** (macOS) or **app launcher** (Linux) → **PromptPath**.
 
-### Linux desktop launcher
-
-```bash
-./scripts/install-linux-desktop.sh
-```
-
-Then search **PromptPath** in your app menu and pin it to your dock/panel.
+**Headless Linux** (cloud VM, SSH, no desktop): the `.desktop` file is installed but there is no dock to pin. Use `./scripts/start.sh` or open http://localhost:3000 after starting.
 
 ### macOS apps (in project folder)
 

@@ -8,7 +8,14 @@ APPS_DIR="$HOME/Applications"
 APP_PATH="$APPS_DIR/PromptPath.app"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "This installer is for macOS. On Linux, run: ./scripts/install-linux-desktop.sh"
+  echo "This installer is for macOS."
+  echo "You are on: $(uname -s)"
+  echo ""
+  echo "From the repo root, run instead:"
+  echo "  cd $ROOT"
+  echo "  npm run install"
+  echo ""
+  echo "(/path/to/PromptPath was just an example — use your real clone path.)"
   exit 1
 fi
 
