@@ -24,13 +24,15 @@ Device (native / web shell)
 
 ### First-time setup (macOS)
 
-Run once from the project folder — installs global commands and Spotlight apps:
+Run once from the project folder — installs the **Dock launcher** (with icon), global commands, and `~/Applications` shortcuts:
 
 ```bash
 cd ~/Developer/projects/PromptPath
 ./scripts/install-macos.sh
 source ~/.zshrc
 ```
+
+This builds `PromptPath.app` with a custom icon and **pins it to your Dock**.
 
 Then from **any directory**:
 
@@ -39,7 +41,15 @@ promptpath          # start in terminal (Ctrl+C to stop)
 promptpath-stop     # stop background services
 ```
 
-Or **Spotlight** → type `PromptPath` → double-click the app (runs in background, opens browser).
+Or **Dock** / **Spotlight** → **PromptPath** → click the icon (runs in background, opens browser).
+
+### Linux desktop launcher
+
+```bash
+./scripts/install-linux-desktop.sh
+```
+
+Then search **PromptPath** in your app menu and pin it to your dock/panel.
 
 ### macOS apps (in project folder)
 

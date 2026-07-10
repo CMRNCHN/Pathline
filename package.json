@@ -7,6 +7,8 @@
     "start": "./scripts/start.sh",
     "start:app": "open ./PromptPath.app",
     "stop": "./scripts/stop.sh",
-    "build:app": "./scripts/build-macos-app.sh"
+    "build:app": "./scripts/build-macos-app.sh",
+    "install:mac": "./scripts/install-macos.sh",
+    "install:linux": "./scripts/install-linux-desktop.sh"
   }
 }
