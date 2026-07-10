@@ -65,16 +65,18 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
 
         <div className="topnav-spacer" />
 
-        <div className="topnav-search-wrap">
-          <Search className="topnav-search-icon" />
-          <input
-            type="text"
-            placeholder="Search scripts…"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="topnav-search"
-          />
-        </div>
+        {view.category === "library" && (
+          <div className="topnav-search-wrap">
+            <Search className="topnav-search-icon" />
+            <input
+              type="text"
+              placeholder="Search scripts…"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="topnav-search"
+            />
+          </div>
+        )}
 
         <button
           type="button"

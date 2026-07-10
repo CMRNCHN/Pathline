@@ -471,6 +471,11 @@ button {
   border: 1px solid var(--border-strong);
 }
 
+.badge-warn {
+  background: #fef3c7;
+  color: #b45309;
+}
+
 /* ── Script library cards ── */
 
 /* ── Runtime status board (Scripts page) ── */
@@ -795,7 +800,28 @@ button {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.script-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  max-width: 55%;
+}
+
+.script-card-ready {
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+}
+
+.script-card-needs-setup {
+  border-color: color-mix(in srgb, #f59e0b 40%, var(--border));
+}
+
+.script-card-draft {
+  border-style: dashed;
 }
 
 .script-card-icon {

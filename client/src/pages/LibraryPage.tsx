@@ -8,6 +8,7 @@ import { PageLayout } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Badge } from "../components/ui/Badge";
 import { scriptDisplayName } from "../script/storage";
+import { getScriptReadiness, READINESS_LABEL } from "../script/scriptStatus";
 import type { AppView } from "../navigation";
 
 interface LibraryPageProps {
@@ -51,9 +52,9 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
 
   return (
     <PageLayout
-      eyebrow="Template library"
+      eyebrow="Dashboard"
       title="Scripts"
-      subtitle="Author IVR templates, then run them locally with runtime variables injected at configuration time."
+      subtitle="Your IVR templates — open a card to edit Setup, Steps, and Results on one page."
       action={
         <button type="button" onClick={handleCreate} className="btn btn-primary">
           <Plus size={16} />
@@ -81,16 +82,27 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
         </EmptyState>
       ) : (
         <div className="script-grid">
-          {filtered.map((script) => (
-            <article key={script.id} className="script-card">
+          {filtered.map((script) => {
+            const readiness = getScriptReadiness(script);
+            const readinessVariant =
+              readiness === "ready" ? "success" : readiness === "needs-setup" ? "warn" : "muted";
+
+            return (
+            <article
+              key={script.id}
+              className={`script-card script-card-${readiness}`}
+            >
               <button type="button" onClick={() => openScript(script.id)} className="script-card-open">
                 <div className="script-card-top">
                   <div className="script-card-icon">
                     <FileText />
                   </div>
-                  {isBundledScript(bundledScripts, script.id) && (
-                    <Badge variant="accent">Example</Badge>
-                  )}
+                  <div className="script-card-badges">
+                    <Badge variant={readinessVariant}>{READINESS_LABEL[readiness]}</Badge>
+                    {isBundledScript(bundledScripts, script.id) && (
+                      <Badge variant="accent">Example</Badge>
+                    )}
+                  </div>
                 </div>
                 <h3 className="script-card-name">{scriptDisplayName(script)}</h3>
                 <p className="script-card-desc">
@@ -115,7 +127,8 @@ export function LibraryPage({ onNavigate, searchQuery }: LibraryPageProps) {
                 Run
               </button>
             </article>
-          ))}
+            );
+          })}
         </div>
       )}
     </PageLayout>
