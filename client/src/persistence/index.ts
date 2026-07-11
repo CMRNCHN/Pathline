@@ -4,7 +4,7 @@ import {
   ACTIVE_SCRIPT_KEY,
   CUSTOM_SCRIPTS_KEY,
 } from "../script/storage";
-import type { LocalSession } from "../types";
+import type { LocalCall } from "../types";
 import {
   appendRunHistory,
   clearAllStores,
@@ -156,7 +156,7 @@ export async function saveRunConfig(
 }
 
 export async function recordCompletedRun(
-  session: LocalSession,
+  session: LocalCall,
   variables: Record<string, string>
 ): Promise<void> {
   const run: PersistedRun = {

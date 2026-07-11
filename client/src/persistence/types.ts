@@ -1,5 +1,5 @@
 import type { PathDocument } from "../script/types";
-import type { LocalSession } from "../types";
+import type { LocalCall } from "../types";
 
 export const PERSISTENCE_VERSION = 1 as const;
 
@@ -14,7 +14,7 @@ export interface RunConfig {
   updatedAt: string;
 }
 
-export interface PersistedRun extends LocalSession {
+export interface PersistedRun extends LocalCall {
   variables?: Record<string, string>;
   completedAt?: string;
 }
