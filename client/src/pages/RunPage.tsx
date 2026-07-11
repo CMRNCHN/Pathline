@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Play } from "lucide-react";
 import {
   mintToken,
@@ -31,9 +31,10 @@ import { getActiveScript, mergeScripts } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
 import { recordRun } from "../history/runHistory";
 import { useScriptStore } from "../store/ScriptStore";
+import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
 import { RunStepBar } from "../components/ui/RunStepBar";
-import { voiceInputPlaceholder, VOICE_INPUT_ENABLED } from "../runCapabilities";
+import { DtmfGuide } from "../components/DtmfGuide";
 
 type Step = "consent" | "configure" | "active";
 
@@ -116,17 +117,6 @@ function RunFlow({
     else setTargetNumber("");
   }, [script?.id, script?.setup.target]);
 
-  const isLabScript = script?.id === "lab-account-status";
-
-  useEffect(() => {
-    if (!isLabScript) return;
-    setVariables((prev) => ({
-      ...prev,
-      account_pin: prev.account_pin || "1234",
-      ssn_last4: prev.ssn_last4 || "5678",
-    }));
-  }, [isLabScript]);
-
   const missingVariables = variableNames.filter((name) => !variables[name]?.trim());
 
   const handleConsent = async () => {
@@ -164,9 +154,7 @@ function RunFlow({
         startedAt: new Date().toISOString(),
       });
       setStep("active");
-      if (targetNumber.trim()) {
-        placeCallLocally(targetNumber);
-      }
+      placeCallLocally(targetNumber);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start session");
     } finally {
@@ -252,14 +240,13 @@ function RunFlow({
         <h2>Consent & Authorization</h2>
         <p className="consent-intro">
           Pathline is client-mediated. Your device places the call, holds your Inputs and Secrets,
-          and sends DTMF on your phone when prompted. The server only receives encrypted Status blobs.
+          and processes audio locally. The server only receives encrypted Status blobs.
         </p>
 
         <div className="consent-terms">
           <ul>
             <li>Your Secrets and target number stay on this device — never sent to our servers</li>
-            <li>Runs use <strong>DTMF keypad</strong> on your phone — required in v1</li>
-            <li>Voice input is planned for a later release; not used today</li>
+            <li>Speech recognition runs locally when available</li>
             <li>Only encrypted Status is reported to Pathline</li>
             <li>Run data is auto-purged; you can revoke and delete anytime</li>
             <li>Carriers still see calling/called numbers, times, and duration</li>
@@ -356,22 +343,6 @@ function RunFlow({
             </div>
           )}
 
-          {isLabScript && (
-            <div className="lab-run-guide">
-              <h3>Lab softphone setup</h3>
-              <ol>
-                <li>Start lab: <code>./scripts/lab.sh</code> (generates TLS creds in <code>.env</code>)</li>
-                <li>Register softphone — <strong>TLS</strong> <code>127.0.0.1:5061</code>, user/pass from <code>lab/asterisk/generated/credentials.env</code></li>
-                <li>Accept the self-signed certificate</li>
-                <li>Dial extension <code>1000</code></li>
-                <li>Paste IVR phrases below; press DTMF on the softphone when prompted</li>
-              </ol>
-              <p className="field-hint">
-                Suggested paste sequence: <span className="mono">account</span> → <span className="mono">touch tone</span> → <span className="mono">pin</span> → <span className="mono">last four</span> → <span className="mono">balance</span> → <span className="mono">your dollars</span> → <span className="mono">goodbye</span>
-              </p>
-            </div>
-          )}
-
           <div className="form-group">
             <label htmlFor="target">Target number — local only</label>
             <input
@@ -379,8 +350,7 @@ function RunFlow({
               type="tel"
               value={targetNumber}
               onChange={(e) => setTargetNumber(e.target.value)}
-              placeholder={isLabScript ? "Leave empty — use softphone to dial 1000" : undefined}
-              required={!isLabScript}
+              required
             />
           </div>
 
@@ -469,6 +439,9 @@ function MatcherPanel({
   const callEvents = runLogToCallEvents(run.log, path);
   const call = callFromSession(sessionId, "local-client", path.id, callEvents);
   const liveStatus = projectLiveStatus(call, path);
+  const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
+  const [listenError, setListenError] = useState<string | null>(null);
+  const debounceRef = useRef<number | undefined>(undefined);
 
   const applyPhraseNow = useCallback(
     (text: string) => {
@@ -491,6 +464,32 @@ function MatcherPanel({
     [script, variables, onCallStateCaptured, path]
   );
 
+  const applyPhraseDebounced = useCallback(
+    (text: string) => {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = window.setTimeout(() => applyPhraseNow(text), 150);
+    },
+    [applyPhraseNow]
+  );
+
+  useEffect(() => {
+    if (!autoListen || run.completed) return;
+
+    setListenError(null);
+    const stop = startContinuousRecognition(
+      (phrase) => applyPhraseDebounced(phrase),
+      (msg) => setListenError(msg)
+    );
+
+    if (!stop) {
+      setAutoListen(false);
+      setListenError("Web Speech API unavailable in this browser");
+      return;
+    }
+
+    return stop;
+  }, [autoListen, run.completed, applyPhraseDebounced]);
+
   const handleManualMatch = () => {
     if (!ivrText.trim()) return;
     applyPhraseNow(ivrText.trim());
@@ -507,46 +506,42 @@ function MatcherPanel({
 
       <div className="run-panel-header">
         <h4>{scriptDisplayName(script)}</h4>
-        {!run.completed && (
+        {isSpeechRecognitionAvailable() && !run.completed && (
           <button
             type="button"
-            className="btn btn-sm btn-secondary input-mode-placeholder"
-            disabled
-            title={voiceInputPlaceholder}
+            className={`btn btn-sm ${autoListen ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setAutoListen((v) => !v)}
           >
-            {voiceInputPlaceholder}
+            {autoListen ? "● Listening" : "Auto-listen"}
           </button>
         )}
       </div>
 
       <p className="hint">
-        Paste what you hear to match the next step. Press DTMF on your phone when prompted
-        {VOICE_INPUT_ENABLED ? "" : " (voice input not enabled yet)"}.
+        {autoListen
+          ? "Listening locally — IVR phrases auto-match against your script."
+          : "Paste what you hear, or enable auto-listen."}
       </p>
 
+      {listenError && <p className="field-hint warn">{listenError}</p>}
+
       {run.pendingDtmf && (
-        <div className="dtmf-action-card">
-          <span className="dtmf-action-label">Press on your phone</span>
-          <code className="dtmf-action-value">{run.pendingDtmf}</code>
-          {run.pendingTrigger && (
-            <span className="dtmf-action-trigger">After: {run.pendingTrigger}</span>
-          )}
-          <button type="button" className="btn btn-sm btn-secondary" onClick={dismissDtmf}>
-            Sent ✓
-          </button>
-        </div>
+        <DtmfGuide
+          sequence={run.pendingDtmf}
+          trigger={run.pendingTrigger}
+          onComplete={dismissDtmf}
+        />
       )}
 
       {!run.completed && (
         <>
           <div className="form-group">
-            <label htmlFor="ivr-phrase">Match phrase</label>
+            <label htmlFor="ivr-phrase">Listen</label>
             <textarea
               id="ivr-phrase"
               rows={2}
               value={ivrText}
               onChange={(e) => setIvrText(e.target.value)}
-              placeholder="Paste what the IVR said…"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -567,7 +562,7 @@ function MatcherPanel({
 
       {Object.keys(run.collected).length > 0 && (
         <div className="collected-json">
-          <h5>Run output</h5>
+          <h5>Captured</h5>
           <pre>{JSON.stringify(run.collected, null, 2)}</pre>
         </div>
       )}

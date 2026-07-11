@@ -5,8 +5,6 @@ export type FlowAction = "trigger" | "extract" | "validate" | "end" | "pass";
 export interface PathSetup {
   name: string;
   description: string;
-  /** Optional path hint for where this template lives on the user's device. */
-  localPath: string;
   target: string;
   timeoutMs: number;
   speechPreferences: {

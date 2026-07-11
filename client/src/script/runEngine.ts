@@ -90,8 +90,8 @@ export function processPhrase(
         ...prev.log,
         logEntry(
           resolved
-            ? `Trigger ${step.triggerLabel} → SEND ${resolved}`
-            : `Trigger ${step.triggerLabel ?? "?"} — rule not found`,
+            ? `Send when asked → ${resolved}`
+            : `Send rule not found`,
           "trigger"
         ),
       ];
@@ -113,8 +113,8 @@ export function processPhrase(
         ...prev.log,
         logEntry(
           value && field
-            ? `Extract ${field} = ${value.slice(0, 80)}${value.length > 80 ? "…" : ""} (via ${step.triggerLabel})`
-            : `Extract ${step.triggerLabel ?? "?"} — rule or output not found`,
+            ? `Saved ${field} from IVR: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}`
+            : `Listen & save rule missing field name`,
           value && field ? "extract" : "unknown"
         ),
       ];

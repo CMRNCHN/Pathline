@@ -29,7 +29,6 @@ function normalizeSetup(raw: LegacySetup): PathSetup {
   return {
     name: raw.name ?? "",
     description: raw.description ?? "",
-    localPath: raw.localPath ?? "",
     target: raw.target ?? "",
     timeoutMs: raw.timeoutMs ?? 30000,
     speechPreferences: {

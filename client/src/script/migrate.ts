@@ -119,7 +119,6 @@ export function migrateV1ToV2(raw: unknown): PathDocument {
   const setup: PathSetup = {
     name: o.name ?? "",
     description: o.description ?? "",
-    localPath: "",
     target: o.target ?? "",
     timeoutMs: o.timeoutMs ?? 30000,
     speechPreferences: { autoListen: false },

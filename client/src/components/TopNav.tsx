@@ -1,5 +1,5 @@
-import { Search, Settings, Radio, GitBranch, Clock, Pencil, Play, Upload } from "lucide-react";
 import { useRef } from "react";
+import { Search, Settings, Radio, GitBranch, Clock, Pencil, Play, Upload } from "lucide-react";
 import { useScriptStore } from "../store/ScriptStore";
 import { getActiveScript } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
