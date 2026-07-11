@@ -117,6 +117,14 @@ PromptPath/
 ├── packages/shared-python/
 ├── docs/
 └── lab/                  # Asterisk + SIPp (docker profile: lab)
+
+### Lab IVR (Tier C)
+
+```bash
+./scripts/lab.sh
+```
+
+Register a softphone with TLS credentials from `.env` @ `127.0.0.1:5061`, dial `1000`, run **Lab account status** in the web UI. See [docs/lab-run.md](./docs/lab-run.md).
 ```
 
 ## Privacy Guarantees (v1)
