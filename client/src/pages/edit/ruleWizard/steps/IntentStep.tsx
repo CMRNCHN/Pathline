@@ -2,10 +2,22 @@ import type { RuleWizardType } from "../../../../script/ruleIntent";
 import type { StepProps } from "../types";
 
 const INTENTS: { value: RuleWizardType; label: string; hint: string }[] = [
-  { value: "capture", label: "Collect information from the IVR", hint: "Save something the IVR says aloud" },
-  { value: "navigate", label: "Navigate through the IVR", hint: "Press keys, speak, or wait for menus" },
-  { value: "respond", label: "Provide information to the IVR", hint: "Send account details when asked" },
-  { value: "end", label: "End the call", hint: "Finish when this step runs" },
+  {
+    value: "capture",
+    label: "Listen & save",
+    hint: "The IVR speaks → you save what it said",
+  },
+  {
+    value: "navigate",
+    label: "Navigate menu",
+    hint: "Press keys or speak to move through the IVR",
+  },
+  {
+    value: "respond",
+    label: "Send when asked",
+    hint: "The IVR asks → you send a value from the run",
+  },
+  { value: "end", label: "End the call", hint: "Hang up when this step runs" },
 ];
 
 export function IntentStep({ dispatch }: StepProps) {

@@ -48,7 +48,7 @@ export function RuleWizard({ existingLabels, editingRule, onSave, onCancel }: Ru
   return (
     <div className="rule-builder rule-wizard">
       <div className="rule-builder-header">
-        <h3>{editingRule ? "Edit rule" : "Add rule"}</h3>
+        <h3>{editingRule ? "Edit Step" : "Add Step"}</h3>
         <button type="button" className="btn-icon" onClick={onCancel} aria-label="Cancel">
           ×
         </button>

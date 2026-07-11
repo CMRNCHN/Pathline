@@ -25,6 +25,7 @@ import { useScriptStore } from "../store/ScriptStore";
 import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
 import { RunStepBar } from "../components/ui/RunStepBar";
+import { DtmfGuide } from "../components/DtmfGuide";
 
 type Step = "consent" | "configure" | "active";
 
@@ -285,9 +286,7 @@ function RunFlow({
         <form className="call-form" onSubmit={handleStart}>
           <div className="mode-badge">{scriptDisplayName(script)}</div>
 
-          <p className="hint privacy-note">
-            Inputs stay on your device.
-          </p>
+          <p className="hint privacy-note">Inputs stay on your device.</p>
 
           <div className="form-group">
             <label htmlFor="script">Path</label>
@@ -493,16 +492,11 @@ function MatcherPanel({
       {listenError && <p className="field-hint warn">{listenError}</p>}
 
       {run.pendingDtmf && (
-        <div className="dtmf-action-card">
-          <span className="dtmf-action-label">Send on your phone</span>
-          <code className="dtmf-action-value">{run.pendingDtmf}</code>
-          {run.pendingTrigger && (
-            <span className="dtmf-action-trigger">Heard: {run.pendingTrigger}</span>
-          )}
-          <button type="button" className="btn btn-sm btn-secondary" onClick={dismissDtmf}>
-            Sent ✓
-          </button>
-        </div>
+        <DtmfGuide
+          sequence={run.pendingDtmf}
+          trigger={run.pendingTrigger}
+          onComplete={dismissDtmf}
+        />
       )}
 
       {!run.completed && (
@@ -534,7 +528,7 @@ function MatcherPanel({
 
       {Object.keys(run.collected).length > 0 && (
         <div className="collected-json">
-          <h5>Run output</h5>
+          <h5>Captured</h5>
           <pre>{JSON.stringify(run.collected, null, 2)}</pre>
         </div>
       )}

@@ -44,7 +44,7 @@ export function EditForm({
     ? script.steps.find((r) => r.id === editingRuleId)
     : undefined;
 
-  const updateRules = (ivrRules: Step[]) => onPatch(withSyncedRules(script, ivrRules));
+  const updateRules = (steps: Step[]) => onPatch(withSyncedRules(script, steps));
 
   const closeBuilder = () => {
     setBuilderOpen(false);
@@ -53,10 +53,10 @@ export function EditForm({
 
   const handleSaveRule = (rule: Step) => {
     const baseRules = script.steps.filter((r) => !isPlaceholderRule(r));
-    const ivrRules = editingRuleId
+    const steps = editingRuleId
       ? baseRules.map((r) => (r.id === editingRuleId ? rule : r))
       : [...baseRules, rule];
-    updateRules(ivrRules);
+    updateRules(steps);
     closeBuilder();
   };
 

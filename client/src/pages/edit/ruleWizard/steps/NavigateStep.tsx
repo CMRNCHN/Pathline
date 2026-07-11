@@ -1,4 +1,5 @@
-import { NAVIGATE_KEYS, NAVIGATE_TRIGGER_PRESETS } from "../../../../script/rulePresets";
+import { DTMF_KEYPAD, NAVIGATE_TRIGGER_PRESETS, sanitizeDtmf } from "../../../../script/rulePresets";
+import { ruleFieldHint, ruleFieldLabel } from "../../../../script/ruleCopy";
 import { stepLabel } from "../machine";
 import { canProceedFromStep } from "../selectors";
 import type { StepProps } from "../types";
@@ -42,14 +43,33 @@ export function NavigateStep({ state, dispatch }: StepProps) {
         <p className="rule-builder-prompt">{stepLabel(step, intent)}</p>
         {navigate.mode === "keypad" && (
           <>
-            <p className="field-hint">Key</p>
-            <div className="key-grid">
-              {NAVIGATE_KEYS.map((key) => (
+            <label className="rule-builder-field">
+              <span>DTMF sequence</span>
+              <input
+                className="editor-input mono"
+                value={navigate.value}
+                onChange={(e) =>
+                  dispatch({ type: "SET_NAVIGATE_VALUE", value: sanitizeDtmf(e.target.value) })
+                }
+                placeholder="e.g. 123456#"
+                autoFocus
+                inputMode="numeric"
+              />
+              <span className="field-hint">Digits, #, and * — paced automatically when you run the script.</span>
+            </label>
+            <p className="field-hint">Tap to append</p>
+            <div className="key-grid key-grid-dtmf">
+              {DTMF_KEYPAD.map((key) => (
                 <button
                   key={key}
                   type="button"
-                  className={`key-btn${navigate.value === key ? " selected" : ""}`}
-                  onClick={() => dispatch({ type: "SET_NAVIGATE_VALUE", value: key })}
+                  className="key-btn"
+                  onClick={() =>
+                    dispatch({
+                      type: "SET_NAVIGATE_VALUE",
+                      value: sanitizeDtmf(navigate.value + key),
+                    })
+                  }
                 >
                   {key}
                 </button>
@@ -106,7 +126,7 @@ export function NavigateStep({ state, dispatch }: StepProps) {
     return (
       <div className="rule-builder-step">
         <p className="rule-builder-prompt">{stepLabel(step, intent)}</p>
-        <p className="field-hint">Trigger phrase</p>
+        <p className="field-hint">{ruleFieldHint.navigateTrigger}</p>
         <div className="intent-grid intent-grid-single">
           {NAVIGATE_TRIGGER_PRESETS.map((preset) => (
             <button
@@ -127,7 +147,7 @@ export function NavigateStep({ state, dispatch }: StepProps) {
           </button>
         </div>
         <label className="rule-builder-field">
-          <span>Detection phrase</span>
+          <span>{ruleFieldLabel.whenYouHear}</span>
           <input
             className="editor-input"
             value={navigate.trigger}

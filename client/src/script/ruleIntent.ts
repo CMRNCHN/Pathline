@@ -2,6 +2,7 @@ import type { Step } from "./types";
 import { formatVariableRef } from "./compile";
 import { newId } from "./storage";
 import { CUSTOM_PRESET_ID } from "./rulePresets";
+import { ruleTypeLabel } from "./ruleCopy";
 
 export type RuleWizardType = "capture" | "navigate" | "respond" | "end";
 
@@ -259,46 +260,48 @@ export function ruleSummary(rule: Step): RuleSummary {
     case "capture":
       if (rule.rule === "Wait for IVR response") {
         return {
-          typeLabel: "Capture Response",
+          typeLabel: ruleTypeLabel.captureListenOnly,
           trigger: rule.when,
-          action: "Continue listening",
+          action: "Wait for the next IVR prompt",
         };
       }
       return {
-        typeLabel: "Capture Response",
+        typeLabel: ruleTypeLabel.capture,
         trigger: rule.when,
-        action: "Capture audio/value",
-        outputVariable: rule.output ? `{{${rule.output}}}` : undefined,
+        action: "Save what the IVR says",
+        outputVariable: rule.output ? formatVariableRef(rule.output) : undefined,
       };
     case "navigate":
       if (rule.rule === "Wait for IVR response") {
         return {
-          typeLabel: "Navigation Action",
+          typeLabel: ruleTypeLabel.navigate,
           trigger: "—",
           action: `Wait ${rule.waitSeconds ?? 3} seconds`,
         };
       }
       return {
-        typeLabel: "Navigation Action",
+        typeLabel: ruleTypeLabel.navigate,
         trigger: rule.when,
         action:
           rule.rule === "Inject speech after detect"
-            ? `Send speech: "${rule.then}"`
-            : `Inject DTMF: ${rule.then}`,
+            ? `Speak: "${rule.then}"`
+            : `Press: ${rule.then}`,
       };
     case "respond":
       return {
-        typeLabel: "Response Action",
+        typeLabel: ruleTypeLabel.respond,
         trigger: rule.when,
         action:
-          rule.rule === "Inject speech after detect" ? "Send speech" : "Inject DTMF",
+          rule.rule === "Inject speech after detect"
+            ? "Speak your run value"
+            : "Send your run value (touch-tones)",
         inputVariable: varMatch ? formatVariableRef(varMatch[1]) : undefined,
       };
     case "end":
       return {
-        typeLabel: "End the call",
+        typeLabel: ruleTypeLabel.end,
         trigger: "—",
-        action: "End call",
+        action: "Hang up",
       };
   }
 }

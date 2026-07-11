@@ -1207,6 +1207,80 @@ button {
   color: var(--muted);
 }
 
+.dtmf-guide-current {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+  padding: 0.85rem;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+}
+
+.dtmf-guide-now-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.dtmf-guide-digit {
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: var(--mono);
+  line-height: 1;
+}
+
+.dtmf-guide-progress {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.dtmf-guide-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
+.dtmf-guide-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  color: var(--muted);
+  background: var(--card);
+}
+
+.dtmf-guide-chip.sent {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.dtmf-guide-chip.active {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, var(--card));
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 15%, transparent);
+}
+
+.dtmf-guide-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.65rem;
+}
+
 .dtmf-log {
   margin-top: 1rem;
   background: var(--ink);
@@ -1986,6 +2060,7 @@ button {
   border-top: 1px solid var(--border);
 }
 
+
 .rule-wizard-summary-key {
   font-weight: 500;
   color: var(--muted);
@@ -2002,6 +2077,12 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+}
+
+.key-grid-dtmf {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(2.5rem, 1fr));
+  max-width: 12rem;
 }
 
 .key-btn {

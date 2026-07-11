@@ -1,4 +1,5 @@
 import type { RuleSummary } from "../../../script/ruleIntent";
+import { ruleFieldLabel, triggerLabelForIntent } from "../../../script/ruleCopy";
 import { summaryEditStep } from "./selectors";
 import type { StepProps } from "./types";
 
@@ -54,21 +55,21 @@ export function Summary({ state, dispatch, summary, editing, onSave, onCancel }:
         <SummaryRow label="Type" value={summary.typeLabel} />
         {summary.trigger && summary.trigger !== "—" && (
           <SummaryRow
-            label="Trigger"
+            label={triggerLabelForIntent(intent)}
             value={summary.trigger}
             editable={canEditTrigger}
             onEdit={() => goEdit("trigger")}
           />
         )}
         <SummaryRow
-          label="Action"
+          label={ruleFieldLabel.action}
           value={summary.action}
           editable={canEditAction}
           onEdit={() => goEdit("action")}
         />
         {summary.inputVariable && (
           <SummaryRow
-            label="Input"
+            label={ruleFieldLabel.runValue}
             value={summary.inputVariable}
             editable={canEditInput}
             onEdit={() => goEdit("input")}
@@ -76,7 +77,7 @@ export function Summary({ state, dispatch, summary, editing, onSave, onCancel }:
         )}
         {summary.outputVariable && (
           <SummaryRow
-            label="Output"
+            label={ruleFieldLabel.saveAs}
             value={summary.outputVariable}
             editable={canEditOutput}
             onEdit={() => goEdit("output")}

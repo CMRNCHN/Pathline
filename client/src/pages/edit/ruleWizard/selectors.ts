@@ -9,7 +9,7 @@ import {
   draftSummary,
   validateDraft,
 } from "../../../script/ruleIntent";
-import { CUSTOM_PRESET_ID, findCapturePreset, findRespondPreset } from "../../../script/rulePresets";
+import { CUSTOM_PRESET_ID, findRespondPreset } from "../../../script/rulePresets";
 import type { WizardState, WizardStep } from "./types";
 
 export function selectDraft(state: WizardState): WizardDraft | null {
@@ -18,16 +18,12 @@ export function selectDraft(state: WizardState): WizardDraft | null {
   switch (state.intent) {
     case "capture": {
       const { capture } = state;
-      const output =
-        capture.presetId === CUSTOM_PRESET_ID
-          ? capture.output
-          : findCapturePreset(capture.presetId)?.outputVar ?? capture.output;
       const draft: CaptureWizardDraft = {
         intent: "capture",
         infoPresetId: capture.presetId,
         trigger: capture.trigger,
         save: capture.save,
-        output: capture.save ? output : "",
+        output: capture.save ? capture.output.trim() : "",
       };
       return draft;
     }

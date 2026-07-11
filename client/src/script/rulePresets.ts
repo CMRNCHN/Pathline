@@ -38,6 +38,15 @@ export const RESPOND_PRESETS: RespondPreset[] = [
 export const NAVIGATE_KEYS = ["1", "2", "3", "#", "*"] as const;
 export type NavigateKey = (typeof NAVIGATE_KEYS)[number];
 
+/** Valid characters for literal DTMF sequences (digits, #, *). */
+export const DTMF_PATTERN = /^[0-9#*]+$/;
+
+export function sanitizeDtmf(value: string): string {
+  return value.replace(/[^0-9#*]/g, "");
+}
+
+export const DTMF_KEYPAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"] as const;
+
 export const NAVIGATE_TRIGGER_PRESETS: NavigateTriggerPreset[] = [
   { id: "billing", label: "For billing", phrase: "For billing" },
   { id: "claims", label: "For claims", phrase: "For claims" },

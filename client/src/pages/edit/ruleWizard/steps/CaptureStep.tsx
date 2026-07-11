@@ -3,6 +3,7 @@ import {
   CUSTOM_PRESET_ID,
   findCapturePreset,
 } from "../../../../script/rulePresets";
+import { ruleFieldHint, ruleFieldLabel } from "../../../../script/ruleCopy";
 import { stepLabel } from "../machine";
 import { canProceedFromStep } from "../selectors";
 import type { StepProps } from "../types";
@@ -39,14 +40,14 @@ export function CaptureStep({ state, dispatch }: StepProps) {
             className={`intent-card${capture.presetId === CUSTOM_PRESET_ID ? " selected" : ""}`}
             onClick={() => dispatch({ type: "SET_CAPTURE_PRESET", presetId: CUSTOM_PRESET_ID })}
           >
-            <span className="intent-card-label">Custom value</span>
-            <span className="intent-card-hint">Define your own field name</span>
+              <span className="intent-card-label">Custom field</span>
+              <span className="intent-card-hint">Name your own saved value</span>
           </button>
         </div>
         {capture.presetId === CUSTOM_PRESET_ID && (
           <>
             <label className="rule-builder-field">
-              <span>Output variable name</span>
+              <span>{ruleFieldLabel.saveAs}</span>
               <input
                 className="editor-input mono"
                 value={capture.output}
@@ -83,7 +84,7 @@ export function CaptureStep({ state, dispatch }: StepProps) {
     return (
       <div className="rule-builder-step">
         <p className="rule-builder-prompt">{stepLabel(step, intent)}</p>
-        <p className="field-hint">Trigger phrase</p>
+          <p className="field-hint">{ruleFieldHint.captureTrigger}</p>
         <div className="intent-grid intent-grid-single">
           {hints.map((phrase) => (
             <button
@@ -103,9 +104,9 @@ export function CaptureStep({ state, dispatch }: StepProps) {
             <span className="intent-card-label">Custom phrase</span>
           </button>
         </div>
-        <label className="rule-builder-field">
-          <span>Detection phrase</span>
-          <input
+          <label className="rule-builder-field">
+            <span>{ruleFieldLabel.whenIvrSays}</span>
+            <input
             className="editor-input"
             value={capture.trigger}
             onChange={(e) => dispatch({ type: "SET_CAPTURE_TRIGGER", trigger: e.target.value })}
@@ -140,35 +141,36 @@ export function CaptureStep({ state, dispatch }: StepProps) {
                 checked={capture.save}
                 onChange={() => dispatch({ type: "SET_CAPTURE_SAVE", save: true })}
               />
-              Yes — create output variable
+              Yes — save what you hear
             </label>
-            <label className="radio-pill">
-              <input
-                type="radio"
-                name="capture-save"
-                checked={!capture.save}
-                onChange={() => dispatch({ type: "SET_CAPTURE_SAVE", save: false })}
-              />
-              No — listen and continue
-            </label>
+              <label className="radio-pill">
+                <input
+                  type="radio"
+                  name="capture-save"
+                  checked={!capture.save}
+                  onChange={() => dispatch({ type: "SET_CAPTURE_SAVE", save: false })}
+                />
+                No — keep listening
+              </label>
           </div>
         </fieldset>
         {capture.save && (
-          <label className="rule-builder-field">
-            <span>Output variable</span>
-            <input
-              className="editor-input mono"
-              value={capture.output}
-              onChange={(e) =>
-                dispatch({
-                  type: "SET_CAPTURE_OUTPUT",
-                  output: e.target.value.replace(/\s/g, "_"),
-                })
-              }
-              placeholder="claim_status"
-            />
-            <span className="field-hint mono">{`{{${capture.output || "field_name"}}}`}</span>
-          </label>
+            <label className="rule-builder-field">
+              <span>{ruleFieldLabel.saveAs}</span>
+              <input
+                className="editor-input mono"
+                value={capture.output}
+                onChange={(e) =>
+                  dispatch({
+                    type: "SET_CAPTURE_OUTPUT",
+                    output: e.target.value.replace(/\s/g, "_"),
+                  })
+                }
+                placeholder="claim_status"
+              />
+              <span className="field-hint">{ruleFieldHint.saveAs}</span>
+              <span className="field-hint mono">{`{{${capture.output || "field_name"}}}`}</span>
+            </label>
         )}
         <div className="rule-builder-actions">
           <button
