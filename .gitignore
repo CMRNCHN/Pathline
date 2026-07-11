@@ -40,3 +40,9 @@ postgres_data/
 
 # Lab SIP generated artifacts (TLS keys, rendered config, credentials)
 lab/asterisk/generated/
+
+# Icon build intermediates (keep shipped icns + linux png)
+assets/icon/generated/*
+!assets/icon/generated/PromptPath.icns
+!assets/icon/generated/promptpath-256.png
+

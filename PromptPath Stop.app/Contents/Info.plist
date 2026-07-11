@@ -6,8 +6,10 @@
   <string>en</string>
   <key>CFBundleExecutable</key>
   <string>launch</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleIdentifier</key>
-  <string>dev.promptpath.PromptPathStop</string>
+  <string>dev.promptpath.stop</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
