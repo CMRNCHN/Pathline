@@ -1,69 +1,113 @@
-import { Palette, Hash, HardDrive, Info } from "lucide-react";
+import { Shield, Activity, HardDrive, Download, Info } from "lucide-react";
 import { PageLayout } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
-import { Toggle } from "../components/ui/Toggle";
+import { useScriptStore } from "../store/ScriptStore";
+import { mergeScripts } from "../script/selectors";
 import { clearLocalKeys } from "../crypto";
 import { ACTIVE_SCRIPT_KEY, CUSTOM_SCRIPTS_KEY } from "../script/storage";
-import { voiceInputPlaceholder } from "../runCapabilities";
+import { clearRunHistory, loadRunHistory } from "../history/runHistory";
+
+function DataRow({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
+  return (
+    <div className="data-row">
+      <span className="data-row-label">{label}</span>
+      <span
+        className={`data-row-value${
+          ok === true ? " data-row-value-ok" : ok === false ? " data-row-value-warn" : ""
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
 
 export function SettingsPage() {
+  const { customScripts, bundledScripts, loading, error } = useScriptStore();
+  const paths = mergeScripts(bundledScripts, customScripts);
+  const runCount = loadRunHistory().length;
+
+  const exportAll = () => {
+    const blob = new Blob([JSON.stringify(paths, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pathline-paths.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const clearAllLocalData = () => {
-    if (!confirm("Delete all local scripts and reset app data? This cannot be undone.")) return;
+    if (!confirm("Delete all Paths, Run History, and local data? This cannot be undone.")) return;
     localStorage.removeItem(CUSTOM_SCRIPTS_KEY);
     localStorage.removeItem(ACTIVE_SCRIPT_KEY);
-    localStorage.removeItem("pp-auto-listen");
+    clearRunHistory();
     clearLocalKeys();
     window.location.reload();
   };
 
   return (
     <PageLayout
-      eyebrow="Preferences"
       title="Settings"
-      subtitle="Appearance, run defaults, and local data controls."
+      subtitle="Privacy, health, and local data — everything Pathline keeps on your device."
+      wide
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "32rem" }}>
-        <Card title="Appearance" icon={Palette}>
-          <p className="hint">
-            Light canvas with ink navigation and accent{" "}
-            <span className="mono" style={{ color: "var(--accent)", fontWeight: 600 }}>#7D88F1</span>
+      <div className="card-grid">
+        <Card title="Privacy" icon={Shield}>
+          <DataRow label="Secrets & target numbers" value="Device only" ok />
+          <DataRow label="Call audio" value="Processed locally" ok />
+          <DataRow label="Status reporting" value="Encrypted blob + hash" ok />
+          <DataRow label="Retention" value="Auto-purged; revoke anytime" ok />
+          <p className="hint" style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+            Carriers still see call metadata on the PSTN.
           </p>
         </Card>
 
-        <Card title="Run input" icon={Hash}>
-          <p className="hint" style={{ margin: "0 0 0.85rem" }}>
-            v1 requires <strong>DTMF keypad</strong> on your phone or softphone. Paste IVR phrases in
-            the run panel to advance matching.
-          </p>
-          <div className="setting-row setting-row-muted">
-            <div>
-              <p className="setting-row-title">Auto-listen</p>
-              <p className="setting-row-desc">{voiceInputPlaceholder} — DTMF only for now</p>
-            </div>
-            <Toggle checked={false} disabled onChange={() => {}} label="Auto-listen" />
+        <Card title="Health" icon={Activity}>
+          <DataRow label="DTMF input" value="Active — required for a Run" ok />
+          <DataRow label="Voice input" value="Planned — not used yet" />
+          <DataRow label="API endpoint" value="/api → :8000" ok />
+          <DataRow label="Paths loaded" value={`${paths.length}`} ok={paths.length > 0} />
+          <DataRow
+            label="API sync"
+            value={loading ? "Loading…" : error ? "Error" : "Ready"}
+            ok={!error && !loading}
+          />
+        </Card>
+
+        <Card title="Local data" icon={HardDrive}>
+          <DataRow label="Your Paths" value={`${customScripts.length} saved`} />
+          <DataRow label="Example Paths" value={`${bundledScripts.length} bundled`} />
+          <DataRow label="Run History" value={`${runCount} recorded`} />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginTop: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => {
+                clearLocalKeys();
+                alert("Session encryption keys cleared.");
+              }}
+              className="link-btn"
+            >
+              Clear encryption keys
+            </button>
+            <button type="button" onClick={clearAllLocalData} className="link-btn link-btn-danger">
+              Clear all local data
+            </button>
           </div>
         </Card>
 
-        <Card title="Data" icon={HardDrive}>
-          <button
-            type="button"
-            onClick={() => {
-              clearLocalKeys();
-              alert("Session encryption keys cleared.");
-            }}
-            className="link-btn"
-            style={{ marginRight: "1rem" }}
-          >
-            Clear encryption keys
-          </button>
-          <button type="button" onClick={clearAllLocalData} className="link-btn link-btn-danger">
-            Clear all local data
+        <Card title="Export all Paths" icon={Download}>
+          <p className="hint" style={{ marginBottom: "1rem" }}>
+            Download {paths.length} Path{paths.length !== 1 ? "s" : ""} as JSON. Paths never contain Input values.
+          </p>
+          <button type="button" className="btn btn-primary" disabled={paths.length === 0} onClick={exportAll}>
+            Download Paths
           </button>
         </Card>
 
         <Card title="About" icon={Info}>
           <p className="hint" style={{ margin: 0 }}>
-            PromptPath v1 · DTMF runs · {voiceInputPlaceholder} · Encrypted status export
+            Pathline · Client-mediated · DTMF Runs · Encrypted Status export
           </p>
         </Card>
       </div>

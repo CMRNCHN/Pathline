@@ -1,34 +1,49 @@
-import type { FlowStep, IvrRule, ScriptDocument, ScriptSetup } from "./types";
+import type { FlowStep, Step, PathDocument, PathSetup } from "./types";
 import { SCRIPT_VERSION } from "./types";
 import { migrateV1ToV2 } from "./migrate";
 import { withSyncedRules } from "./sync";
 import { newId } from "./storage";
 
+/** Legacy field aliases accepted on load (pre-Pathline field keys). */
+type LegacySetup = Partial<PathSetup> & { runtimeVariables?: string[] };
+type LegacyStep = Partial<Step> & {
+  trigger?: string;
+  response?: string;
+  expectedInput?: string;
+  valueReference?: string;
+};
+type LegacyDoc = Partial<PathDocument> & {
+  ivrRules?: LegacyStep[];
+  extractedSchema?: { field?: string }[];
+};
+
 function isV2Shape(raw: unknown): boolean {
   const o = raw as Record<string, unknown>;
-  return o.version === SCRIPT_VERSION || (Boolean(o.setup) && Array.isArray(o.ivrRules));
+  return (
+    o.version === SCRIPT_VERSION ||
+    (Boolean(o.setup) && (Array.isArray(o.steps) || Array.isArray(o.ivrRules)))
+  );
 }
 
-function normalizeSetup(raw: Partial<ScriptSetup>): ScriptSetup {
+function normalizeSetup(raw: LegacySetup): PathSetup {
   return {
     name: raw.name ?? "",
     description: raw.description ?? "",
-    localPath: raw.localPath ?? "",
     target: raw.target ?? "",
     timeoutMs: raw.timeoutMs ?? 30000,
     speechPreferences: {
       autoListen: raw.speechPreferences?.autoListen ?? false,
     },
-    runtimeVariables: (raw.runtimeVariables ?? []).filter(Boolean),
+    inputs: (raw.inputs ?? raw.runtimeVariables ?? []).filter(Boolean),
   };
 }
 
-function normalizeIvrRule(raw: Partial<IvrRule> & { expectedInput?: string; valueReference?: string }): IvrRule {
+function normalizeStep(raw: LegacyStep): Step {
   return {
     id: raw.id ?? newId(),
     label: raw.label ?? "",
-    trigger: raw.trigger ?? raw.expectedInput ?? "",
-    response: raw.response ?? raw.valueReference ?? "",
+    when: raw.when ?? raw.trigger ?? raw.expectedInput ?? "",
+    then: raw.then ?? raw.response ?? raw.valueReference ?? "",
     rule: raw.rule ?? "Inject DTMF after detect",
     output: raw.output ?? "",
     waitSeconds: raw.waitSeconds,
@@ -50,46 +65,46 @@ function normalizeFlowStep(raw: LegacyFlowStep): FlowStep {
 }
 
 function migrateLegacyExtracts(
-  ivrRules: IvrRule[],
+  steps: Step[],
   conversationFlow: FlowStep[],
   legacySchemaFields: string[]
-): { ivrRules: IvrRule[]; conversationFlow: FlowStep[] } {
-  let rules = [...ivrRules];
-  const flow = conversationFlow.map((step) => {
-    if (step.action !== "extract" || !step.triggerLabel) return step;
+): { steps: Step[]; conversationFlow: FlowStep[] } {
+  let rules = [...steps];
+  const flow = conversationFlow.map((flowStep) => {
+    if (flowStep.action !== "extract" || !flowStep.triggerLabel) return flowStep;
 
     const legacyField =
-      step.triggerLabel && !rules.some((r) => r.label === step.triggerLabel)
-        ? step.triggerLabel
+      flowStep.triggerLabel && !rules.some((r) => r.label === flowStep.triggerLabel)
+        ? flowStep.triggerLabel
         : undefined;
 
     const fieldName =
       legacyField ??
-      rules.find((r) => r.label === step.triggerLabel)?.output ??
-      step.triggerLabel ??
+      rules.find((r) => r.label === flowStep.triggerLabel)?.output ??
+      flowStep.triggerLabel ??
       "";
 
-    let rule =
-      rules.find((r) => r.label === step.triggerLabel) ??
+    let step =
+      rules.find((r) => r.label === flowStep.triggerLabel) ??
       rules.find((r) => r.output === fieldName);
 
-    if (!rule && fieldName) {
-      rule = {
+    if (!step && fieldName) {
+      step = {
         id: newId(),
         label: fieldName,
-        trigger: step.detect,
-        response: "",
+        when: flowStep.detect,
+        then: "",
         rule: "Capture value after detect",
         output: fieldName,
       };
-      rules = [...rules, rule];
-    } else if (rule && !rule.output && fieldName) {
-      rules = rules.map((r) => (r.id === rule!.id ? { ...r, output: fieldName } : r));
+      rules = [...rules, step];
+    } else if (step && !step.output && fieldName) {
+      rules = rules.map((r) => (r.id === step!.id ? { ...r, output: fieldName } : r));
     }
 
     return {
-      ...step,
-      triggerLabel: rule?.label ?? step.triggerLabel,
+      ...flowStep,
+      triggerLabel: step?.label ?? flowStep.triggerLabel,
     };
   });
 
@@ -101,8 +116,8 @@ function migrateLegacyExtracts(
         {
           id: newId(),
           label: field,
-          trigger: "",
-          response: "",
+          when: "",
+          then: "",
           rule: "Capture value after detect",
           output: field,
         },
@@ -110,52 +125,51 @@ function migrateLegacyExtracts(
     }
   }
 
-  return { ivrRules: rules, conversationFlow: flow };
+  return { steps: rules, conversationFlow: flow };
 }
 
-function normalizeV2(raw: unknown): ScriptDocument {
-  const o = raw as Partial<ScriptDocument> & {
-    extractedSchema?: { field?: string }[];
-  };
+function normalizeV2(raw: unknown): PathDocument {
+  const o = raw as LegacyDoc;
 
-  let ivrRules = (o.ivrRules ?? []).map(normalizeIvrRule);
+  const rawSteps = o.steps ?? o.ivrRules ?? [];
+  let steps = rawSteps.map(normalizeStep);
   let conversationFlow = (o.conversationFlow ?? []).map(normalizeFlowStep);
 
   const legacySchemaFields = (o.extractedSchema ?? []).map((f) => f.field ?? "").filter(Boolean);
   if (legacySchemaFields.length || conversationFlow.some((s) => s.action === "extract")) {
-    const migrated = migrateLegacyExtracts(ivrRules, conversationFlow, legacySchemaFields);
-    ivrRules = migrated.ivrRules;
+    const migrated = migrateLegacyExtracts(steps, conversationFlow, legacySchemaFields);
+    steps = migrated.steps;
     conversationFlow = migrated.conversationFlow;
   }
 
-  const doc: ScriptDocument = {
+  const doc: PathDocument = {
     id: o.id ?? newId(),
     version: SCRIPT_VERSION,
     setup: normalizeSetup(o.setup ?? {}),
-    ivrRules,
+    steps,
     conversationFlow,
   };
 
   return {
     ...doc,
-    ...withSyncedRules(doc, ivrRules),
+    ...withSyncedRules(doc, steps),
   };
 }
 
-export function normalizeScript(raw: unknown): ScriptDocument {
+export function normalizeScript(raw: unknown): PathDocument {
   if (isV2Shape(raw)) return normalizeV2(raw);
   return migrateV1ToV2(raw);
 }
 
 const VAR_REF = /\{\{(\w+)\}\}/g;
 
-export function extractVariableNames(doc: ScriptDocument): string[] {
-  const fromSetup = doc.setup.runtimeVariables.filter(Boolean);
+export function extractVariableNames(doc: PathDocument): string[] {
+  const fromSetup = doc.setup.inputs.filter(Boolean);
   if (fromSetup.length) return [...fromSetup].sort();
 
   const names = new Set<string>();
-  for (const rule of doc.ivrRules) {
-    for (const m of rule.response.matchAll(VAR_REF)) {
+  for (const step of doc.steps) {
+    for (const m of step.then.matchAll(VAR_REF)) {
       names.add(m[1]);
     }
   }
@@ -170,12 +184,12 @@ export function resolveReference(template: string, variables: Record<string, str
   return template.replace(VAR_REF, (_, key: string) => variables[key] ?? `{{${key}}}`);
 }
 
-export function newIvrRule(index: number): IvrRule {
+export function newIvrRule(index: number): Step {
   return {
     id: newId(),
     label: `rule_${index}`,
-    trigger: "",
-    response: "",
+    when: "",
+    then: "",
     rule: "Inject DTMF after detect",
     output: "",
   };
@@ -185,12 +199,12 @@ export function newFlowStep(action: FlowStep["action"] = "trigger"): FlowStep {
   return { id: newId(), detect: "", action };
 }
 
-export function findIvrRule(doc: ScriptDocument, label: string): IvrRule | undefined {
-  return doc.ivrRules.find((r) => r.label === label);
+export function findIvrRule(doc: PathDocument, label: string): Step | undefined {
+  return doc.steps.find((r) => r.label === label);
 }
 
-export function extractOutputRules(doc: ScriptDocument): IvrRule[] {
-  return doc.ivrRules.filter((r) => r.label.trim() && r.output.trim());
+export function extractOutputRules(doc: PathDocument): Step[] {
+  return doc.steps.filter((r) => r.label.trim() && r.output.trim());
 }
 
-export { syncConversationFlowFromRules, syncRuntimeVariablesFromRules, withSyncedRules } from "./sync";
+export { syncConversationFlowFromRules, syncInputsFromSteps, withSyncedRules } from "./sync";

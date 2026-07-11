@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Shell } from "./components/Shell";
-import { LibraryPage } from "./pages/LibraryPage";
+import { PathsPage } from "./pages/PathsPage";
 import { EditPage } from "./pages/EditPage";
 import { RunPage } from "./pages/RunPage";
-import { ScriptSettingsPage } from "./pages/ScriptSettingsPage";
-import { SystemPage } from "./pages/SystemPage";
+import { HistoryPage } from "./pages/HistoryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { useScriptStore } from "./store/ScriptStore";
 import { getActiveScript } from "./script/selectors";
@@ -12,20 +11,20 @@ import type { AppView } from "./navigation";
 
 export default function App() {
   const { setActiveId, bundledScripts, customScripts } = useScriptStore();
-  const [view, setView] = useState<AppView>({ category: "library" });
+  const [view, setView] = useState<AppView>({ category: "paths" });
   const [searchQuery, setSearchQuery] = useState("");
 
   const navigate = (next: AppView) => {
     setView(next);
-    if (next.category === "edit" || next.category === "run" || next.category === "script-settings") {
+    if (next.category === "edit" || next.category === "run") {
       setActiveId(next.scriptId);
     }
   };
 
   useEffect(() => {
-    if (view.category === "edit" || view.category === "run" || view.category === "script-settings") {
+    if (view.category === "edit" || view.category === "run") {
       const exists = getActiveScript(bundledScripts, customScripts, view.scriptId);
-      if (!exists) setView({ category: "library" });
+      if (!exists) setView({ category: "paths" });
     }
   }, [view, bundledScripts, customScripts]);
 
@@ -36,8 +35,8 @@ export default function App() {
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
     >
-      {view.category === "library" && (
-        <LibraryPage onNavigate={navigate} searchQuery={searchQuery} />
+      {view.category === "paths" && (
+        <PathsPage onNavigate={navigate} searchQuery={searchQuery} />
       )}
 
       {view.category === "edit" && (
@@ -46,11 +45,7 @@ export default function App() {
 
       {view.category === "run" && <RunPage scriptId={view.scriptId} />}
 
-      {view.category === "script-settings" && (
-        <ScriptSettingsPage scriptId={view.scriptId} onNavigate={navigate} />
-      )}
-
-      {view.category === "system" && <SystemPage />}
+      {view.category === "history" && <HistoryPage />}
 
       {view.category === "settings" && <SettingsPage />}
     </Shell>

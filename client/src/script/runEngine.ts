@@ -1,4 +1,4 @@
-import type { ScriptDocument, RunLogEntry, RunState } from "./types";
+import type { PathDocument, RunLogEntry, RunState } from "./types";
 import { extractOutputRules, findIvrRule, resolveReference } from "./compile";
 
 export type { RunState, RunLogEntry };
@@ -33,13 +33,13 @@ function matches(text: string, phrase: string): boolean {
     .some((needle) => hay.includes(needle));
 }
 
-function findMatchingFlowStep(doc: ScriptDocument, phrase: string) {
+function findMatchingFlowStep(doc: PathDocument, phrase: string) {
   return doc.conversationFlow.find((step) => matches(phrase, step.detect));
 }
 
 export function processPhrase(
   text: string,
-  doc: ScriptDocument,
+  doc: PathDocument,
   variables: Record<string, string>,
   prev: RunState
 ): ProcessPhraseResult {
@@ -85,13 +85,13 @@ export function processPhrase(
 
     case "trigger": {
       const ivrRule = step.triggerLabel ? findIvrRule(doc, step.triggerLabel) : undefined;
-      const resolved = ivrRule ? resolveReference(ivrRule.response, variables) : undefined;
+      const resolved = ivrRule ? resolveReference(ivrRule.then, variables) : undefined;
       const log = [
         ...prev.log,
         logEntry(
           resolved
-            ? `Trigger ${step.triggerLabel} → SEND ${resolved}`
-            : `Trigger ${step.triggerLabel ?? "?"} — rule not found`,
+            ? `Send when asked → ${resolved}`
+            : `Send rule not found`,
           "trigger"
         ),
       ];
@@ -113,8 +113,8 @@ export function processPhrase(
         ...prev.log,
         logEntry(
           value && field
-            ? `Extract ${field} = ${value.slice(0, 80)}${value.length > 80 ? "…" : ""} (via ${step.triggerLabel})`
-            : `Extract ${step.triggerLabel ?? "?"} — rule or output not found`,
+            ? `Saved ${field} from IVR: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}`
+            : `Listen & save rule missing field name`,
           value && field ? "extract" : "unknown"
         ),
       ];

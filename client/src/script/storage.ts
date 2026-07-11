@@ -1,48 +1,46 @@
-import type { ScriptDocument } from "./types";
+import type { PathDocument } from "./types";
 import { SCRIPT_VERSION } from "./types";
-import { newIvrRule } from "./compile";
 import { withSyncedRules } from "./sync";
 
 export const CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts";
 export const ACTIVE_SCRIPT_KEY = "promptpath-active-script";
 
-export const BUNDLED_SCRIPT_FILES: string[] = ["template.json", "lab-account-status.json"];
+export const BUNDLED_SCRIPT_FILES: string[] = ["template.json"];
 
 export function newId(): string {
   return crypto.randomUUID();
 }
 
-export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
-  const base: ScriptDocument = {
+export function newScript(partial?: Partial<PathDocument>): PathDocument {
+  const base: PathDocument = {
     id: newId(),
     version: SCRIPT_VERSION,
     setup: {
       name: "",
       description: "",
-      localPath: "",
       target: "",
       timeoutMs: 30000,
       speechPreferences: { autoListen: false },
-      runtimeVariables: [],
+      inputs: [],
     },
-    ivrRules: [newIvrRule(1)],
+    steps: [],
     conversationFlow: [],
     ...partial,
   };
-  return { ...base, ...withSyncedRules(base, base.ivrRules) };
+  return { ...base, ...withSyncedRules(base, base.steps) };
 }
 
-export function loadCustomScripts(): ScriptDocument[] {
+export function loadCustomScripts(): PathDocument[] {
   try {
     const raw = localStorage.getItem(CUSTOM_SCRIPTS_KEY);
-    if (raw) return JSON.parse(raw) as ScriptDocument[];
+    if (raw) return JSON.parse(raw) as PathDocument[];
   } catch {
     /* ignore */
   }
   return [];
 }
 
-export function saveCustomScripts(scripts: ScriptDocument[]): void {
+export function saveCustomScripts(scripts: PathDocument[]): void {
   localStorage.setItem(CUSTOM_SCRIPTS_KEY, JSON.stringify(scripts));
 }
 
@@ -54,7 +52,7 @@ export function saveActiveScriptId(id: string): void {
   localStorage.setItem(ACTIVE_SCRIPT_KEY, id);
 }
 
-export function duplicateScript(source: ScriptDocument, name?: string): ScriptDocument {
+export function duplicateScript(source: PathDocument, name?: string): PathDocument {
   return {
     ...structuredClone(source),
     id: newId(),
@@ -65,6 +63,6 @@ export function duplicateScript(source: ScriptDocument, name?: string): ScriptDo
   };
 }
 
-export function scriptDisplayName(script: ScriptDocument): string {
+export function scriptDisplayName(script: PathDocument): string {
   return script.setup.name || "Untitled";
 }
