@@ -1,4 +1,4 @@
-import type { ScriptDocument } from "../script/types";
+import type { PathDocument } from "../script/types";
 import type { LocalSession } from "../types";
 
 export const PERSISTENCE_VERSION = 1 as const;
@@ -24,7 +24,7 @@ export interface PersistenceSnapshot {
   userId: string;
   activeScriptId: string;
   preferences: AppPreferences;
-  customScripts: ScriptDocument[];
+  customScripts: PathDocument[];
   runConfigs: RunConfig[];
   runHistory: PersistedRun[];
 }

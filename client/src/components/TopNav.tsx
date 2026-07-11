@@ -1,16 +1,5 @@
 import { useRef } from "react";
-import {
-  Plus,
-  Search,
-  Settings,
-  Radio,
-  FileText,
-  Workflow,
-  Play,
-  Sliders,
-  LayoutDashboard,
-  Upload,
-} from "lucide-react";
+import { Search, Settings, Radio, GitBranch, Clock, Pencil, Play, Upload } from "lucide-react";
 import { useScriptStore } from "../store/ScriptStore";
 import { getActiveScript } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
@@ -25,69 +14,63 @@ interface TopNavProps {
 }
 
 export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNavProps) {
-  const { bundledScripts, customScripts, activeId, setActiveId, addCustom, importScript } =
-    useScriptStore();
+  const { bundledScripts, customScripts, activeId, setActiveId, importScript } = useScriptStore();
   const importRef = useRef<HTMLInputElement>(null);
 
-  const openScript = activeId ? getActiveScript(bundledScripts, customScripts, activeId) : undefined;
-  const scriptContext =
-    view.category === "edit" || view.category === "run" || view.category === "script-settings";
-
-  const handleNewScript = () => {
-    const created = addCustom();
-    setActiveId(created.id);
-    onNavigate({ category: "edit", scriptId: created.id });
-  };
+  const openPath = activeId ? getActiveScript(bundledScripts, customScripts, activeId) : undefined;
+  const pathContext = view.category === "edit" || view.category === "run";
 
   return (
     <header className="topnav">
       <div className="topnav-row">
         <button
           type="button"
-          onClick={() => onNavigate({ category: "library" })}
+          onClick={() => onNavigate({ category: "paths" })}
           className="topnav-brand"
         >
           <Radio className="topnav-brand-icon" />
-          PromptPath
+          Pathline
         </button>
 
         <nav className="topnav-links">
           <button
             type="button"
-            className={`topnav-link${view.category === "library" ? " topnav-link-active" : ""}`}
-            onClick={() => onNavigate({ category: "library" })}
+            className={`topnav-link${view.category === "paths" ? " topnav-link-active" : ""}`}
+            onClick={() => onNavigate({ category: "paths" })}
           >
-            <FileText size={14} />
-            Scripts
+            <GitBranch size={14} />
+            Paths
           </button>
           <button
             type="button"
-            className={`topnav-link${view.category === "system" ? " topnav-link-active" : ""}`}
-            onClick={() => onNavigate({ category: "system" })}
+            className={`topnav-link${view.category === "history" ? " topnav-link-active" : ""}`}
+            onClick={() => onNavigate({ category: "history" })}
           >
-            <LayoutDashboard size={14} />
-            System
+            <Clock size={14} />
+            History
           </button>
         </nav>
 
         <div className="topnav-spacer" />
 
-        <div className="topnav-search-wrap">
-          <Search className="topnav-search-icon" />
-          <input
-            type="text"
-            placeholder="Search scripts…"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="topnav-search"
-          />
-        </div>
+        {view.category === "paths" && (
+          <div className="topnav-search-wrap">
+            <Search className="topnav-search-icon" />
+            <input
+              type="text"
+              placeholder="Search paths…"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="topnav-search"
+            />
+          </div>
+        )}
 
         <button
           type="button"
           onClick={() => importRef.current?.click()}
           className="topnav-ghost"
-          title="Import script"
+          title="Import a Path"
         >
           <Upload size={14} />
           <span>Import</span>
@@ -107,16 +90,11 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
               setActiveId(next.id);
               onNavigate({ category: "edit", scriptId: next.id });
             } catch {
-              alert("Invalid script JSON");
+              alert("Invalid Path file");
             }
             e.target.value = "";
           }}
         />
-
-        <button type="button" onClick={handleNewScript} className="topnav-new">
-          <Plus size={16} />
-          <span className="hidden sm:inline">New script</span>
-        </button>
 
         <button
           type="button"
@@ -128,9 +106,9 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
         </button>
       </div>
 
-      {openScript && scriptContext && (
+      {openPath && pathContext && (
         <div className="topnav-context">
-          <span className="topnav-context-name">{scriptDisplayName(openScript)}</span>
+          <span className="topnav-context-name">{scriptDisplayName(openPath)}</span>
           <span className="topnav-context-divider" />
           <nav className="topnav-context-tabs">
             <button
@@ -138,8 +116,8 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
               className={`topnav-tab${view.category === "edit" ? " topnav-tab-active" : ""}`}
               onClick={() => onNavigate({ category: "edit", scriptId: activeId })}
             >
-              <Workflow size={12} />
-              RUN
+              <Pencil size={12} />
+              Edit
             </button>
             <button
               type="button"
@@ -148,14 +126,6 @@ export function TopNav({ view, onNavigate, searchQuery, onSearchChange }: TopNav
             >
               <Play size={12} />
               Run
-            </button>
-            <button
-              type="button"
-              className={`topnav-tab${view.category === "script-settings" ? " topnav-tab-active" : ""}`}
-              onClick={() => onNavigate({ category: "script-settings", scriptId: activeId })}
-            >
-              <Sliders size={12} />
-              Settings
             </button>
           </nav>
         </div>

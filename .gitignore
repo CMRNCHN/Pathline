@@ -37,3 +37,6 @@ promptpath.db
 
 # Docker volumes
 postgres_data/
+
+# Lab SIP generated artifacts (TLS keys, rendered config, credentials)
+lab/asterisk/generated/

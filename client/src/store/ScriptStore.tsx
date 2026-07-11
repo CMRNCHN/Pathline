@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { initPersistence, saveActiveScriptId, saveCustomScripts } from "../persistence";
-import type { ScriptDocument } from "../script/types";
+import type { PathDocument } from "../script/types";
 import { normalizeScript } from "../script/compile";
 import { getActiveScript, isBundledScript } from "../script/selectors";
 import {
@@ -18,26 +18,26 @@ import {
 } from "../script/storage";
 
 export interface ScriptStore {
-  bundledScripts: ScriptDocument[];
-  customScripts: ScriptDocument[];
+  bundledScripts: PathDocument[];
+  customScripts: PathDocument[];
   activeId: string;
-  activeScript: ScriptDocument | undefined;
+  activeScript: PathDocument | undefined;
   loading: boolean;
   error: string | null;
   persistReady: boolean;
   setActiveId: (id: string) => void;
-  updateCustom: (id: string, patch: Partial<ScriptDocument>) => void;
-  addCustom: (script?: ScriptDocument) => ScriptDocument;
+  updateCustom: (id: string, patch: Partial<PathDocument>) => void;
+  addCustom: (script?: PathDocument) => PathDocument;
   removeCustom: (id: string) => void;
-  duplicateToCustom: (source: ScriptDocument) => ScriptDocument;
+  duplicateToCustom: (source: PathDocument) => PathDocument;
   importScript: (raw: unknown) => void;
 }
 
 const ScriptStoreContext = createContext<ScriptStore | null>(null);
 
 function useScriptStoreState(): ScriptStore {
-  const [bundledScripts, setBundledScripts] = useState<ScriptDocument[]>([]);
-  const [customScripts, setCustomScripts] = useState<ScriptDocument[]>([]);
+  const [bundledScripts, setBundledScripts] = useState<PathDocument[]>([]);
+  const [customScripts, setCustomScripts] = useState<PathDocument[]>([]);
   const [activeId, setActiveId] = useState("");
   const [persistReady, setPersistReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -72,17 +72,25 @@ function useScriptStoreState(): ScriptStore {
     let cancelled = false;
     (async () => {
       try {
-        const loaded = await Promise.all(
+        const results = await Promise.allSettled(
           BUNDLED_SCRIPT_FILES.map(async (file) => {
             const res = await fetch(`/scripts/${file}`);
             if (!res.ok) throw new Error(`Failed to load ${file}`);
             return normalizeScript(await res.json());
           })
         );
-        if (!cancelled) setBundledScripts(loaded);
+        const loaded = results
+          .filter((r): r is PromiseFulfilledResult<PathDocument> => r.status === "fulfilled")
+          .map((r) => r.value);
+        if (!cancelled) {
+          setBundledScripts(loaded);
+          if (loaded.length === 0 && results.length > 0) {
+            setError("Failed to load bundled Paths");
+          }
+        }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load bundled scripts");
+          setError(e instanceof Error ? e.message : "Failed to load bundled Paths");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -111,11 +119,11 @@ function useScriptStoreState(): ScriptStore {
 
   const activeScript = getActiveScript(bundledScripts, customScripts, activeId);
 
-  const updateCustom = useCallback((id: string, patch: Partial<ScriptDocument>) => {
+  const updateCustom = useCallback((id: string, patch: Partial<PathDocument>) => {
     setCustomScripts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }, []);
 
-  const addCustom = useCallback((script?: ScriptDocument) => {
+  const addCustom = useCallback((script?: PathDocument) => {
     const next = script ?? newScript();
     setCustomScripts((prev) => [...prev, next]);
     setActiveId(next.id);
@@ -131,7 +139,7 @@ function useScriptStoreState(): ScriptStore {
     [activeId]
   );
 
-  const duplicateToCustom = useCallback((source: ScriptDocument) => {
+  const duplicateToCustom = useCallback((source: PathDocument) => {
     const copy = duplicateScript(source);
     setCustomScripts((prev) => [...prev, copy]);
     setActiveId(copy.id);

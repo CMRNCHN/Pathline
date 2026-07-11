@@ -8,17 +8,10 @@ import {
   deleteStatus,
   revokeToken,
 } from "../api";
-import { encryptStatusPayload, generateSessionId, clearLocalKeys } from "../crypto";
+import { encryptStatusPayload, generateUserId, generateSessionId, clearLocalKeys } from "../crypto";
 import type { LocalSession } from "../types";
-import type { KnownScript } from "../script/types";
+import type { Path } from "../script/types";
 import { extractOutputRules, extractVariableNames } from "../script/compile";
-import {
-  getOrCreateUserId,
-  loadRunConfig,
-  readPreferences,
-  recordCompletedRun,
-  saveRunConfig,
-} from "../persistence";
 import {
   hashCollected,
   initialRunState,
@@ -27,15 +20,17 @@ import {
 } from "../script/runEngine";
 import { getActiveScript, mergeScripts } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
+import { recordRun } from "../history/runHistory";
 import { useScriptStore } from "../store/ScriptStore";
 import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
 import { RunStepBar } from "../components/ui/RunStepBar";
+import { DtmfGuide } from "../components/DtmfGuide";
 
 type Step = "consent" | "configure" | "active";
 
 interface ActiveRun {
-  script: KnownScript;
+  script: Path;
   variables: Record<string, string>;
 }
 
@@ -55,9 +50,9 @@ export function RunPage({ scriptId }: RunPageProps) {
 
   return (
     <PageLayout
-      eyebrow="Execution"
+      eyebrow="Run"
       title={script ? scriptDisplayName(script) : "Run"}
-      subtitle="Run Configuration injects runtime variables. Audio stays on your device."
+      subtitle="Inputs stay on your device. Call audio is processed locally."
       action={
         <span className="run-badge">
           <Play size={14} />
@@ -90,17 +85,10 @@ function RunFlow({
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [prefsAutoListen, setPrefsAutoListen] = useState(false);
+  const [userId] = useState(() => generateUserId());
 
   const [targetNumber, setTargetNumber] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>({});
-  const configLoadedFor = useRef<string>("");
-
-  useEffect(() => {
-    void getOrCreateUserId().then(setUserId);
-    void readPreferences().then((prefs) => setPrefsAutoListen(prefs.autoListen));
-  }, []);
 
   const scripts = mergeScripts(bundledScripts, customScripts);
   const script = getActiveScript(bundledScripts, customScripts, activeId) ?? scripts[0];
@@ -116,33 +104,13 @@ function RunFlow({
   }, [script]);
 
   useEffect(() => {
-    if (!script?.id) return;
-    let cancelled = false;
-    configLoadedFor.current = "";
-    (async () => {
-      const saved = await loadRunConfig(script.id);
-      if (cancelled) return;
-      setTargetNumber(saved?.target || script.setup.target || "");
-      setVariables(saved?.variables ?? {});
-      configLoadedFor.current = script.id;
-    })();
-    return () => {
-      cancelled = true;
-    };
+    if (script?.setup.target) setTargetNumber(script.setup.target);
+    else setTargetNumber("");
   }, [script?.id, script?.setup.target]);
-
-  useEffect(() => {
-    if (!script?.id || configLoadedFor.current !== script.id) return;
-    const timer = window.setTimeout(() => {
-      void saveRunConfig(script.id, targetNumber, variables);
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [script?.id, targetNumber, variables]);
 
   const missingVariables = variableNames.filter((name) => !variables[name]?.trim());
 
   const handleConsent = async () => {
-    if (!userId) return;
     setLoading(true);
     setError(null);
     try {
@@ -199,11 +167,19 @@ function RunFlow({
 
       await submitEncryptedStatus(token, session.sessionId, encrypted.ciphertext, encrypted.nonce);
 
-      const completed: LocalSession = { ...session, status: "completed", collected };
-      setSession(completed);
-      await recordCompletedRun(completed, activeRun?.variables ?? variables);
+      recordRun({
+        runId: session.sessionId,
+        pathId: session.scriptId,
+        pathName: session.scriptName,
+        outcome: "completed",
+        startedAt: session.startedAt,
+        completedAt: new Date().toISOString(),
+        captured: collected,
+      });
+
+      setSession({ ...session, status: "completed", collected });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit status");
+      setError(e instanceof Error ? e.message : "Failed to submit Status");
     } finally {
       setLoading(false);
     }
@@ -250,16 +226,16 @@ function RunFlow({
       <div className="consent-panel">
         <h2>Consent & Authorization</h2>
         <p className="consent-intro">
-          PromptPath v1 uses a client-mediated architecture. Your device places the call,
-          holds your secrets, and processes audio locally. The server only receives encrypted status blobs.
+          Pathline is client-mediated. Your device places the call, holds your Inputs and Secrets,
+          and processes audio locally. The server only receives encrypted Status blobs.
         </p>
 
         <div className="consent-terms">
           <ul>
-            <li>Your secrets and target number stay on this device — never sent to our servers</li>
+            <li>Your Secrets and target number stay on this device — never sent to our servers</li>
             <li>Speech recognition runs locally when available</li>
-            <li>Only encrypted status is reported to PromptPath</li>
-            <li>Session data is auto-purged; you can revoke and delete anytime</li>
+            <li>Only encrypted Status is reported to Pathline</li>
+            <li>Run data is auto-purged; you can revoke and delete anytime</li>
             <li>Carriers still see calling/called numbers, times, and duration</li>
             <li>You confirm lawful usage and authorization for third-party IVR interactions</li>
           </ul>
@@ -300,7 +276,7 @@ function RunFlow({
     if (!script) {
       return wrap(
         <div className="call-form">
-          <p className="hint">No scripts yet. Create one from the Scripts library.</p>
+          <p className="hint">No Paths yet. Create one from Paths.</p>
         </div>
       );
     }
@@ -310,12 +286,10 @@ function RunFlow({
         <form className="call-form" onSubmit={handleStart}>
           <div className="mode-badge">{scriptDisplayName(script)}</div>
 
-          <p className="hint privacy-note">
-            Run Configuration — runtime variables stay on your device.
-          </p>
+          <p className="hint privacy-note">Inputs stay on your device.</p>
 
           <div className="form-group">
-            <label htmlFor="script">Script</label>
+            <label htmlFor="script">Path</label>
             <select id="script" value={script.id} onChange={(e) => setActiveId(e.target.value)}>
               {scripts.map((s) => (
                 <option key={s.id} value={s.id}>{scriptDisplayName(s)}</option>
@@ -326,7 +300,7 @@ function RunFlow({
 
           {variableNames.length > 0 && (
             <div className="secrets-section">
-              <h3>Runtime variables</h3>
+              <h3>Inputs</h3>
               {variableNames.map((name) => (
                 <div key={name} className="form-group">
                   <label htmlFor={`var-${name}`}>{name}</label>
@@ -346,8 +320,8 @@ function RunFlow({
 
           {outputFields.length > 0 && (
             <div className="run-outputs-preview">
-              <h3>Results</h3>
-              <p className="field-hint">Collected outputs — populated during the call from rule output fields.</p>
+              <h3>Captures</h3>
+              <p className="field-hint">What this Path saves during the call — reviewable later in History.</p>
               <div className="output-chip-row">
                 {outputFields.map((field) => (
                   <span key={field} className="output-chip mono">{field}</span>
@@ -372,7 +346,7 @@ function RunFlow({
             className="btn btn-primary btn-full"
             disabled={loading || missingVariables.length > 0}
           >
-            {loading ? "Starting…" : "Start check"}
+            {loading ? "Starting…" : "Run"}
           </button>
         </form>
 
@@ -385,13 +359,13 @@ function RunFlow({
 
   return wrap(
     <div className="session-status">
-      <h3>Active run (local)</h3>
+      <h3>Status</h3>
       <dl>
-        <dt>Status</dt>
-        <dd><span className={`status-badge status-${session.status}`}>{session.status}</span></dd>
-        <dt>Script</dt>
+        <dt>State</dt>
+        <dd><span className={`status-badge status-${session.status}`}>{session.status === "in_progress" ? "active" : session.status}</span></dd>
+        <dt>Path</dt>
         <dd>{session.scriptName}</dd>
-        <dt>Session ID</dt>
+        <dt>Run ID</dt>
         <dd className="mono">{session.sessionId.slice(0, 8)}…</dd>
         <dt>Target</dt>
         <dd className="mono local-only">Stored on device only</dd>
@@ -401,23 +375,22 @@ function RunFlow({
         <MatcherPanel
           script={activeRun.script}
           variables={activeRun.variables}
-          defaultAutoListen={prefsAutoListen || activeRun.script.setup.speechPreferences.autoListen}
           onStatusCaptured={handleComplete}
         />
       )}
 
       {session.status === "completed" && session.collected && (
         <div className="transcript-preview">
-          <h4>Run output</h4>
+          <h4>Captured</h4>
           <pre>{JSON.stringify(session.collected, null, 2)}</pre>
-          <p className="hint">Only a hash of this payload was included in the encrypted status sent to the server.</p>
+          <p className="hint">Saved to History on this device. Only a hash of this payload was sent to the server.</p>
         </div>
       )}
 
       <div className="session-actions">
         {session.status === "completed" && (
           <button className="btn btn-secondary" onClick={handleExport}>
-            Export encrypted status
+            Export
           </button>
         )}
         <button className="btn btn-danger" onClick={handleRevoke} disabled={loading}>
@@ -433,17 +406,15 @@ function RunFlow({
 function MatcherPanel({
   script,
   variables,
-  defaultAutoListen,
   onStatusCaptured,
 }: {
-  script: KnownScript;
+  script: Path;
   variables: Record<string, string>;
-  defaultAutoListen: boolean;
   onStatusCaptured: (collected: Record<string, string>, transcriptHash: string) => void;
 }) {
   const [run, setRun] = useState<RunState>(initialRunState);
   const [ivrText, setIvrText] = useState("");
-  const [autoListen, setAutoListen] = useState(defaultAutoListen);
+  const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
   const [listenError, setListenError] = useState<string | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
@@ -521,16 +492,11 @@ function MatcherPanel({
       {listenError && <p className="field-hint warn">{listenError}</p>}
 
       {run.pendingDtmf && (
-        <div className="dtmf-action-card">
-          <span className="dtmf-action-label">Send on your phone</span>
-          <code className="dtmf-action-value">{run.pendingDtmf}</code>
-          {run.pendingTrigger && (
-            <span className="dtmf-action-trigger">Heard: {run.pendingTrigger}</span>
-          )}
-          <button type="button" className="btn btn-sm btn-secondary" onClick={dismissDtmf}>
-            Sent ✓
-          </button>
-        </div>
+        <DtmfGuide
+          sequence={run.pendingDtmf}
+          trigger={run.pendingTrigger}
+          onComplete={dismissDtmf}
+        />
       )}
 
       {!run.completed && (
@@ -562,7 +528,7 @@ function MatcherPanel({
 
       {Object.keys(run.collected).length > 0 && (
         <div className="collected-json">
-          <h5>Run output</h5>
+          <h5>Captured</h5>
           <pre>{JSON.stringify(run.collected, null, 2)}</pre>
         </div>
       )}

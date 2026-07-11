@@ -1,43 +1,22 @@
-import { useRef, useState } from "react";
-import type { IvrRule, ScriptDocument } from "../../script/types";
-import { extractOutputRules, formatVariableRef, withSyncedRules } from "../../script/compile";
+import { useState } from "react";
+import { Copy, Download, Trash2 } from "lucide-react";
+import type { Step, PathDocument } from "../../script/types";
+import { extractVariableNames, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
-import { RuleBuilder } from "./RuleBuilder";
+import { getPathReadiness, READINESS_LABEL } from "../../script/pathReadiness";
+import { SectionBlock } from "../../components/ui/SectionBlock";
+import { Badge } from "../../components/ui/Badge";
+import { RuleWizard } from "./ruleWizard/RuleWizard";
 import { RuleCard } from "./RuleCard";
-
-type RunSectionId = "setup" | "rules" | "results";
-
-const RUN_SECTIONS: {
-  id: RunSectionId;
-  index: string;
-  title: string;
-  summary: string;
-}[] = [
-  {
-    id: "setup",
-    index: "01",
-    title: "Setup",
-    summary: "Name · Target · Description · Timeout",
-  },
-  {
-    id: "rules",
-    index: "02",
-    title: "Rules",
-    summary: "Navigate · Capture · Wait · End",
-  },
-  {
-    id: "results",
-    index: "03",
-    title: "Results",
-    summary: "Collected outputs",
-  },
-];
+import { isPlaceholderRule } from "../../script/ruleIntent";
 
 export interface EditFormProps {
-  script: ScriptDocument;
+  script: PathDocument;
   readOnly: boolean;
-  onPatch: (patch: Partial<ScriptDocument>) => void;
+  onPatch: (patch: Partial<PathDocument>) => void;
   onDuplicate: () => void;
+  onExport?: () => void;
+  onDelete?: () => void;
   onTest?: () => void;
 }
 
@@ -46,148 +25,91 @@ export function EditForm({
   readOnly,
   onPatch,
   onDuplicate,
+  onExport,
+  onDelete,
   onTest,
 }: EditFormProps) {
-  const [activeSection, setActiveSection] = useState<RunSectionId>("setup");
-  const [showBuilder, setShowBuilder] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const sectionRefs = useRef<Record<RunSectionId, HTMLElement | null>>({
-    setup: null,
-    rules: null,
-    results: null,
-  });
 
-  const patchSetup = (patch: Partial<ScriptDocument["setup"]>) =>
+  const patchSetup = (patch: Partial<PathDocument["setup"]>) =>
     onPatch({ setup: { ...script.setup, ...patch } });
 
-  const outputRules = extractOutputRules(script);
-  const runtimeVariables = script.setup.runtimeVariables.filter(Boolean);
-
-  const updateRules = (ivrRules: IvrRule[]) => onPatch(withSyncedRules(script, ivrRules));
-
+  const inputVariables = extractVariableNames(script);
+  const visibleRules = script.steps.filter((r) => !isPlaceholderRule(r));
+  const readiness = getPathReadiness(script);
+  const readinessVariant =
+    readiness === "ready" ? "success" : readiness === "needs-setup" ? "warn" : "muted";
   const editingRule = editingRuleId
-    ? script.ivrRules.find((r) => r.id === editingRuleId)
+    ? script.steps.find((r) => r.id === editingRuleId)
     : undefined;
 
-  const openNewStep = () => {
-    setEditingRuleId(null);
-    setShowBuilder(true);
-  };
-
-  const openEditStep = (ruleId: string) => {
-    setEditingRuleId(ruleId);
-    setShowBuilder(true);
-  };
+  const updateRules = (steps: Step[]) => onPatch(withSyncedRules(script, steps));
 
   const closeBuilder = () => {
-    setShowBuilder(false);
+    setBuilderOpen(false);
     setEditingRuleId(null);
   };
 
-  const saveRule = (rule: IvrRule) => {
-    const exists = script.ivrRules.some((r) => r.id === rule.id);
-    const ivrRules = exists
-      ? script.ivrRules.map((r) => (r.id === rule.id ? rule : r))
-      : [...script.ivrRules, rule];
-    updateRules(ivrRules);
+  const handleSaveRule = (rule: Step) => {
+    const baseRules = script.steps.filter((r) => !isPlaceholderRule(r));
+    const steps = editingRuleId
+      ? baseRules.map((r) => (r.id === editingRuleId ? rule : r))
+      : [...baseRules, rule];
+    updateRules(steps);
     closeBuilder();
   };
 
-  const removeRule = (ruleId: string) => {
-    updateRules(script.ivrRules.filter((r) => r.id !== ruleId));
-    if (editingRuleId === ruleId) closeBuilder();
+  const openAdd = () => {
+    setEditingRuleId(null);
+    setBuilderOpen(true);
   };
 
-  const addVariable = (name: string) => {
-    const normalized = name.replace(/\s/g, "_").trim();
-    if (!normalized) return;
-    const runtimeVariables = [...new Set([...script.setup.runtimeVariables, normalized])].sort();
-    onPatch({ setup: { ...script.setup, runtimeVariables } });
-  };
-
-  const ruleCount = script.ivrRules.length;
-  const outputCount = outputRules.length;
-
-  const sectionMeta: Record<RunSectionId, string> = {
-    setup: `${runtimeVariables.length} variable${runtimeVariables.length === 1 ? "" : "s"}`,
-    rules: `${ruleCount} step${ruleCount === 1 ? "" : "s"}`,
-    results: `${outputCount} field${outputCount === 1 ? "" : "s"}`,
-  };
-
-  const jumpToSection = (id: RunSectionId) => {
-    setActiveSection(id);
-    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const openEdit = (id: string) => {
+    setEditingRuleId(id);
+    setBuilderOpen(true);
   };
 
   return (
     <div className="script-editor-panel">
       {readOnly && (
         <div className="bundled-banner">
-          <span>Example template (read-only).</span>
+          Example Path (read-only).{" "}
           <button type="button" className="btn btn-sm btn-secondary" onClick={onDuplicate}>
             Duplicate to edit
           </button>
         </div>
       )}
 
-      <header className="editor-topbar">
-        <div className="editor-topbar-main">
-          <p className="editor-eyebrow">RUN template</p>
-          <h1 className="editor-title">{scriptDisplayName(script)}</h1>
-          {script.setup.description && (
-            <p className="editor-subtitle">{script.setup.description}</p>
-          )}
-        </div>
-        {onTest && (
-          <div className="editor-topbar-actions">
-            <button type="button" className="btn btn-accent btn-sm" onClick={onTest}>
-              Run test
-            </button>
+      <header className="editor-topbar script-header">
+        <div className="script-header-main">
+          <div className="script-header-eyebrow-row">
+            <p className="editor-eyebrow">Path</p>
+            <Badge variant={readinessVariant}>{READINESS_LABEL[readiness]}</Badge>
           </div>
-        )}
-      </header>
-
-      <nav className="editor-model-strip" aria-label="Run structure">
-        {RUN_SECTIONS.map((section) => (
-          <button
-            key={section.id}
-            id={`run-nav-${section.id}`}
-            type="button"
-            className={`editor-model-card${
-              activeSection === section.id ? " editor-model-card-active" : ""
-            }`}
-            onClick={() => jumpToSection(section.id)}
-            aria-current={activeSection === section.id ? "true" : undefined}
-          >
-            <span className="editor-model-index">
-              {section.index} · {section.title}
-            </span>
-            <strong>{section.summary}</strong>
-            <span className="editor-model-meta">{sectionMeta[section.id]}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="editor-body">
-        <section
-          id="run-setup"
-          ref={(el) => {
-            sectionRefs.current.setup = el;
-          }}
-          className="editor-section"
-          aria-labelledby="run-nav-setup"
-        >
-          <div className="editor-field-grid">
-            <label className="editor-field">
-              <span>Name</span>
+          {readOnly ? (
+            <h1 className="editor-title">{scriptDisplayName(script)}</h1>
+          ) : (
+            <input
+              className="editor-input script-header-name"
+              value={script.setup.name}
+              onChange={(e) => patchSetup({ name: e.target.value })}
+              placeholder="Untitled Path"
+              aria-label="Path name"
+            />
+          )}
+          <div className="script-header-meta">
+            <label className="script-header-field">
+              <span>Description</span>
               <input
                 className="editor-input"
-                value={script.setup.name}
-                onChange={(e) => patchSetup({ name: e.target.value })}
+                value={script.setup.description}
+                onChange={(e) => patchSetup({ description: e.target.value })}
                 disabled={readOnly}
+                placeholder="What this Path does"
               />
             </label>
-            <label className="editor-field">
+            <label className="script-header-field">
               <span>Target</span>
               <input
                 className="editor-input"
@@ -195,119 +117,111 @@ export function EditForm({
                 value={script.setup.target}
                 onChange={(e) => patchSetup({ target: e.target.value })}
                 disabled={readOnly}
+                placeholder="+1 (800) XXX-XXXX"
               />
             </label>
-            <label className="editor-field editor-field-wide">
-              <span>Description</span>
-              <input
-                className="editor-input"
-                value={script.setup.description}
-                onChange={(e) => patchSetup({ description: e.target.value })}
-                disabled={readOnly}
-              />
-            </label>
-            <label className="editor-field">
+            <label className="script-header-field script-header-field-narrow">
               <span>Timeout</span>
-              <input
-                className="editor-input"
-                type="number"
-                min={1}
-                value={Math.round(script.setup.timeoutMs / 1000)}
-                onChange={(e) => patchSetup({ timeoutMs: Number(e.target.value) * 1000 })}
-                disabled={readOnly}
-              />
-              <span className="field-hint">seconds</span>
+              <div className="script-header-timeout">
+                <input
+                  className="editor-input"
+                  type="number"
+                  value={Math.round(script.setup.timeoutMs / 1000)}
+                  onChange={(e) => patchSetup({ timeoutMs: Number(e.target.value) * 1000 })}
+                  disabled={readOnly}
+                  min={1}
+                />
+                <span className="wait-suffix">sec</span>
+              </div>
             </label>
           </div>
-
-          <div className="setup-values-block">
-            <p className="setup-values-title">Runtime variables</p>
-            <p className="setup-values-hint">
-              Names you use in navigate steps. Values are filled in at run configuration.
-            </p>
-            {runtimeVariables.length === 0 ? (
-              <p className="results-empty">Add a step that uses a run-time value to define one.</p>
-            ) : (
-              <div className="runtime-vars-row">
-                {runtimeVariables.map((name) => (
-                  <span key={name} className="runtime-var-chip">
-                    {formatVariableRef(name)}
-                  </span>
-                ))}
-              </div>
+        </div>
+        <div className="script-header-actions">
+          {onTest && (
+            <button type="button" className="btn btn-accent btn-sm" onClick={onTest}>
+              Run
+            </button>
+          )}
+          <div className="script-header-overflow">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onDuplicate}>
+              <Copy size={14} />
+              Duplicate
+            </button>
+            {onExport && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={onExport}>
+                <Download size={14} />
+                Export
+              </button>
+            )}
+            {onDelete && (
+              <button type="button" className="btn btn-danger btn-sm" onClick={onDelete}>
+                <Trash2 size={14} />
+                Delete
+              </button>
             )}
           </div>
-        </section>
+        </div>
+      </header>
 
-        <section
-          id="run-rules"
-          ref={(el) => {
-            sectionRefs.current.rules = el;
-          }}
-          className="editor-section editor-section-wide"
-          aria-labelledby="run-nav-rules"
+      <div className="editor-body">
+        <SectionBlock
+          index="01"
+          title="Steps"
+          description="Each Step has a When (what starts it) and a Then (what Pathline does)."
+          wide
         >
-          {script.ivrRules.length > 0 && (
-            <ol className="rule-card-list">
-              {script.ivrRules.map((rule) => (
-                <li key={rule.id}>
-                  <RuleCard
-                    rule={rule}
-                    readOnly={readOnly}
-                    onEdit={() => openEditStep(rule.id)}
-                    onRemove={() => removeRule(rule.id)}
-                  />
-                </li>
-              ))}
-            </ol>
+          <div className="rule-card-list">
+            {visibleRules.map((rule) => (
+              <RuleCard
+                key={rule.id}
+                rule={rule}
+                readOnly={readOnly}
+                onEdit={() => openEdit(rule.id)}
+                onRemove={() => updateRules(script.steps.filter((r) => r.id !== rule.id))}
+              />
+            ))}
+          </div>
+
+          {visibleRules.length === 0 && !builderOpen && (
+            <p className="field-hint">No Steps yet. Add your first Step to define the call flow.</p>
           )}
 
-          {script.ivrRules.length === 0 && !showBuilder && (
-            <p className="results-empty">
-              No steps yet. Add your first step — you&apos;ll answer a few short questions for each one.
-            </p>
+          {!readOnly && !builderOpen && (
+            <button type="button" className="btn btn-secondary btn-sm editor-table-add" onClick={openAdd}>
+              + Add Step
+            </button>
           )}
 
-          {!readOnly && showBuilder && (
-            <RuleBuilder
-              runtimeVariables={runtimeVariables}
-              existingLabels={script.ivrRules.map((r) => r.label)}
+          {!readOnly && builderOpen && (
+            <RuleWizard
+              key={editingRuleId ?? "new"}
+              existingLabels={script.steps.map((r) => r.label)}
               editingRule={editingRule}
-              onAddVariable={addVariable}
-              onSave={saveRule}
+              onSave={handleSaveRule}
               onCancel={closeBuilder}
             />
           )}
+        </SectionBlock>
 
-          {!readOnly && !showBuilder && (
-            <button type="button" className="btn btn-secondary btn-sm editor-table-add" onClick={openNewStep}>
-              + Add step
-            </button>
-          )}
-        </section>
-
-        <section
-          id="run-results"
-          ref={(el) => {
-            sectionRefs.current.results = el;
-          }}
-          className="editor-section"
-          aria-labelledby="run-nav-results"
+        <SectionBlock
+          index="02"
+          title="Inputs"
+          description="Values you provide when you Run this Path — never stored with the Path."
         >
-          {outputRules.length === 0 ? (
-            <p className="results-empty">
-              Add a capture step to define what this template collects at runtime.
+          {inputVariables.length === 0 ? (
+            <p className="field-hint">
+              No Inputs required. Add a Step that submits a value and its Input appears here.
             </p>
           ) : (
             <ul className="results-list">
-              {outputRules.map((rule) => (
-                <li key={rule.id} className="results-list-item mono">
-                  {rule.output}
+              {inputVariables.map((name) => (
+                <li key={name} className="results-list-item mono">
+                  {name}
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </SectionBlock>
       </div>
     </div>
   );

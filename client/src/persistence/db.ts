@@ -1,4 +1,4 @@
-import type { ScriptDocument } from "../script/types";
+import type { PathDocument } from "../script/types";
 import type { AppPreferences, PersistedRun, PERSISTENCE_VERSION, RunConfig } from "./types";
 
 const DB_NAME = "promptpath";
@@ -111,11 +111,11 @@ export async function writePreferences(preferences: AppPreferences): Promise<voi
   await setKv("preferences", preferences);
 }
 
-export async function readAllScripts(): Promise<ScriptDocument[]> {
-  return getAll<ScriptDocument>(STORE_SCRIPTS);
+export async function readAllScripts(): Promise<PathDocument[]> {
+  return getAll<PathDocument>(STORE_SCRIPTS);
 }
 
-export async function writeAllScripts(scripts: ScriptDocument[]): Promise<void> {
+export async function writeAllScripts(scripts: PathDocument[]): Promise<void> {
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(STORE_SCRIPTS, "readwrite");

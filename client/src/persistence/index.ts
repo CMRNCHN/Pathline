@@ -1,5 +1,5 @@
 import { normalizeScript } from "../script/compile";
-import type { ScriptDocument } from "../script/types";
+import type { PathDocument } from "../script/types";
 import {
   ACTIVE_SCRIPT_KEY,
   CUSTOM_SCRIPTS_KEY,
@@ -35,11 +35,11 @@ function generateUserId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function readLegacyScripts(): ScriptDocument[] {
+function readLegacyScripts(): PathDocument[] {
   try {
     const raw = localStorage.getItem(CUSTOM_SCRIPTS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as ScriptDocument[];
+    return JSON.parse(raw) as PathDocument[];
   } catch {
     return [];
   }
@@ -93,7 +93,7 @@ async function migrateLegacyLocalStorageIfNeeded(): Promise<void> {
 }
 
 export async function initPersistence(): Promise<{
-  customScripts: ScriptDocument[];
+  customScripts: PathDocument[];
   activeScriptId: string;
   preferences: AppPreferences;
   userId: string;
@@ -116,7 +116,7 @@ export async function initPersistence(): Promise<{
   return { customScripts, activeScriptId, preferences, userId };
 }
 
-export async function saveCustomScripts(scripts: ScriptDocument[]): Promise<void> {
+export async function saveCustomScripts(scripts: PathDocument[]): Promise<void> {
   await writeAllScripts(scripts);
 }
 
