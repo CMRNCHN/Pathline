@@ -2,8 +2,8 @@ type RunStep = "consent" | "configure" | "active";
 
 const STEPS: { id: RunStep; label: string }[] = [
   { id: "consent", label: "Consent" },
-  { id: "configure", label: "Run configuration" },
-  { id: "active", label: "Active run" },
+  { id: "configure", label: "Inputs" },
+  { id: "active", label: "Status" },
 ];
 
 export function RunStepBar({ current }: { current: RunStep }) {

@@ -1,4 +1,4 @@
-import type { IvrRule } from "../../../script/types";
+import type { Step } from "../../../script/types";
 import type { WizardDraft } from "../../../script/ruleIntent";
 import { ruleToDraft } from "../../../script/ruleIntent";
 import {
@@ -89,11 +89,11 @@ function stateFromDraft(draft: WizardDraft, openAtSummary: boolean): WizardState
   }
 }
 
-export function initialWizardState(editingRule?: IvrRule): WizardState {
+export function initialWizardState(editingRule?: Step): WizardState {
   if (!editingRule) return emptyWizardState();
   return stateFromDraft(ruleToDraft(editingRule), true);
 }
 
-export function wizardStateFromRule(rule: IvrRule, openAtSummary = false): WizardState {
+export function wizardStateFromRule(rule: Step, openAtSummary = false): WizardState {
   return stateFromDraft(ruleToDraft(rule), openAtSummary);
 }

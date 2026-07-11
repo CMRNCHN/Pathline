@@ -1,4 +1,4 @@
-import type { IvrRule } from "./types";
+import type { Step } from "./types";
 import { formatVariableRef } from "./compile";
 import { newId } from "./storage";
 import { CUSTOM_PRESET_ID } from "./rulePresets";
@@ -73,13 +73,13 @@ function hasVariableRef(response: string): boolean {
   return VAR_REF.test(response);
 }
 
-export function inferIntent(rule: IvrRule): RuleWizardType {
+export function inferIntent(rule: Step): RuleWizardType {
   if (rule.rule === "End call") return "end";
   if (rule.rule === "Capture value after detect" || (rule.output.trim() && rule.rule !== "Wait for IVR response")) {
     return "capture";
   }
   if (rule.rule === "Wait for IVR response") {
-    if (rule.trigger.trim() && !rule.waitSeconds) {
+    if (rule.when.trim() && !rule.waitSeconds) {
       return "capture";
     }
     return "navigate";
@@ -88,7 +88,7 @@ export function inferIntent(rule: IvrRule): RuleWizardType {
     rule.rule === "Inject DTMF after detect" ||
     rule.rule === "Inject speech after detect"
   ) {
-    return hasVariableRef(rule.response) ? "respond" : "navigate";
+    return hasVariableRef(rule.then) ? "respond" : "navigate";
   }
   return "navigate";
 }
@@ -113,7 +113,7 @@ export function buildRuleFromDraft(
   existingLabels: string[],
   existingId?: string,
   previousLabel?: string
-): IvrRule {
+): Step {
   const base = labelBaseForDraft(draft);
   const label = uniqueLabel(base, existingLabels, previousLabel);
 
@@ -123,8 +123,8 @@ export function buildRuleFromDraft(
         return {
           id: existingId ?? newId(),
           label,
-          trigger: draft.trigger.trim(),
-          response: "",
+          when: draft.trigger.trim(),
+          then: "",
           rule: "Capture value after detect",
           output: slugify(draft.output),
         };
@@ -132,8 +132,8 @@ export function buildRuleFromDraft(
       return {
         id: existingId ?? newId(),
         label,
-        trigger: draft.trigger.trim(),
-        response: "",
+        when: draft.trigger.trim(),
+        then: "",
         rule: "Wait for IVR response",
         output: "",
       };
@@ -142,8 +142,8 @@ export function buildRuleFromDraft(
         return {
           id: existingId ?? newId(),
           label,
-          trigger: "",
-          response: "",
+          when: "",
+          then: "",
           rule: "Wait for IVR response",
           output: "",
           waitSeconds: draft.waitSeconds ?? 3,
@@ -152,8 +152,8 @@ export function buildRuleFromDraft(
       return {
         id: existingId ?? newId(),
         label,
-        trigger: draft.trigger.trim(),
-        response: draft.responseLiteral.trim(),
+        when: draft.trigger.trim(),
+        then: draft.responseLiteral.trim(),
         rule:
           draft.mode === "keypad" ? "Inject DTMF after detect" : "Inject speech after detect",
         output: "",
@@ -162,8 +162,8 @@ export function buildRuleFromDraft(
       return {
         id: existingId ?? newId(),
         label,
-        trigger: draft.trigger.trim(),
-        response: formatVariableRef(draft.variable),
+        when: draft.trigger.trim(),
+        then: formatVariableRef(draft.variable),
         rule:
           draft.delivery === "keypad" ? "Inject DTMF after detect" : "Inject speech after detect",
         output: "",
@@ -172,15 +172,15 @@ export function buildRuleFromDraft(
       return {
         id: existingId ?? newId(),
         label,
-        trigger: "",
-        response: "",
+        when: "",
+        then: "",
         rule: "End call",
         output: "",
       };
   }
 }
 
-export function ruleToDraft(rule: IvrRule): WizardDraft {
+export function ruleToDraft(rule: Step): WizardDraft {
   const intent = inferIntent(rule);
 
   switch (intent) {
@@ -189,7 +189,7 @@ export function ruleToDraft(rule: IvrRule): WizardDraft {
         return {
           intent: "capture",
           infoPresetId: CUSTOM_PRESET_ID,
-          trigger: rule.trigger,
+          trigger: rule.when,
           save: false,
           output: "",
         };
@@ -198,7 +198,7 @@ export function ruleToDraft(rule: IvrRule): WizardDraft {
         intent: "capture",
         infoPresetId: CUSTOM_PRESET_ID,
         customOutput: rule.output,
-        trigger: rule.trigger,
+        trigger: rule.when,
         save: true,
         output: rule.output,
       };
@@ -217,19 +217,19 @@ export function ruleToDraft(rule: IvrRule): WizardDraft {
       return {
         intent: "navigate",
         mode: isSpeech ? "speak" : "keypad",
-        trigger: rule.trigger,
-        responseLiteral: rule.response,
+        trigger: rule.when,
+        responseLiteral: rule.then,
       };
     }
     case "respond": {
-      const match = rule.response.match(/\{\{(\w+)\}\}/);
+      const match = rule.then.match(/\{\{(\w+)\}\}/);
       return {
         intent: "respond",
         infoPresetId: CUSTOM_PRESET_ID,
         customVariable: match?.[1] ?? "",
         delivery: rule.rule === "Inject speech after detect" ? "speak" : "keypad",
         variable: match?.[1] ?? "",
-        trigger: rule.trigger,
+        trigger: rule.when,
       };
     }
     case "end":
@@ -237,11 +237,11 @@ export function ruleToDraft(rule: IvrRule): WizardDraft {
   }
 }
 
-export function isPlaceholderRule(rule: IvrRule): boolean {
+export function isPlaceholderRule(rule: Step): boolean {
   if (rule.rule === "End call" || rule.rule === "Wait for IVR response") {
-    return rule.rule === "Wait for IVR response" && !rule.trigger.trim() && !rule.waitSeconds;
+    return rule.rule === "Wait for IVR response" && !rule.when.trim() && !rule.waitSeconds;
   }
-  return !rule.trigger.trim() && !rule.response.trim() && !rule.output.trim();
+  return !rule.when.trim() && !rule.then.trim() && !rule.output.trim();
 }
 
 export interface RuleSummary {
@@ -252,22 +252,22 @@ export interface RuleSummary {
   outputVariable?: string;
 }
 
-export function ruleSummary(rule: IvrRule): RuleSummary {
+export function ruleSummary(rule: Step): RuleSummary {
   const intent = inferIntent(rule);
-  const varMatch = rule.response.match(/\{\{(\w+)\}\}/);
+  const varMatch = rule.then.match(/\{\{(\w+)\}\}/);
 
   switch (intent) {
     case "capture":
       if (rule.rule === "Wait for IVR response") {
         return {
           typeLabel: ruleTypeLabel.captureListenOnly,
-          trigger: rule.trigger,
+          trigger: rule.when,
           action: "Wait for the next IVR prompt",
         };
       }
       return {
         typeLabel: ruleTypeLabel.capture,
-        trigger: rule.trigger,
+        trigger: rule.when,
         action: "Save what the IVR says",
         outputVariable: rule.output ? formatVariableRef(rule.output) : undefined,
       };
@@ -281,16 +281,16 @@ export function ruleSummary(rule: IvrRule): RuleSummary {
       }
       return {
         typeLabel: ruleTypeLabel.navigate,
-        trigger: rule.trigger,
+        trigger: rule.when,
         action:
           rule.rule === "Inject speech after detect"
-            ? `Speak: "${rule.response}"`
-            : `Press: ${rule.response}`,
+            ? `Speak: "${rule.then}"`
+            : `Press: ${rule.then}`,
       };
     case "respond":
       return {
         typeLabel: ruleTypeLabel.respond,
-        trigger: rule.trigger,
+        trigger: rule.when,
         action:
           rule.rule === "Inject speech after detect"
             ? "Speak your run value"
@@ -306,11 +306,11 @@ export function ruleSummary(rule: IvrRule): RuleSummary {
   }
 }
 
-export function ruleCardTitle(rule: IvrRule): string {
+export function ruleCardTitle(rule: Step): string {
   return ruleSummary(rule).typeLabel;
 }
 
-export function ruleCardAction(rule: IvrRule): string {
+export function ruleCardAction(rule: Step): string {
   return ruleSummary(rule).action;
 }
 
