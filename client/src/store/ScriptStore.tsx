@@ -7,17 +7,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { initPersistence, saveActiveScriptId, saveCustomScripts } from "../persistence";
 import type { PathDocument } from "../script/types";
 import { normalizeScript } from "../script/compile";
 import { getActiveScript, isBundledScript } from "../script/selectors";
 import {
   BUNDLED_SCRIPT_FILES,
   duplicateScript,
-  loadActiveScriptId,
-  loadCustomScripts,
   newScript,
-  saveActiveScriptId,
-  saveCustomScripts,
 } from "../script/storage";
 
 export interface ScriptStore {
@@ -27,6 +24,7 @@ export interface ScriptStore {
   activeScript: PathDocument | undefined;
   loading: boolean;
   error: string | null;
+  persistReady: boolean;
   setActiveId: (id: string) => void;
   updateCustom: (id: string, patch: Partial<PathDocument>) => void;
   addCustom: (script?: PathDocument) => PathDocument;
@@ -39,10 +37,9 @@ const ScriptStoreContext = createContext<ScriptStore | null>(null);
 
 function useScriptStoreState(): ScriptStore {
   const [bundledScripts, setBundledScripts] = useState<PathDocument[]>([]);
-  const [customScripts, setCustomScripts] = useState<PathDocument[]>(() =>
-    loadCustomScripts().map((s) => normalizeScript(s))
-  );
-  const [activeId, setActiveId] = useState(loadActiveScriptId);
+  const [customScripts, setCustomScripts] = useState<PathDocument[]>([]);
+  const [activeId, setActiveId] = useState("");
+  const [persistReady, setPersistReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const bundledRef = useRef(bundledScripts);
@@ -50,6 +47,26 @@ function useScriptStoreState(): ScriptStore {
   useEffect(() => {
     bundledRef.current = bundledScripts;
   }, [bundledScripts]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const persisted = await initPersistence();
+        if (cancelled) return;
+        setCustomScripts(persisted.customScripts);
+        setActiveId(persisted.activeScriptId);
+        setPersistReady(true);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load local storage");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,12 +102,14 @@ function useScriptStoreState(): ScriptStore {
   }, []);
 
   useEffect(() => {
-    saveCustomScripts(customScripts);
-  }, [customScripts]);
+    if (!persistReady) return;
+    void saveCustomScripts(customScripts);
+  }, [customScripts, persistReady]);
 
   useEffect(() => {
-    saveActiveScriptId(activeId);
-  }, [activeId]);
+    if (!persistReady) return;
+    void saveActiveScriptId(activeId);
+  }, [activeId, persistReady]);
 
   useEffect(() => {
     if (activeId) return;
@@ -149,6 +168,7 @@ function useScriptStoreState(): ScriptStore {
     activeScript,
     loading,
     error,
+    persistReady,
     setActiveId,
     updateCustom,
     addCustom,

@@ -112,6 +112,8 @@ See [docs/known-scripts.md](./docs/known-scripts.md).
 
 The fill-in-the-blank **IVR Routines** builder lives in a separate repo: `../ivr-routines`.
 
+**Shareable UI:** [`frontend-ui/`](./frontend-ui/) — standalone copy of the web client for sharing or embedding.
+
 ## Documentation
 
 | Doc | Purpose |

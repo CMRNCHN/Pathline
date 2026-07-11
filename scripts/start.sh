@@ -69,9 +69,16 @@ fi
 mkdir -p "$LOG_DIR" "$PID_DIR"
 
 # ── Python setup ───────────────────────────────────────────────
+if [[ -d "$VENV" && ! -f "$VENV/bin/activate" ]]; then
+  warn "Removing incomplete virtual environment..."
+  rm -rf "$VENV"
+fi
+
 if [[ ! -d "$VENV" ]]; then
   info "Creating Python virtual environment..."
-  python3 -m venv "$VENV"
+  if ! python3 -m venv "$VENV" 2>/dev/null; then
+    fail "Could not create .venv — install python3-venv (e.g. apt install python3.12-venv), then run npm start again."
+  fi
 fi
 
 info "Installing Python dependencies..."
