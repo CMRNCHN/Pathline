@@ -499,6 +499,63 @@ button {
 }
 
 /* ── Script library cards ── */
+
+/* ── Callstate projection (text-only, decoupled from markup chrome) ── */
+.callstate-board {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem 1.15rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.callstate-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.callstate-board-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.callstate-board-phase {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--card-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.callstate-text {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  tab-size: 2;
+}
+
+.callstate-panel .callstate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
 .script-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -987,7 +1044,7 @@ button {
 /* ── Consent / Call / Session panels ── */
 .consent-panel,
 .call-form,
-.session-status {
+.callstate-panel {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -996,7 +1053,7 @@ button {
 }
 
 .consent-panel h2,
-.session-status h3 {
+.callstate-panel h3 {
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: -0.02em;
