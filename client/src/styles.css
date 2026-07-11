@@ -499,6 +499,63 @@ button {
 }
 
 /* ── Script library cards ── */
+
+/* ── Callstate projection (text-only, decoupled from markup chrome) ── */
+.callstate-board {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem 1.15rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.callstate-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.callstate-board-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.callstate-board-phase {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--card-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.callstate-text {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  tab-size: 2;
+}
+
+.callstate-panel .callstate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
 .script-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -987,7 +1044,7 @@ button {
 /* ── Consent / Call / Session panels ── */
 .consent-panel,
 .call-form,
-.session-status {
+.callstate-panel {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -996,7 +1053,7 @@ button {
 }
 
 .consent-panel h2,
-.session-status h3 {
+.callstate-panel h3 {
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -2309,4 +2366,173 @@ button {
   .script-card:hover {
     transform: none;
   }
+}
+@keyframes status-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes status-beacon-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes status-beacon-busy {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@keyframes status-scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes status-rail-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.status-board {
+  position: relative;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 0.85rem 0.65rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 6%, var(--card)) 0%,
+    var(--card) 55%,
+    color-mix(in srgb, var(--ink) 4%, var(--card-muted)) 100%
+  );
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.status-board-alert {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+
+.status-board-scan {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 50%,
+    transparent 60%
+  );
+  animation: status-scan 4s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.status-board-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+  position: relative;
+  z-index: 1;
+}
+
+.status-board-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.status-board-meta {
+  flex: 1;
+  font-size: 0.72rem;
+  color: var(--muted-light);
+  font-family: var(--mono);
+}
+
+.status-board-refresh {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+
+.status-board-refresh:hover {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.status-board-track {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: relative;
+  z-index: 1;
+  padding-bottom: 0.15rem;
+}
+
+.status-board-track::-webkit-scrollbar {
+  display: none;
+}
+
+.status-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 0;
+  min-width: 7.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ink) 3%, #fff);
+  border: 1px solid var(--border);
+  animation: status-tile-in 0.45s ease both;
+  position: relative;
+}
+
+.status-tile-beacon {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-light);
+}
+
+.status-tile-ok .status-tile-beacon {
+  background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 25%, transparent);
+  animation: status-beacon-pulse 2.4s ease-in-out infinite;
+}
+
+.status-tile-warn .status-tile-beacon {
+  background: var(--warning);
+  animation: status-beacon-pulse 2s ease-in-out infinite;
+}
+
+.status-tile-busy .status-tile-beacon {
+  background: var(--accent);
+  animation: status-beacon-busy 1s ease-in-out infinite;
+}
+
+.status-tile-err .status-tile-beacon {
+  background: var(--danger);
+  animation: status-beacon-pulse 1.2s ease-in-out infinite;
 }

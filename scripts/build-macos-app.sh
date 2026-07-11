@@ -5,13 +5,31 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+ICON_SRC="$ROOT/assets/icon/generated/PromptPath.icns"
+
+info() { echo "▸ $*"; }
+
+ensure_icon() {
+  if [[ -f "$ICON_SRC" ]]; then
+    return 0
+  fi
+  info "Generating app icon..."
+  python3 -m pip install -q -r "$ROOT/scripts/requirements-launcher.txt"
+  python3 "$ROOT/scripts/generate-app-icon.py" --icns-only
+  python3 "$ROOT/scripts/generate-app-icon.py" --png-only
+}
+
 build_app() {
   local name="$1"
   local script="$2"
+  local bundle_id="$3"
   local app_dir="$ROOT/$name.app"
+  local icon_name="AppIcon"
 
   rm -rf "$app_dir"
   mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
+
+  cp "$ICON_SRC" "$app_dir/Contents/Resources/${icon_name}.icns"
 
   cat >"$app_dir/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -22,8 +40,10 @@ build_app() {
   <string>en</string>
   <key>CFBundleExecutable</key>
   <string>launch</string>
+  <key>CFBundleIconFile</key>
+  <string>${icon_name}</string>
   <key>CFBundleIdentifier</key>
-  <string>dev.promptpath.${name// /}</string>
+  <string>${bundle_id}</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
@@ -50,12 +70,14 @@ exec "\$ROOT/$script"
 LAUNCH
 
   chmod +x "$app_dir/Contents/MacOS/launch"
-  echo "Built $app_dir"
+  info "Built $app_dir"
 }
 
-build_app "PromptPath" "scripts/start-daemon.sh"
-build_app "PromptPath Stop" "scripts/stop.sh"
+ensure_icon
+build_app "PromptPath" "scripts/start-daemon.sh" "dev.promptpath.launcher"
+build_app "PromptPath Stop" "scripts/stop.sh" "dev.promptpath.stop"
 
 echo ""
 echo "Double-click PromptPath.app to start (opens browser, runs in background)."
 echo "Double-click PromptPath Stop.app to stop."
+echo "Run ./scripts/install-macos.sh to link into ~/Applications and pin to the Dock."

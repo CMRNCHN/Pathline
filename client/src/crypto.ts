@@ -1,6 +1,6 @@
 /**
  * Client-side encryption utilities.
- * Secrets and status payloads are encrypted on-device before any server contact.
+ * Secrets and callstate payloads are encrypted on-device before any server contact.
  */
 
 function toBase64(buffer: ArrayBuffer): string {
@@ -17,22 +17,26 @@ export interface EncryptedBlob {
   key_id: string;
 }
 
-async function getOrCreateStatusKey(): Promise<CryptoKey> {
-  const stored = sessionStorage.getItem("pp_status_key");
+const CALLSTATE_KEY = "pp_callstate_key";
+const LEGACY_STATUS_KEY = "pp_status_key";
+
+async function getOrCreateCallStateKey(): Promise<CryptoKey> {
+  const stored = sessionStorage.getItem(CALLSTATE_KEY) ?? sessionStorage.getItem(LEGACY_STATUS_KEY);
   if (stored) {
     const raw = fromBase64(stored);
     return crypto.subtle.importKey("raw", raw as BufferSource, { name: "AES-GCM" }, false, ["encrypt"]);
   }
   const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
   const raw = await crypto.subtle.exportKey("raw", key);
-  sessionStorage.setItem("pp_status_key", toBase64(raw));
+  sessionStorage.setItem(CALLSTATE_KEY, toBase64(raw));
+  sessionStorage.removeItem(LEGACY_STATUS_KEY);
   return key;
 }
 
-export async function encryptStatusPayload(
+export async function encryptCallStatePayload(
   payload: Record<string, unknown>
 ): Promise<{ ciphertext: string; nonce: string }> {
-  const key = await getOrCreateStatusKey();
+  const key = await getOrCreateCallStateKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const plaintext = new TextEncoder().encode(JSON.stringify(payload));
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
@@ -64,5 +68,6 @@ export function generateSessionId(): string {
 }
 
 export function clearLocalKeys(): void {
-  sessionStorage.removeItem("pp_status_key");
+  sessionStorage.removeItem(CALLSTATE_KEY);
+  sessionStorage.removeItem(LEGACY_STATUS_KEY);
 }
