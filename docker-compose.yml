@@ -32,11 +32,17 @@ services:
   asterisk:
     image: andrius/asterisk:18-current
     ports:
-      - "5060:5060/udp"
-      - "5060:5060/tcp"
-      - "8088:8088"
+      - "${LAB_SIP_TLS_PORT:-5061}:5061/tcp"
+      - "10000-10100:10000-10100/udp"
     volumes:
-      - ./lab/asterisk:/etc/asterisk/custom:ro
+      - ./lab/asterisk/extensions_lab.conf:/lab/extensions_lab.conf:ro
+      - ./lab/asterisk/generated/pjsip.lab.conf:/lab/pjsip.lab.conf:ro
+      - ./lab/asterisk/generated/tls:/etc/asterisk/keys:ro
+      - ./lab/asterisk/entrypoint.sh:/lab/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/lab/entrypoint.sh"]
+    environment:
+      PUID: "1000"
+      PGID: "1000"
     profiles:
       - lab
 

@@ -4,13 +4,22 @@ import {
   mintToken,
   placeCallLocally,
   linkConsentSession,
-  submitEncryptedStatus,
-  exportStatus,
-  deleteStatus,
+  submitEncryptedCallState,
+  exportCallState,
+  deleteCallState,
   revokeToken,
 } from "../api";
-import { encryptStatusPayload, generateUserId, generateSessionId, clearLocalKeys } from "../crypto";
-import type { LocalSession } from "../types";
+import { encryptCallStatePayload, generateUserId, generateSessionId, clearLocalKeys } from "../crypto";
+import type { LocalCall } from "../types";
+import { CallStateBoard } from "../components/CallStateBoard";
+import {
+  pathFromScript,
+  projectLiveStatus,
+  runLogToCallEvents,
+  newCallEvent,
+  callFromSession,
+  type CallEvent,
+} from "../callstate";
 import type { Path } from "../script/types";
 import { extractOutputRules, extractVariableNames } from "../script/compile";
 import {
@@ -82,7 +91,7 @@ function RunFlow({
   const [step, setStep] = useState<Step>("consent");
   const [consentChecked, setConsentChecked] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  const [session, setSession] = useState<LocalSession | null>(null);
+  const [session, setSession] = useState<LocalCall | null>(null);
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,7 +152,7 @@ function RunFlow({
         scriptId: script.id,
         scriptName: scriptDisplayName(script),
         targetNumber,
-        status: "in_progress",
+        phase: "active",
         startedAt: new Date().toISOString(),
       });
       setStep("active");
@@ -157,19 +166,23 @@ function RunFlow({
     }
   };
 
-  const handleComplete = async (collected: Record<string, string>, transcriptHash: string) => {
+  const handleComplete = async (
+    collected: Record<string, string>,
+    transcriptHash: string,
+    callEvents: CallEvent[]
+  ) => {
     if (!token || !session) return;
     setLoading(true);
     setError(null);
     try {
-      const encrypted = await encryptStatusPayload({
-        status: "completed",
+      const encrypted = await encryptCallStatePayload({
+        phase: "completed",
         fields: collected,
         transcript_hash: transcriptHash,
         completed_at: new Date().toISOString(),
       });
 
-      await submitEncryptedStatus(token, session.sessionId, encrypted.ciphertext, encrypted.nonce);
+      await submitEncryptedCallState(token, session.sessionId, encrypted.ciphertext, encrypted.nonce);
 
       recordRun({
         runId: session.sessionId,
@@ -181,7 +194,7 @@ function RunFlow({
         captured: collected,
       });
 
-      setSession({ ...session, status: "completed", collected });
+      setSession({ ...session, phase: "completed", collected, callEvents });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit Status");
     } finally {
@@ -192,7 +205,7 @@ function RunFlow({
   const handleExport = async () => {
     if (!token || !session) return;
     try {
-      const data = await exportStatus(token, session.sessionId);
+      const data = await exportCallState(token, session.sessionId);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -207,7 +220,7 @@ function RunFlow({
 
   const handleRevoke = async () => {
     if (token && session) {
-      await deleteStatus(token, session.sessionId);
+      await deleteCallState(token, session.sessionId);
       await revokeToken(token);
     }
     clearLocalKeys();
@@ -361,29 +374,31 @@ function RunFlow({
 
   if (!session || !activeRun) return null;
 
-  return wrap(
-    <div className="session-status">
-      <h3>Status</h3>
-      <dl>
-        <dt>State</dt>
-        <dd><span className={`status-badge status-${session.status}`}>{session.status === "in_progress" ? "active" : session.status}</span></dd>
-        <dt>Path</dt>
-        <dd>{session.scriptName}</dd>
-        <dt>Run ID</dt>
-        <dd className="mono">{session.sessionId.slice(0, 8)}…</dd>
-        <dt>Target</dt>
-        <dd className="mono local-only">Stored on device only</dd>
-      </dl>
+  const path = pathFromScript(activeRun.script);
 
-      {session.status === "in_progress" && (
-        <MatcherPanel
-          script={activeRun.script}
-          variables={activeRun.variables}
-          onStatusCaptured={handleComplete}
+  return wrap(
+    <div className="callstate-panel">
+      {session.phase === "completed" && session.callEvents && (
+        <CallStateBoard
+          liveStatus={projectLiveStatus(
+            callFromSession(session.sessionId, "local-client", path.id, session.callEvents),
+            path
+          )}
+          path={path}
+          label="Callstate"
         />
       )}
 
-      {session.status === "completed" && session.collected && (
+      {session.phase === "active" && (
+        <MatcherPanel
+          script={activeRun.script}
+          variables={activeRun.variables}
+          sessionId={session.sessionId}
+          onCallStateCaptured={handleComplete}
+        />
+      )}
+
+      {session.phase === "completed" && session.collected && (
         <div className="transcript-preview">
           <h4>Captured</h4>
           <pre>{JSON.stringify(session.collected, null, 2)}</pre>
@@ -391,8 +406,8 @@ function RunFlow({
         </div>
       )}
 
-      <div className="session-actions">
-        {session.status === "completed" && (
+      <div className="callstate-actions">
+        {session.phase === "completed" && (
           <button className="btn btn-secondary" onClick={handleExport}>
             Export
           </button>
@@ -410,14 +425,24 @@ function RunFlow({
 function MatcherPanel({
   script,
   variables,
-  onStatusCaptured,
+  sessionId,
+  onCallStateCaptured,
 }: {
   script: Path;
   variables: Record<string, string>;
-  onStatusCaptured: (collected: Record<string, string>, transcriptHash: string) => void;
+  sessionId: string;
+  onCallStateCaptured: (
+    collected: Record<string, string>,
+    transcriptHash: string,
+    callEvents: CallEvent[]
+  ) => void;
 }) {
   const [run, setRun] = useState<RunState>(initialRunState);
   const [ivrText, setIvrText] = useState("");
+  const path = pathFromScript(script);
+  const callEvents = runLogToCallEvents(run.log, path);
+  const call = callFromSession(sessionId, "local-client", path.id, callEvents);
+  const liveStatus = projectLiveStatus(call, path);
   const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
   const [listenError, setListenError] = useState<string | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
@@ -428,12 +453,19 @@ function MatcherPanel({
         const result = processPhrase(text, script, variables, prev);
         if (result.shouldComplete) {
           const { collected } = result.state;
-          void hashCollected(collected).then((hash) => onStatusCaptured(collected, hash));
+          const events = runLogToCallEvents(result.state.log, path);
+          const finalEvents = [
+            ...events,
+            newCallEvent("VERIFICATION_COMPLETE", path.definedSteps[path.definedSteps.length - 1]),
+          ];
+          void hashCollected(collected).then((hash) =>
+            onCallStateCaptured(collected, hash, finalEvents)
+          );
         }
         return result.state;
       });
     },
-    [script, variables, onStatusCaptured]
+    [script, variables, onCallStateCaptured, path]
   );
 
   const applyPhraseDebounced = useCallback(
@@ -474,6 +506,8 @@ function MatcherPanel({
 
   return (
     <div className="navigator-panel run-panel">
+      <CallStateBoard liveStatus={liveStatus} path={path} label="Live callstate" />
+
       <div className="run-panel-header">
         <h4>{scriptDisplayName(script)}</h4>
         {isSpeechRecognitionAvailable() && !run.completed && (
@@ -548,7 +582,7 @@ function MatcherPanel({
       )}
 
       {run.completed && (
-        <p className="hint success-hint">Run complete — encrypted status submitted.</p>
+        <p className="hint success-hint">Run complete — encrypted callstate submitted.</p>
       )}
     </div>
   );

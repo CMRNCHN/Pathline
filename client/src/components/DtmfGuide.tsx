@@ -12,7 +12,7 @@ export function DtmfGuide({ sequence, trigger, onComplete }: DtmfGuideProps) {
   const [index, setIndex] = useState(0);
   const isMulti = digits.length > 1;
   const current = digits[index] ?? "";
-  const done = isMulti && index >= digits.length - 1;
+  const atLastDigit = isMulti && index >= digits.length - 1;
 
   useEffect(() => {
     setIndex(0);
@@ -85,12 +85,12 @@ export function DtmfGuide({ sequence, trigger, onComplete }: DtmfGuideProps) {
           type="button"
           className="btn btn-sm btn-secondary"
           onClick={() => setIndex((i) => Math.min(i + 1, digits.length - 1))}
-          disabled={done}
+          disabled={atLastDigit}
         >
           Next key →
         </button>
         <button type="button" className="btn btn-sm btn-primary" onClick={onComplete}>
-          {done ? "Sent ✓" : "Done sending"}
+          Done sending
         </button>
       </div>
     </div>

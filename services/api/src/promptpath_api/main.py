@@ -47,8 +47,8 @@ class Base(DeclarativeBase):
     pass
 
 
-class StatusRecord(Base):
-    __tablename__ = "status_records"
+class CallStateRecord(Base):
+    __tablename__ = "callstate_records"
 
     hashed_id = Column(String(64), primary_key=True)
     encrypted_payload = Column(Text, nullable=False)
@@ -83,14 +83,14 @@ class ConsentAudit(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
 
 
-class EncryptedStatusIngest(BaseModel):
-    """Opaque client-encrypted status — server cannot read contents."""
+class EncryptedCallStateIngest(BaseModel):
+    """Opaque client-encrypted callstate — server cannot read contents."""
     session_id: str
     encrypted_payload: str
     payload_nonce: str
 
 
-class StatusIngestResponse(BaseModel):
+class CallStateIngestResponse(BaseModel):
     hashed_session_id: str
     received_at: str
     expires_at: str
@@ -145,7 +145,7 @@ async def purge_expired():
         try:
             now = datetime.now(UTC)
             async with SessionLocal() as db:
-                await db.execute(delete(StatusRecord).where(StatusRecord.expires_at < now))
+                await db.execute(delete(CallStateRecord).where(CallStateRecord.expires_at < now))
                 await db.execute(delete(ConsentAudit).where(ConsentAudit.expires_at < now))
                 await db.commit()
             logger.info("purge_completed")
@@ -278,13 +278,13 @@ async def link_session_to_consent(
     )
 
 
-@app.post("/v1/status", response_model=StatusIngestResponse)
-async def ingest_status(
-    body: EncryptedStatusIngest,
+@app.post("/v1/callstate", response_model=CallStateIngestResponse)
+async def ingest_callstate(
+    body: EncryptedCallStateIngest,
     db: AsyncSession = Depends(get_db),
     payload: dict = Depends(verify_token),
 ):
-    """Accept opaque encrypted status — no phone numbers, no plaintext."""
+    """Accept opaque encrypted callstate — no phone numbers, no plaintext."""
     hashed = hash_session_id(body.session_id, settings.session_pepper)
     now = datetime.now(UTC)
     expires = now + timedelta(seconds=settings.retention_seconds)
@@ -295,12 +295,12 @@ async def ingest_status(
         "payload_nonce": body.payload_nonce,
     })
 
-    existing = await db.get(StatusRecord, hashed)
+    existing = await db.get(CallStateRecord, hashed)
     if existing:
         existing.encrypted_payload = stored
         existing.expires_at = expires
     else:
-        db.add(StatusRecord(hashed_id=hashed, encrypted_payload=stored, created_at=now, expires_at=expires))
+        db.add(CallStateRecord(hashed_id=hashed, encrypted_payload=stored, created_at=now, expires_at=expires))
 
     jti = payload.get("jti")
     if jti:
@@ -309,30 +309,39 @@ async def ingest_status(
     notif = NotificationRecord(
         id=str(uuid.uuid4()),
         hashed_id=hashed,
-        event="status_received",
-        message="Encrypted status ingested",
+        event="callstate_received",
+        message="Encrypted callstate ingested",
         severity="info",
         created_at=now,
     )
     db.add(notif)
     await db.commit()
 
-    logger.info("status_ingested", hashed_id=hashed[:8] + "...")
-    return StatusIngestResponse(
+    logger.info("callstate_ingested", hashed_id=hashed[:8] + "...")
+    return CallStateIngestResponse(
         hashed_session_id=hashed,
         received_at=now.isoformat(),
         expires_at=expires.isoformat(),
     )
 
 
-@app.get("/v1/status/{session_id}/export", response_model=ExportResponse)
-async def export_status(
+@app.post("/v1/status", response_model=CallStateIngestResponse, include_in_schema=False)
+async def ingest_status_legacy(
+    body: EncryptedCallStateIngest,
+    db: AsyncSession = Depends(get_db),
+    payload: dict = Depends(verify_token),
+):
+    return await ingest_callstate(body, db, payload)
+
+
+@app.get("/v1/callstate/{session_id}/export", response_model=ExportResponse)
+async def export_callstate(
     session_id: str,
     db: AsyncSession = Depends(get_db),
     _: dict = Depends(verify_token),
 ):
     hashed = hash_session_id(session_id, settings.session_pepper)
-    record = await db.get(StatusRecord, hashed)
+    record = await db.get(CallStateRecord, hashed)
     if not record:
         raise HTTPException(404, "No data for session")
 
@@ -347,19 +356,37 @@ async def export_status(
     )
 
 
-@app.delete("/v1/status/{session_id}", response_model=DeleteResponse)
-async def delete_status(
+@app.get("/v1/status/{session_id}/export", response_model=ExportResponse, include_in_schema=False)
+async def export_status_legacy(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(verify_token),
+):
+    return await export_callstate(session_id, db, _)
+
+
+@app.delete("/v1/callstate/{session_id}", response_model=DeleteResponse)
+async def delete_callstate(
     session_id: str,
     db: AsyncSession = Depends(get_db),
     _: dict = Depends(verify_token),
 ):
     hashed = hash_session_id(session_id, settings.session_pepper)
-    record = await db.get(StatusRecord, hashed)
+    record = await db.get(CallStateRecord, hashed)
     if record:
         await db.delete(record)
         await db.commit()
-    logger.info("status_deleted", hashed_id=hashed[:8] + "...")
+    logger.info("callstate_deleted", hashed_id=hashed[:8] + "...")
     return DeleteResponse(deleted=True, hashed_session_id=hashed)
+
+
+@app.delete("/v1/status/{session_id}", response_model=DeleteResponse, include_in_schema=False)
+async def delete_status_legacy(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(verify_token),
+):
+    return await delete_callstate(session_id, db, _)
 
 
 @app.post("/v1/revoke")

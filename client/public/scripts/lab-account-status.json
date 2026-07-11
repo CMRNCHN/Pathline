@@ -1,0 +1,71 @@
+{
+  "id": "lab-account-status",
+  "version": 2,
+  "setup": {
+    "name": "Lab account status (Asterisk 1000)",
+    "description": "Maps to the PromptPath lab IVR. Register softphone over TLS (see .env / lab/asterisk/generated/credentials.env), dial 1000, paste phrases in the web UI.",
+    "target": "",
+    "timeoutMs": 30000,
+    "speechPreferences": { "autoListen": false },
+    "runtimeVariables": ["account_pin", "ssn_last4"]
+  },
+  "ivrRules": [
+    {
+      "id": "rule-main-menu",
+      "label": "main_menu",
+      "trigger": "account|press 1 for account|option 1",
+      "response": "1",
+      "rule": "Inject DTMF after detect",
+      "output": ""
+    },
+    {
+      "id": "rule-touch-tone",
+      "label": "touch_tone",
+      "trigger": "touch tone|touchtone|press 9|keypad",
+      "response": "9",
+      "rule": "Inject DTMF after detect",
+      "output": ""
+    },
+    {
+      "id": "rule-pin",
+      "label": "pin_entry",
+      "trigger": "pin|personal identification|enter your pin",
+      "response": "{{account_pin}}#",
+      "rule": "Inject DTMF after detect",
+      "output": ""
+    },
+    {
+      "id": "rule-ssn",
+      "label": "ssn_entry",
+      "trigger": "last four|social security|last four of your social",
+      "response": "{{ssn_last4}}#",
+      "rule": "Inject DTMF after detect",
+      "output": ""
+    },
+    {
+      "id": "rule-status-menu",
+      "label": "status_menu",
+      "trigger": "balance|press 1 for balance|hear your balance",
+      "response": "1",
+      "rule": "Inject DTMF after detect",
+      "output": ""
+    },
+    {
+      "id": "rule-capture",
+      "label": "read_status",
+      "trigger": "your balance|your dollars|1234|current balance",
+      "response": "",
+      "rule": "Capture value after detect",
+      "output": "account_balance"
+    },
+    {
+      "id": "rule-end",
+      "label": "end_call",
+      "trigger": "",
+      "response": "",
+      "rule": "End call",
+      "output": ""
+    }
+  ],
+  "conversationFlow": []
+}

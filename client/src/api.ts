@@ -1,6 +1,18 @@
-import type { TokenResponse, StatusIngestResponse, SessionLinkResponse } from "./types";
+import type { TokenResponse, CallStateIngestResponse, HealthResponse, SessionLinkResponse } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
+
+export async function fetchHealth(): Promise<HealthResponse> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(`${API_URL}/health`, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`);
+    return res.json();
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
 
 export async function mintToken(
   userId: string,
@@ -41,13 +53,13 @@ export async function linkConsentSession(
   return res.json();
 }
 
-export async function submitEncryptedStatus(
+export async function submitEncryptedCallState(
   token: string,
   sessionId: string,
   encryptedPayload: string,
   payloadNonce: string
-): Promise<StatusIngestResponse> {
-  const res = await fetch(`${API_URL}/v1/status`, {
+): Promise<CallStateIngestResponse> {
+  const res = await fetch(`${API_URL}/v1/callstate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -59,20 +71,20 @@ export async function submitEncryptedStatus(
       payload_nonce: payloadNonce,
     }),
   });
-  if (!res.ok) throw new Error(`Status submit failed: ${res.statusText}`);
+  if (!res.ok) throw new Error(`Callstate submit failed: ${res.statusText}`);
   return res.json();
 }
 
-export async function exportStatus(token: string, sessionId: string) {
-  const res = await fetch(`${API_URL}/v1/status/${sessionId}/export`, {
+export async function exportCallState(token: string, sessionId: string) {
+  const res = await fetch(`${API_URL}/v1/callstate/${sessionId}/export`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`Export failed: ${res.statusText}`);
   return res.json();
 }
 
-export async function deleteStatus(token: string, sessionId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/v1/status/${sessionId}`, {
+export async function deleteCallState(token: string, sessionId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/callstate/${sessionId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
