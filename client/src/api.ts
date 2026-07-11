@@ -1,18 +1,6 @@
-import type { TokenResponse, StatusIngestResponse, HealthResponse } from "./types";
+import type { TokenResponse, StatusIngestResponse } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
-
-export async function fetchHealth(): Promise<HealthResponse> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 5000);
-  try {
-    const res = await fetch(`${API_URL}/health`, { signal: controller.signal });
-    if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`);
-    return res.json();
-  } finally {
-    window.clearTimeout(timeout);
-  }
-}
 
 export async function mintToken(
   userId: string,

@@ -1,20 +1,20 @@
-import type { FlowStep, IvrRule, ScriptDocument } from "./types";
+import type { FlowStep, Step, PathDocument } from "./types";
 import { newId } from "./storage";
 
 const VAR_REF = /\{\{(\w+)\}\}/g;
 
-function flowActionForRule(rule: IvrRule): FlowStep["action"] {
-  if (rule.rule === "Validate collected outputs") return "validate";
-  if (rule.rule === "End call") return "end";
-  if (rule.rule === "Wait for IVR response") return "pass";
-  if (rule.output.trim() || rule.rule === "Capture value after detect") return "extract";
+function flowActionForRule(step: Step): FlowStep["action"] {
+  if (step.rule === "Validate collected outputs") return "validate";
+  if (step.rule === "End call") return "end";
+  if (step.rule === "Wait for IVR response") return "pass";
+  if (step.output.trim() || step.rule === "Capture value after detect") return "extract";
   return "trigger";
 }
 
-export function syncRuntimeVariablesFromRules(rules: IvrRule[]): string[] {
+export function syncInputsFromSteps(steps: Step[]): string[] {
   const names = new Set<string>();
-  for (const rule of rules) {
-    for (const m of rule.response.matchAll(VAR_REF)) {
+  for (const step of steps) {
+    for (const m of step.then.matchAll(VAR_REF)) {
       names.add(m[1]);
     }
   }
@@ -22,7 +22,7 @@ export function syncRuntimeVariablesFromRules(rules: IvrRule[]): string[] {
 }
 
 export function syncConversationFlowFromRules(
-  rules: IvrRule[],
+  steps: Step[],
   existing: FlowStep[] = []
 ): FlowStep[] {
   const byLabel = new Map(
@@ -31,38 +31,38 @@ export function syncConversationFlowFromRules(
       .map((step) => [step.triggerLabel!, step])
   );
 
-  return rules
+  return steps
     .filter(
-      (rule) =>
-        rule.label.trim() &&
-        (rule.trigger.trim() || rule.rule === "Wait for IVR response" || rule.rule === "End call")
+      (step) =>
+        step.label.trim() &&
+        (step.when.trim() || step.rule === "Wait for IVR response" || step.rule === "End call")
     )
-    .map((rule) => {
-      const prev = byLabel.get(rule.label);
-      const action = flowActionForRule(rule);
+    .map((step) => {
+      const prev = byLabel.get(step.label);
+      const action = flowActionForRule(step);
       const detect =
-        rule.trigger.trim() ||
-        (rule.rule === "End call" ? "goodbye|thank you" : `__wait_${rule.waitSeconds ?? 0}__`);
+        step.when.trim() ||
+        (step.rule === "End call" ? "goodbye|thank you" : `__wait_${step.waitSeconds ?? 0}__`);
 
       return {
         id: prev?.id ?? newId(),
         detect,
         action,
-        triggerLabel: action === "trigger" || action === "extract" ? rule.label : undefined,
+        triggerLabel: action === "trigger" || action === "extract" ? step.label : undefined,
       };
     });
 }
 
 export function withSyncedRules(
-  doc: ScriptDocument,
-  ivrRules: IvrRule[]
-): Pick<ScriptDocument, "ivrRules" | "conversationFlow" | "setup"> {
+  doc: PathDocument,
+  steps: Step[]
+): Pick<PathDocument, "steps" | "conversationFlow" | "setup"> {
   return {
-    ivrRules,
-    conversationFlow: syncConversationFlowFromRules(ivrRules, doc.conversationFlow),
+    steps,
+    conversationFlow: syncConversationFlowFromRules(steps, doc.conversationFlow),
     setup: {
       ...doc.setup,
-      runtimeVariables: syncRuntimeVariablesFromRules(ivrRules),
+      inputs: syncInputsFromSteps(steps),
     },
   };
 }

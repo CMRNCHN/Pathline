@@ -2,18 +2,16 @@ export const SCRIPT_VERSION = 2 as const;
 
 export type FlowAction = "trigger" | "extract" | "validate" | "end" | "pass";
 
-export interface ScriptSetup {
+export interface PathSetup {
   name: string;
   description: string;
-  /** Optional path hint for where this template lives on the user's device. */
-  localPath: string;
   target: string;
   timeoutMs: number;
   speechPreferences: {
     autoListen: boolean;
   };
-  /** Names only — values are filled at Run Configuration. */
-  runtimeVariables: string[];
+  /** Input names referenced by respond Steps — derived from Steps on sync. */
+  inputs: string[];
 }
 
 export const IVR_EXECUTION_RULES = [
@@ -25,17 +23,26 @@ export const IVR_EXECUTION_RULES = [
   "End call",
 ] as const;
 
-export interface IvrRule {
+/**
+ * A single Step in a Path.
+ * Field keys stay stable for on-disk/back-compat; Pathline terms map as:
+ *   trigger  -> When (what starts the Step)
+ *   rule     -> Then (the action performed)
+ *   response -> Then value (Input reference or literal)
+ *   output   -> captured result name
+ */
+export interface Step {
   id: string;
   label: string;
-  /** Expected IVR prompt / phrase that activates this rule. */
-  trigger: string;
-  /** Response action — typically a {{variable}} reference for DTMF/speech. */
-  response: string;
+  /** When: expected IVR prompt / phrase that starts this Step. */
+  when: string;
+  /** Then value — typically a {{input}} reference for DTMF/speech. */
+  then: string;
+  /** Then action type. */
   rule: string;
-  /** Run output field name when this rule captures data. */
+  /** Captured result name when this Step captures data. */
   output: string;
-  /** Pause duration for wait rules (seconds). */
+  /** Pause duration for wait Steps (seconds). */
   waitSeconds?: number;
 }
 
@@ -43,19 +50,19 @@ export interface FlowStep {
   id: string;
   detect: string;
   action: FlowAction;
-  /** IVR rule label — Trigger fires response; Extract stores detected speech to rule.output. */
+  /** Step label — Trigger fires response; Extract stores detected speech to step.output. */
   triggerLabel?: string;
 }
 
-export interface ScriptDocument {
+export interface PathDocument {
   id: string;
   version: typeof SCRIPT_VERSION;
-  setup: ScriptSetup;
-  ivrRules: IvrRule[];
+  setup: PathSetup;
+  steps: Step[];
   conversationFlow: FlowStep[];
 }
 
-/** Runtime values for a single run — never stored in the template. */
+/** Input values for a single Run — never stored with the Path. */
 export interface RunConfiguration {
   target: string;
   variables: Record<string, string>;
@@ -64,7 +71,7 @@ export interface RunConfiguration {
   };
 }
 
-/** Output produced when a run completes — schema lives here, not in the template. */
+/** Result produced when a Run completes — schema lives on Steps, not the Path. */
 export interface ExportPackage {
   sessionId: string;
   scriptId: string;
@@ -89,4 +96,4 @@ export interface RunState {
   completed: boolean;
 }
 
-export type KnownScript = ScriptDocument;
+export type Path = PathDocument;
