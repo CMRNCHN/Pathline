@@ -11,6 +11,11 @@ export interface CallStateIngestResponse {
   expires_at: string;
 }
 
+export interface SessionLinkResponse {
+  linked: boolean;
+  hashed_session_id: string;
+}
+
 export interface HealthResponse {
   status: string;
   service: string;

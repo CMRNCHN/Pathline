@@ -3,6 +3,7 @@ import { Play } from "lucide-react";
 import {
   mintToken,
   placeCallLocally,
+  linkConsentSession,
   submitEncryptedCallState,
   exportCallState,
   deleteCallState,
@@ -139,11 +140,12 @@ function RunFlow({
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!script) return;
+    if (!script || !token) return;
     setLoading(true);
     setError(null);
     try {
       const sessionId = generateSessionId();
+      await linkConsentSession(token, sessionId);
       setActiveRun({ script, variables });
       setSession({
         sessionId,
@@ -154,7 +156,9 @@ function RunFlow({
         startedAt: new Date().toISOString(),
       });
       setStep("active");
-      placeCallLocally(targetNumber);
+      if (targetNumber.trim()) {
+        placeCallLocally(targetNumber);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start session");
     } finally {
