@@ -1,8 +1,8 @@
-import type { IvrRule } from "../../script/types";
+import type { Step } from "../../script/types";
 import { inferIntent, ruleSummary, truncateTrigger } from "../../script/ruleIntent";
 
 interface RuleCardProps {
-  rule: IvrRule;
+  rule: Step;
   readOnly: boolean;
   onEdit: () => void;
   onRemove: () => void;

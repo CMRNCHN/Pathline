@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from "react";
-import type { IvrRule } from "../../../script/types";
+import type { Step } from "../../../script/types";
 import { stepProgress } from "./machine";
 import { wizardReducer } from "./reducer";
 import { selectCanSave, selectSummary, buildRuleFromState } from "./selectors";
@@ -12,8 +12,8 @@ import { RespondStep } from "./steps/RespondStep";
 
 export interface RuleWizardProps {
   existingLabels: string[];
-  editingRule?: IvrRule;
-  onSave: (rule: IvrRule) => void;
+  editingRule?: Step;
+  onSave: (rule: Step) => void;
   onCancel: () => void;
 }
 
