@@ -1,5 +1,4 @@
-import type { KnownScript } from "../script/types";
-import type { RunLogEntry } from "../script/types";
+import type { PathDocument, RunLogEntry } from "../script/types";
 import type { Call, CallEvent, CallEventType, Path, PathStep } from "./types";
 
 const DEFAULT_STEPS: PathStep[] = [
@@ -9,8 +8,8 @@ const DEFAULT_STEPS: PathStep[] = [
   "FINAL_RESPONSE",
 ];
 
-export function pathFromScript(script: KnownScript): Path {
-  const ruleSteps = script.ivrRules
+export function pathFromScript(script: PathDocument): Path {
+  const ruleSteps = script.steps
     .filter((r) => r.rule !== "End call")
     .map((_, i) => DEFAULT_STEPS[Math.min(i, DEFAULT_STEPS.length - 1)]);
 

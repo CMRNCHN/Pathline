@@ -1,4 +1,4 @@
-import type { FlowStep, IvrRule, ScriptDocument, ScriptSetup } from "./types";
+import type { FlowStep, Step, PathDocument, PathSetup } from "./types";
 import { SCRIPT_VERSION } from "./types";
 import { newId } from "./storage";
 import { withSyncedRules } from "./sync";
@@ -46,19 +46,19 @@ function toResponseRef(keys: string, index: number): string {
 }
 
 function ensureExtractRule(
-  ivrRules: IvrRule[],
+  ivrRules: Step[],
   field: string,
   trigger: string
-): { ivrRules: IvrRule[]; label: string } {
+): { ivrRules: Step[]; label: string } {
   const existing = ivrRules.find((r) => r.output === field);
   if (existing) return { ivrRules, label: existing.label };
 
   const label = field || slugLabel("capture", ivrRules.length + 1);
-  const rule: IvrRule = {
+  const rule: Step = {
     id: newId(),
     label,
-    trigger,
-    response: "",
+    when: trigger,
+    then: "",
     rule: "Capture value after detect",
     output: field || label,
   };
@@ -66,10 +66,10 @@ function ensureExtractRule(
 }
 
 function migrateLegacyRulesToFlow(rules: V1StatusRule[]): {
-  ivrRules: IvrRule[];
+  ivrRules: Step[];
   conversationFlow: FlowStep[];
 } {
-  let ivrRules: IvrRule[] = [];
+  let ivrRules: Step[] = [];
   const conversationFlow: FlowStep[] = [];
   let ruleIndex = 0;
 
@@ -81,8 +81,8 @@ function migrateLegacyRulesToFlow(rules: V1StatusRule[]): {
       ivrRules.push({
         id: newId(),
         label,
-        response: toResponseRef(rule.dtmf ?? "", ruleIndex),
-        trigger: rule.trigger ?? "",
+        then: toResponseRef(rule.dtmf ?? "", ruleIndex),
+        when: rule.trigger ?? "",
         rule: "Inject DTMF after detect",
         output: "",
       });
@@ -113,20 +113,20 @@ function migrateLegacyRulesToFlow(rules: V1StatusRule[]): {
   return { ivrRules, conversationFlow };
 }
 
-export function migrateV1ToV2(raw: unknown): ScriptDocument {
+export function migrateV1ToV2(raw: unknown): PathDocument {
   const o = raw as V1Document;
 
-  const setup: ScriptSetup = {
+  const setup: PathSetup = {
     name: o.name ?? "",
     description: o.description ?? "",
     localPath: "",
     target: o.target ?? "",
     timeoutMs: o.timeoutMs ?? 30000,
     speechPreferences: { autoListen: false },
-    runtimeVariables: [],
+    inputs: [],
   };
 
-  let ivrRules: IvrRule[] = [];
+  let ivrRules: Step[] = [];
   let conversationFlow: FlowStep[] = [];
 
   const conversation = o.conversation ?? [];
@@ -143,8 +143,8 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
         ivrRules.push({
           id: newId(),
           label,
-          response: toResponseRef(step.keys ?? "", ruleIndex),
-          trigger: step.listenFor ?? "",
+          then: toResponseRef(step.keys ?? "", ruleIndex),
+          when: step.listenFor ?? "",
           rule: "Inject DTMF after detect",
           output: "",
         });
@@ -187,19 +187,19 @@ export function migrateV1ToV2(raw: unknown): ScriptDocument {
     }
   }
 
-  const runtimeVariables = new Set<string>();
-  for (const rule of ivrRules) {
-    for (const m of rule.response.matchAll(/\{\{(\w+)\}\}/g)) {
-      runtimeVariables.add(m[1]);
+  const inputs = new Set<string>();
+  for (const step of ivrRules) {
+    for (const m of step.then.matchAll(/\{\{(\w+)\}\}/g)) {
+      inputs.add(m[1]);
     }
   }
-  setup.runtimeVariables = [...runtimeVariables].sort();
+  setup.inputs = [...inputs].sort();
 
-  const doc: ScriptDocument = {
+  const doc: PathDocument = {
     id: o.id ?? newId(),
     version: SCRIPT_VERSION,
     setup,
-    ivrRules,
+    steps: ivrRules,
     conversationFlow,
   };
 
