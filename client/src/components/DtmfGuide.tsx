@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { dtmfStepDelayMs, splitDtmfSequence } from "../script/dtmf";
 
 interface DtmfGuideProps {
@@ -8,7 +8,7 @@ interface DtmfGuideProps {
 }
 
 export function DtmfGuide({ sequence, trigger, onComplete }: DtmfGuideProps) {
-  const digits = splitDtmfSequence(sequence);
+  const digits = useMemo(() => splitDtmfSequence(sequence), [sequence]);
   const [index, setIndex] = useState(0);
   const isMulti = digits.length > 1;
   const current = digits[index] ?? "";
@@ -25,7 +25,19 @@ export function DtmfGuide({ sequence, trigger, onComplete }: DtmfGuideProps) {
     return () => window.clearTimeout(timer);
   }, [digits, index, isMulti]);
 
-  if (!digits.length) return null;
+  if (!digits.length) {
+    return (
+      <div className="dtmf-action-card">
+        <span className="dtmf-action-label">No valid touch-tones in prompt</span>
+        {sequence.trim() && <code className="dtmf-action-value">{sequence}</code>}
+        {trigger && <span className="dtmf-action-trigger">Heard: {trigger}</span>}
+        <p className="field-hint">This prompt has no dialable digits (0–9, #, *).</p>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onComplete}>
+          Dismiss
+        </button>
+      </div>
+    );
+  }
 
   if (!isMulti) {
     return (
