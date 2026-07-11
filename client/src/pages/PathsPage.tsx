@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { GitBranch, Phone, Plus } from "lucide-react";
+import { StatusBoard } from "../components/StatusBoard";
+import { useRuntimeStatus } from "../hooks/useRuntimeStatus";
 import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript, mergeScripts } from "../script/selectors";
 import { PageLayout } from "../components/ui/PageHeader";
@@ -16,7 +18,15 @@ interface PathsPageProps {
 }
 
 export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
-  const { bundledScripts, customScripts, setActiveId, addCustom } = useScriptStore();
+  const { bundledScripts, customScripts, setActiveId, addCustom, loading, error } =
+    useScriptStore();
+
+  const runtime = useRuntimeStatus(
+    loading,
+    error,
+    bundledScripts.length,
+    customScripts.length
+  );
 
   const paths = mergeScripts(bundledScripts, customScripts);
 
@@ -52,6 +62,8 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
         </button>
       }
     >
+      <StatusBoard status={runtime} />
+
       {filtered.length === 0 ? (
         <EmptyState
           icon={GitBranch}
