@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from "react";
-import type { IvrRule } from "../../../script/types";
+import type { Step } from "../../../script/types";
 import { stepProgress } from "./machine";
 import { wizardReducer } from "./reducer";
 import { selectCanSave, selectSummary, buildRuleFromState } from "./selectors";
@@ -12,8 +12,8 @@ import { RespondStep } from "./steps/RespondStep";
 
 export interface RuleWizardProps {
   existingLabels: string[];
-  editingRule?: IvrRule;
-  onSave: (rule: IvrRule) => void;
+  editingRule?: Step;
+  onSave: (rule: Step) => void;
   onCancel: () => void;
 }
 
@@ -48,7 +48,7 @@ export function RuleWizard({ existingLabels, editingRule, onSave, onCancel }: Ru
   return (
     <div className="rule-builder rule-wizard">
       <div className="rule-builder-header">
-        <h3>{editingRule ? "Edit rule" : "Add rule"}</h3>
+        <h3>{editingRule ? "Edit Step" : "Add Step"}</h3>
         <button type="button" className="btn-icon" onClick={onCancel} aria-label="Cancel">
           ×
         </button>

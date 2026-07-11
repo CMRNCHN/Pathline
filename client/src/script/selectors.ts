@@ -1,21 +1,21 @@
-import type { ScriptDocument } from "./types";
+import type { PathDocument } from "./types";
 
 export function mergeScripts(
-  bundledScripts: ScriptDocument[],
-  customScripts: ScriptDocument[]
-): ScriptDocument[] {
+  bundledScripts: PathDocument[],
+  customScripts: PathDocument[]
+): PathDocument[] {
   return bundledScripts.concat(customScripts);
 }
 
 export function getActiveScript(
-  bundledScripts: ScriptDocument[],
-  customScripts: ScriptDocument[],
+  bundledScripts: PathDocument[],
+  customScripts: PathDocument[],
   activeId: string
-): ScriptDocument | undefined {
+): PathDocument | undefined {
   return bundledScripts.find((s) => s.id === activeId)
     ?? customScripts.find((s) => s.id === activeId);
 }
 
-export function isBundledScript(bundledScripts: ScriptDocument[], id: string): boolean {
+export function isBundledScript(bundledScripts: PathDocument[], id: string): boolean {
   return bundledScripts.some((s) => s.id === id);
 }
