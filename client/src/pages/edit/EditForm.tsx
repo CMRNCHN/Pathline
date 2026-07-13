@@ -5,7 +5,7 @@ import { extractVariableNames, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
 import { getPathReadiness, READINESS_LABEL } from "../../script/pathReadiness";
 import { SectionBlock } from "../../components/ui/SectionBlock";
-import { Badge } from "../../components/ui/Badge";
+import { PathBadge } from "../../components/ui/PathBadge";
 import { RuleWizard } from "./ruleWizard/RuleWizard";
 import { RuleCard } from "./RuleCard";
 import { isPlaceholderRule } from "../../script/ruleIntent";
@@ -85,7 +85,7 @@ export function EditForm({
         <div className="script-header-main">
           <div className="script-header-eyebrow-row">
             <p className="editor-eyebrow">Path</p>
-            <Badge variant={readinessVariant}>{READINESS_LABEL[readiness]}</Badge>
+            <PathBadge variant={readinessVariant}>{READINESS_LABEL[readiness]}</PathBadge>
           </div>
           {readOnly ? (
             <h1 className="editor-title">{scriptDisplayName(script)}</h1>

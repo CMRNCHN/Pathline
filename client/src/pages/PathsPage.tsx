@@ -6,7 +6,7 @@ import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript, mergeScripts } from "../script/selectors";
 import { PageLayout } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
-import { Badge } from "../components/ui/Badge";
+import { PathBadge } from "../components/ui/PathBadge";
 import { scriptDisplayName } from "../script/storage";
 import { isPlaceholderRule } from "../script/ruleIntent";
 import { getPathReadiness, READINESS_LABEL } from "../script/pathReadiness";
@@ -96,8 +96,8 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
                       <GitBranch />
                     </div>
                     <div className="script-card-badges">
-                      <Badge variant={readinessVariant}>{READINESS_LABEL[readiness]}</Badge>
-                      {isBundledScript(bundledScripts, path.id) && <Badge variant="accent">Example</Badge>}
+                      <PathBadge variant={readinessVariant}>{READINESS_LABEL[readiness]}</PathBadge>
+                      {isBundledScript(bundledScripts, path.id) && <PathBadge variant="accent">Example</PathBadge>}
                     </div>
                   </div>
                   <h3 className="script-card-name">{scriptDisplayName(path)}</h3>

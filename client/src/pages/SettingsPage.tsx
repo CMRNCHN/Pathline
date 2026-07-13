@@ -1,6 +1,6 @@
 import { Shield, Activity, HardDrive, Download, Info } from "lucide-react";
 import { PageLayout } from "../components/ui/PageHeader";
-import { Card } from "../components/ui/Card";
+import { SectionCard } from "../components/ui/SectionCard";
 import { useScriptStore } from "../store/ScriptStore";
 import { mergeScripts } from "../script/selectors";
 import { clearLocalKeys } from "../crypto";
@@ -53,7 +53,7 @@ export function SettingsPage() {
       wide
     >
       <div className="card-grid">
-        <Card title="Privacy" icon={Shield}>
+        <SectionCard title="Privacy" icon={Shield}>
           <DataRow label="Secrets & target numbers" value="Device only" ok />
           <DataRow label="Call audio" value="Processed locally" ok />
           <DataRow label="Status reporting" value="Encrypted blob + hash" ok />
@@ -61,9 +61,9 @@ export function SettingsPage() {
           <p className="hint" style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
             Carriers still see call metadata on the PSTN.
           </p>
-        </Card>
+        </SectionCard>
 
-        <Card title="Health" icon={Activity}>
+        <SectionCard title="Health" icon={Activity}>
           <DataRow label="DTMF input" value="Active — required for a Run" ok />
           <DataRow label="Voice input" value="Planned — not used yet" />
           <DataRow label="API endpoint" value="/api → :8000" ok />
@@ -73,9 +73,9 @@ export function SettingsPage() {
             value={loading ? "Loading…" : error ? "Error" : "Ready"}
             ok={!error && !loading}
           />
-        </Card>
+        </SectionCard>
 
-        <Card title="Local data" icon={HardDrive}>
+        <SectionCard title="Local data" icon={HardDrive}>
           <DataRow label="Your Paths" value={`${customScripts.length} saved`} />
           <DataRow label="Example Paths" value={`${bundledScripts.length} bundled`} />
           <DataRow label="Run History" value={`${runCount} recorded`} />
@@ -94,22 +94,22 @@ export function SettingsPage() {
               Clear all local data
             </button>
           </div>
-        </Card>
+        </SectionCard>
 
-        <Card title="Export all Paths" icon={Download}>
+        <SectionCard title="Export all Paths" icon={Download}>
           <p className="hint" style={{ marginBottom: "1rem" }}>
             Download {paths.length} Path{paths.length !== 1 ? "s" : ""} as JSON. Paths never contain Input values.
           </p>
           <button type="button" className="btn btn-primary" disabled={paths.length === 0} onClick={exportAll}>
             Download Paths
           </button>
-        </Card>
+        </SectionCard>
 
-        <Card title="About" icon={Info}>
+        <SectionCard title="About" icon={Info}>
           <p className="hint" style={{ margin: 0 }}>
             Pathline · Client-mediated · DTMF Runs · Encrypted Status export
           </p>
-        </Card>
+        </SectionCard>
       </div>
     </PageLayout>
   );
