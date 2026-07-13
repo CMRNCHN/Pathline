@@ -1,6 +1,10 @@
-import { Activity, Hash, Mic, Server, Shield, Sparkles } from "lucide-react";
+import { Activity, Hash, Mic, RefreshCw, Server, Shield, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { RuntimeStatus } from "../hooks/useRuntimeStatus";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface StatusBoardProps {
   status: RuntimeStatus;
@@ -23,6 +27,21 @@ function relativeCheck(when: Date | null): string {
   if (sec < 5) return "just now";
   if (sec < 60) return `${sec}s ago`;
   return `${Math.floor(sec / 60)}m ago`;
+}
+
+function tileBadgeVariant(state: TileState) {
+  switch (state) {
+    case "ok":
+      return "default" as const;
+    case "warn":
+      return "secondary" as const;
+    case "busy":
+      return "outline" as const;
+    case "err":
+      return "destructive" as const;
+    case "idle":
+      return "ghost" as const;
+  }
 }
 
 function buildTiles(status: RuntimeStatus): Tile[] {
@@ -112,54 +131,83 @@ export function StatusBoard({ status }: StatusBoardProps) {
   }, []);
 
   return (
-    <section
-      className={`status-board${hasIssue ? " status-board-alert" : ""}`}
+    <Card
+      className={cn(
+        "relative mb-5 overflow-hidden bg-linear-to-br from-primary/5 via-card to-muted/30 py-3 shadow-sm",
+        hasIssue && "border-destructive/35"
+      )}
       aria-label="Runtime status"
     >
-      <div className="status-board-scan" aria-hidden />
-      <div className="status-board-head">
-        <span className="status-board-title">Runtime</span>
-        <span className="status-board-meta">
-          {onlineCount}/{tiles.length} healthy · {relativeCheck(status.lastChecked)}
-        </span>
-        <button
-          type="button"
-          className="status-board-refresh"
-          onClick={() => void status.refresh()}
-          title="Refresh status"
-        >
-          Refresh
-        </button>
-      </div>
+      <div
+        className="pointer-events-none absolute inset-0 bg-linear-to-r from-transparent via-primary/5 to-transparent opacity-60"
+        aria-hidden
+      />
 
-      <div className="status-board-track">
-        {tiles.map((tile) => {
-          const Icon = tile.icon;
-          return (
-            <div
-              key={tile.id}
-              className={`status-tile status-tile-${tile.state}`}
-              style={{ animationDelay: `${tile.delay}ms` }}
-            >
-              <span className="status-tile-beacon" aria-hidden />
-              <span className="status-tile-icon">
-                <Icon size={14} strokeWidth={2} />
-              </span>
-              <span className="status-tile-body">
-                <span className="status-tile-label">{tile.label}</span>
-                <span className="status-tile-value">{tile.value}</span>
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      <CardContent className="relative z-1 space-y-3 px-3.5 pb-1 pt-0">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground">
+            Runtime
+          </span>
+          <span className="flex-1 font-mono text-[0.72rem] text-muted-foreground/80">
+            {onlineCount}/{tiles.length} healthy · {relativeCheck(status.lastChecked)}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => void status.refresh()}
+            title="Refresh status"
+          >
+            <RefreshCw className="size-3" />
+            Refresh
+          </Button>
+        </div>
 
-      <div className="status-board-rail" aria-hidden>
-        <span
-          className="status-board-rail-fill"
-          style={{ width: `${(onlineCount / tiles.length) * 100}%` }}
-        />
-      </div>
-    </section>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {tiles.map((tile) => {
+            const Icon = tile.icon;
+            return (
+              <Card
+                key={tile.id}
+                size="sm"
+                className="animate-[status-tile-in_0.45s_ease_both] py-2 shadow-none"
+                style={{ animationDelay: `${tile.delay}ms` }}
+              >
+                <CardContent className="flex items-center gap-2 px-2 py-0">
+                  <Badge
+                    variant={tileBadgeVariant(tile.state)}
+                    className={cn(
+                      "absolute top-1.5 right-1.5 size-1.5 rounded-full border-0 p-0",
+                      tile.state === "ok" && "animate-pulse bg-emerald-500",
+                      tile.state === "warn" && "animate-pulse bg-amber-500",
+                      tile.state === "busy" && "animate-pulse bg-primary",
+                      tile.state === "err" && "animate-pulse bg-destructive",
+                      tile.state === "idle" && "bg-muted-foreground/40"
+                    )}
+                    aria-hidden
+                  />
+                  <span className="text-muted-foreground">
+                    <Icon size={14} strokeWidth={2} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[0.65rem] font-medium text-muted-foreground">
+                      {tile.label}
+                    </p>
+                    <p className="truncate text-xs font-medium">{tile.value}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        <div className="h-0.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-500"
+            style={{ width: `${(onlineCount / tiles.length) * 100}%` }}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from "react";
 import type { Step } from "../../../script/types";
+import { Button } from "@/components/ui/button";
 import { stepProgress } from "./machine";
 import { wizardReducer } from "./reducer";
 import { selectCanSave, selectSummary, buildRuleFromState } from "./selectors";
@@ -49,15 +50,21 @@ export function RuleWizard({ existingLabels, editingRule, onSave, onCancel }: Ru
     <div className="rule-builder rule-wizard">
       <div className="rule-builder-header">
         <h3>{editingRule ? "Edit Step" : "Add Step"}</h3>
-        <button type="button" className="btn-icon" onClick={onCancel} aria-label="Cancel">
+        <Button type="button" variant="ghost" size="icon-sm" onClick={onCancel} aria-label="Cancel">
           ×
-        </button>
+        </Button>
       </div>
 
       {step !== "intent" && step !== "summary" && (
-        <button type="button" className="rule-builder-back" onClick={() => dispatch({ type: "BACK" })}>
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="rule-builder-back h-auto p-0"
+          onClick={() => dispatch({ type: "BACK" })}
+        >
           ← Back
-        </button>
+        </Button>
       )}
 
       {intent && step !== "intent" && step !== "summary" && (
