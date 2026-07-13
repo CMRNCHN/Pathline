@@ -1,6 +1,8 @@
 import type { Step } from "../../script/types";
 import { inferIntent, ruleSummary, truncateTrigger } from "../../script/ruleIntent";
 import { ruleFieldLabel, triggerLabelForIntent } from "../../script/ruleCopy";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 interface RuleCardProps {
   rule: Step;
@@ -14,8 +16,8 @@ export function RuleCard({ rule, readOnly, onEdit, onRemove }: RuleCardProps) {
   const intent = inferIntent(rule);
 
   return (
-    <article className="rule-card">
-      <div className="rule-card-main">
+    <Card className="flex-row items-start justify-between gap-4">
+      <div className="rule-card-main min-w-0 flex-1">
         <h4 className="rule-card-title">{summary.typeLabel}</h4>
 
         {intent !== "end" && summary.trigger !== "—" && (
@@ -47,14 +49,14 @@ export function RuleCard({ rule, readOnly, onEdit, onRemove }: RuleCardProps) {
 
       {!readOnly && (
         <div className="rule-card-actions">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit}>
+          <Button type="button" variant="secondary" size="sm" onClick={onEdit}>
             Edit
-          </button>
-          <button type="button" className="btn-icon" onClick={onRemove} aria-label="Remove">
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onRemove} aria-label="Remove">
             ×
-          </button>
+          </Button>
         </div>
       )}
-    </article>
+    </Card>
   );
 }

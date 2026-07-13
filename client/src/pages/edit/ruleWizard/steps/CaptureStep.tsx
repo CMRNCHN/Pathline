@@ -4,6 +4,8 @@ import {
   findCapturePreset,
 } from "../../../../script/rulePresets";
 import { ruleFieldHint, ruleFieldLabel } from "../../../../script/ruleCopy";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { stepLabel } from "../machine";
 import { canProceedFromStep } from "../selectors";
 import type { StepProps } from "../types";
@@ -48,8 +50,8 @@ export function CaptureStep({ state, dispatch }: StepProps) {
           <>
             <label className="rule-builder-field">
               <span>{ruleFieldLabel.saveAs}</span>
-              <input
-                className="editor-input mono"
+              <Input
+                className="font-mono"
                 value={capture.output}
                 onChange={(e) =>
                   dispatch({
@@ -62,14 +64,14 @@ export function CaptureStep({ state, dispatch }: StepProps) {
               />
             </label>
             <div className="rule-builder-actions">
-              <button
+              <Button
                 type="button"
-                className="btn btn-primary btn-sm"
+                size="sm"
                 onClick={() => dispatch({ type: "NEXT" })}
                 disabled={!capture.output.trim()}
               >
                 Continue
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -106,8 +108,7 @@ export function CaptureStep({ state, dispatch }: StepProps) {
         </div>
           <label className="rule-builder-field">
             <span>{ruleFieldLabel.whenIvrSays}</span>
-            <input
-            className="editor-input"
+            <Input
             value={capture.trigger}
             onChange={(e) => dispatch({ type: "SET_CAPTURE_TRIGGER", trigger: e.target.value })}
             placeholder="Your claim status is"
@@ -115,14 +116,14 @@ export function CaptureStep({ state, dispatch }: StepProps) {
           />
         </label>
         <div className="rule-builder-actions">
-          <button
+          <Button
             type="button"
-            className="btn btn-primary btn-sm"
+            size="sm"
             onClick={() => dispatch({ type: "NEXT" })}
             disabled={!canProceedFromStep(state)}
           >
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -157,8 +158,8 @@ export function CaptureStep({ state, dispatch }: StepProps) {
         {capture.save && (
             <label className="rule-builder-field">
               <span>{ruleFieldLabel.saveAs}</span>
-              <input
-                className="editor-input mono"
+              <Input
+                className="font-mono"
                 value={capture.output}
                 onChange={(e) =>
                   dispatch({
@@ -173,14 +174,14 @@ export function CaptureStep({ state, dispatch }: StepProps) {
             </label>
         )}
         <div className="rule-builder-actions">
-          <button
+          <Button
             type="button"
-            className="btn btn-primary btn-sm"
+            size="sm"
             onClick={() => dispatch({ type: "NEXT" })}
             disabled={!canProceedFromStep(state)}
           >
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     );

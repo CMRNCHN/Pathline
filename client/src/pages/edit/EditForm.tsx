@@ -5,7 +5,9 @@ import { extractVariableNames, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
 import { getPathReadiness, READINESS_LABEL } from "../../script/pathReadiness";
 import { SectionBlock } from "../../components/ui/SectionBlock";
-import { PathBadge } from "../../components/ui/PathBadge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { RuleWizard } from "./ruleWizard/RuleWizard";
 import { RuleCard } from "./RuleCard";
 import { isPlaceholderRule } from "../../script/ruleIntent";
@@ -18,6 +20,12 @@ export interface EditFormProps {
   onExport?: () => void;
   onDelete?: () => void;
   onTest?: () => void;
+}
+
+function readinessBadgeVariant(readiness: ReturnType<typeof getPathReadiness>) {
+  if (readiness === "ready") return "default" as const;
+  if (readiness === "needs-setup") return "secondary" as const;
+  return "outline" as const;
 }
 
 export function EditForm({
@@ -38,8 +46,6 @@ export function EditForm({
   const inputVariables = extractVariableNames(script);
   const visibleRules = script.steps.filter((r) => !isPlaceholderRule(r));
   const readiness = getPathReadiness(script);
-  const readinessVariant =
-    readiness === "ready" ? "success" : readiness === "needs-setup" ? "warn" : "muted";
   const editingRule = editingRuleId
     ? script.steps.find((r) => r.id === editingRuleId)
     : undefined;
@@ -75,9 +81,9 @@ export function EditForm({
       {readOnly && (
         <div className="bundled-banner">
           Example Path (read-only).{" "}
-          <button type="button" className="btn btn-sm btn-secondary" onClick={onDuplicate}>
+          <Button type="button" variant="secondary" size="sm" onClick={onDuplicate}>
             Duplicate to edit
-          </button>
+          </Button>
         </div>
       )}
 
@@ -85,13 +91,13 @@ export function EditForm({
         <div className="script-header-main">
           <div className="script-header-eyebrow-row">
             <p className="editor-eyebrow">Path</p>
-            <PathBadge variant={readinessVariant}>{READINESS_LABEL[readiness]}</PathBadge>
+            <Badge variant={readinessBadgeVariant(readiness)}>{READINESS_LABEL[readiness]}</Badge>
           </div>
           {readOnly ? (
             <h1 className="editor-title">{scriptDisplayName(script)}</h1>
           ) : (
-            <input
-              className="editor-input script-header-name"
+            <Input
+              className="script-header-name"
               value={script.setup.name}
               onChange={(e) => patchSetup({ name: e.target.value })}
               placeholder="Untitled Path"
@@ -101,8 +107,7 @@ export function EditForm({
           <div className="script-header-meta">
             <label className="script-header-field">
               <span>Description</span>
-              <input
-                className="editor-input"
+              <Input
                 value={script.setup.description}
                 onChange={(e) => patchSetup({ description: e.target.value })}
                 disabled={readOnly}
@@ -111,8 +116,7 @@ export function EditForm({
             </label>
             <label className="script-header-field">
               <span>Target</span>
-              <input
-                className="editor-input"
+              <Input
                 type="tel"
                 value={script.setup.target}
                 onChange={(e) => patchSetup({ target: e.target.value })}
@@ -123,8 +127,7 @@ export function EditForm({
             <label className="script-header-field script-header-field-narrow">
               <span>Timeout</span>
               <div className="script-header-timeout">
-                <input
-                  className="editor-input"
+                <Input
                   type="number"
                   value={Math.round(script.setup.timeoutMs / 1000)}
                   onChange={(e) => patchSetup({ timeoutMs: Number(e.target.value) * 1000 })}
@@ -138,26 +141,26 @@ export function EditForm({
         </div>
         <div className="script-header-actions">
           {onTest && (
-            <button type="button" className="btn btn-accent btn-sm" onClick={onTest}>
+            <Button type="button" size="sm" onClick={onTest}>
               Run
-            </button>
+            </Button>
           )}
           <div className="script-header-overflow">
-            <button type="button" className="btn btn-secondary btn-sm" onClick={onDuplicate}>
-              <Copy size={14} />
+            <Button type="button" variant="secondary" size="sm" onClick={onDuplicate}>
+              <Copy />
               Duplicate
-            </button>
+            </Button>
             {onExport && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={onExport}>
-                <Download size={14} />
+              <Button type="button" variant="secondary" size="sm" onClick={onExport}>
+                <Download />
                 Export
-              </button>
+              </Button>
             )}
             {onDelete && (
-              <button type="button" className="btn btn-danger btn-sm" onClick={onDelete}>
-                <Trash2 size={14} />
+              <Button type="button" variant="destructive" size="sm" onClick={onDelete}>
+                <Trash2 />
                 Delete
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -187,9 +190,15 @@ export function EditForm({
           )}
 
           {!readOnly && !builderOpen && (
-            <button type="button" className="btn btn-secondary btn-sm editor-table-add" onClick={openAdd}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="editor-table-add"
+              onClick={openAdd}
+            >
               + Add Step
-            </button>
+            </Button>
           )}
 
           {!readOnly && builderOpen && (

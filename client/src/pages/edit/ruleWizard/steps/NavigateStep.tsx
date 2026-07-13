@@ -1,5 +1,7 @@
 import { DTMF_KEYPAD, NAVIGATE_TRIGGER_PRESETS, sanitizeDtmf } from "../../../../script/rulePresets";
 import { ruleFieldHint, ruleFieldLabel } from "../../../../script/ruleCopy";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { stepLabel } from "../machine";
 import { canProceedFromStep } from "../selectors";
 import type { StepProps } from "../types";
@@ -45,8 +47,8 @@ export function NavigateStep({ state, dispatch }: StepProps) {
           <>
             <label className="rule-builder-field">
               <span>DTMF sequence</span>
-              <input
-                className="editor-input mono"
+              <Input
+                className="font-mono"
                 value={navigate.value}
                 onChange={(e) =>
                   dispatch({ type: "SET_NAVIGATE_VALUE", value: sanitizeDtmf(e.target.value) })
@@ -80,8 +82,7 @@ export function NavigateStep({ state, dispatch }: StepProps) {
         {navigate.mode === "speak" && (
           <label className="rule-builder-field">
             <span>Text response</span>
-            <input
-              className="editor-input"
+            <Input
               value={navigate.value}
               onChange={(e) => dispatch({ type: "SET_NAVIGATE_VALUE", value: e.target.value })}
               placeholder="Yes"
@@ -93,8 +94,7 @@ export function NavigateStep({ state, dispatch }: StepProps) {
           <label className="rule-builder-field">
             <span>How long should the assistant wait?</span>
             <div className="wait-input-row">
-              <input
-                className="editor-input"
+              <Input
                 type="number"
                 min={1}
                 max={120}
@@ -109,14 +109,14 @@ export function NavigateStep({ state, dispatch }: StepProps) {
           </label>
         )}
         <div className="rule-builder-actions">
-          <button
+          <Button
             type="button"
-            className="btn btn-primary btn-sm"
+            size="sm"
             onClick={() => dispatch({ type: "NEXT" })}
             disabled={!canProceedFromStep(state)}
           >
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -148,8 +148,7 @@ export function NavigateStep({ state, dispatch }: StepProps) {
         </div>
         <label className="rule-builder-field">
           <span>{ruleFieldLabel.whenYouHear}</span>
-          <input
-            className="editor-input"
+          <Input
             value={navigate.trigger}
             onChange={(e) => dispatch({ type: "SET_NAVIGATE_TRIGGER", trigger: e.target.value })}
             placeholder="For billing"
@@ -157,14 +156,14 @@ export function NavigateStep({ state, dispatch }: StepProps) {
           />
         </label>
         <div className="rule-builder-actions">
-          <button
+          <Button
             type="button"
-            className="btn btn-primary btn-sm"
+            size="sm"
             onClick={() => dispatch({ type: "NEXT" })}
             disabled={!canProceedFromStep(state)}
           >
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     );
