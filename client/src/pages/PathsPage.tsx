@@ -6,7 +6,16 @@ import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript, mergeScripts } from "../script/selectors";
 import { PageLayout } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
-import { PathBadge } from "../components/ui/PathBadge";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import { scriptDisplayName } from "../script/storage";
 import { isPlaceholderRule } from "../script/ruleIntent";
 import { getPathReadiness, READINESS_LABEL } from "../script/pathReadiness";
@@ -15,6 +24,12 @@ import type { AppView } from "../navigation";
 interface PathsPageProps {
   onNavigate: (view: AppView) => void;
   searchQuery: string;
+}
+
+function readinessBadgeVariant(readiness: ReturnType<typeof getPathReadiness>) {
+  if (readiness === "ready") return "default" as const;
+  if (readiness === "needs-setup") return "secondary" as const;
+  return "outline" as const;
 }
 
 export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
@@ -56,10 +71,10 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
       title="Paths"
       subtitle="A Path is a call workflow. Open one to edit its Steps, or Run it on your device."
       action={
-        <button type="button" onClick={handleCreate} className="btn btn-primary">
+        <Button type="button" onClick={handleCreate}>
           <Plus size={16} />
           Create Path
-        </button>
+        </Button>
       }
     >
       <StatusBoard status={runtime} />
@@ -70,9 +85,9 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
           title={paths.length === 0 ? "No Paths yet" : "No matches"}
           action={
             paths.length === 0 ? (
-              <button type="button" onClick={handleCreate} className="btn btn-accent">
+              <Button type="button" onClick={handleCreate}>
                 Create your first Path
-              </button>
+              </Button>
             ) : undefined
           }
         >
@@ -81,45 +96,58 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
             : "Try a different search term."}
         </EmptyState>
       ) : (
-        <div className="script-grid">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((path) => {
             const stepCount = path.steps.filter((r) => !isPlaceholderRule(r)).length;
             const readiness = getPathReadiness(path);
-            const readinessVariant =
-              readiness === "ready" ? "success" : readiness === "needs-setup" ? "warn" : "muted";
 
             return (
-              <article key={path.id} className={`script-card script-card-${readiness}`}>
-                <button type="button" onClick={() => openPath(path.id)} className="script-card-open">
-                  <div className="script-card-top">
-                    <div className="script-card-icon">
-                      <GitBranch />
-                    </div>
-                    <div className="script-card-badges">
-                      <PathBadge variant={readinessVariant}>{READINESS_LABEL[readiness]}</PathBadge>
-                      {isBundledScript(bundledScripts, path.id) && <PathBadge variant="accent">Example</PathBadge>}
-                    </div>
-                  </div>
-                  <h3 className="script-card-name">{scriptDisplayName(path)}</h3>
-                  <p className="script-card-desc">{path.setup.description || "No description"}</p>
-                  <div className="script-card-stats">
-                    <span className="stat-pill">
-                      {stepCount} step{stepCount !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                </button>
+              <Card key={path.id} className="flex flex-col">
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveId(path.id);
-                    onNavigate({ category: "run", scriptId: path.id });
-                  }}
-                  className="script-card-run"
+                  onClick={() => openPath(path.id)}
+                  className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
                 >
-                  <Phone />
-                  Run
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <GitBranch className="size-4" />
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Badge variant={readinessBadgeVariant(readiness)}>
+                          {READINESS_LABEL[readiness]}
+                        </Badge>
+                        {isBundledScript(bundledScripts, path.id) && (
+                          <Badge variant="outline">Example</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <CardTitle className="mt-2">{scriptDisplayName(path)}</CardTitle>
+                    <CardDescription>
+                      {path.setup.description || "No description"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Badge variant="secondary">
+                      {stepCount} step{stepCount !== 1 ? "s" : ""}
+                    </Badge>
+                  </CardContent>
                 </button>
-              </article>
+                <CardFooter className="border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      setActiveId(path.id);
+                      onNavigate({ category: "run", scriptId: path.id });
+                    }}
+                  >
+                    <Phone />
+                    Run
+                  </Button>
+                </CardFooter>
+              </Card>
             );
           })}
         </div>
