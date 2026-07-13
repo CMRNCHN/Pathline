@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { dtmfStepDelayMs, splitDtmfSequence } from "../script/dtmf";
+import { dtmfStepDelayMs, splitDtmfSequence } from "../dtmf";
 
 interface DtmfGuideProps {
   sequence: string;

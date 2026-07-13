@@ -456,7 +456,10 @@ function MatcherPanel({
           const events = runLogToCallEvents(result.state.log, path);
           const finalEvents = [
             ...events,
-            newCallEvent("VERIFICATION_COMPLETE", path.definedSteps[path.definedSteps.length - 1]),
+            newCallEvent("CALL_ENDED", {
+              outcome: "COMPLETED",
+              step: path.definedSteps[path.definedSteps.length - 1],
+            }),
           ];
           void hashCollected(collected).then((hash) =>
             onCallStateCaptured(collected, hash, finalEvents)

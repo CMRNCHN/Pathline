@@ -1,32 +1,38 @@
-import type { Call, CallEventType, CallOutcome, LiveStatus, Path } from "./types";
+import type { Call, CallOutcome, LiveStatus } from "./types";
 
-const TERMINAL_EVENT_TYPES: CallEventType[] = [
-  "VERIFICATION_COMPLETE",
-  "FAILED",
-  "ABANDONED",
-];
+const TERMINAL: CallOutcome[] = ["COMPLETED", "FAILED", "ABANDONED"];
 
-function outcomeFromTerminalEvent(type: CallEventType): CallOutcome {
-  switch (type) {
-    case "VERIFICATION_COMPLETE":
-      return "VERIFICATION_COMPLETE";
-    case "FAILED":
-      return "FAILED";
-    case "ABANDONED":
-      return "ABANDONED";
-    default:
-      return "FAILED";
-  }
+function stepFromMetadata(metadata?: Record<string, unknown>): string | null {
+  const step = metadata?.step;
+  return typeof step === "string" ? step : null;
 }
 
-export const projectLiveStatus = (call: Call, path: Path): LiveStatus => {
+function outcomeFromMetadata(metadata?: Record<string, unknown>): CallOutcome | null {
+  const outcome = metadata?.outcome;
+  if (outcome === "COMPLETED" || outcome === "FAILED" || outcome === "ABANDONED") return outcome;
+  return null;
+}
+
+/** Read-only projection from immutable event ledger. */
+export const projectLiveStatus = (call: Call, path: { definedSteps: string[] }): LiveStatus => {
   const { events, callId, pathId } = call;
 
-  const completedSteps = new Set(events.map((e) => e.step));
-  const progress = path.definedSteps.filter((step) => completedSteps.has(step));
+  const completedSteps = new Set<string>();
+  for (const event of events) {
+    const step = stepFromMetadata(event.metadata);
+    if (step && (event.type === "STEP_COMPLETED" || event.type === "PHRASE_MATCHED" || event.type === "DTMF_SENT")) {
+      completedSteps.add(step);
+    }
+  }
 
-  const lastTerminal = [...events].reverse().find((e) => TERMINAL_EVENT_TYPES.includes(e.type));
-  const isCompleted = lastTerminal !== undefined;
+  const progress = path.definedSteps.filter((step) => completedSteps.has(step));
+  const terminal = [...events].reverse().find((e) => e.type === "CALL_ENDED");
+  const isCompleted = terminal !== undefined;
+  const finalOutcome = terminal ? outcomeFromMetadata(terminal.metadata) : null;
+
+  const lastStep = events.length
+    ? stepFromMetadata(events[events.length - 1].metadata)
+    : null;
 
   return {
     callId,
@@ -34,7 +40,11 @@ export const projectLiveStatus = (call: Call, path: Path): LiveStatus => {
     phase: isCompleted ? "COMPLETED" : "ACTIVE",
     progress,
     events,
-    activeStep: isCompleted ? null : events[events.length - 1]?.step ?? path.definedSteps[0],
-    finalOutcome: lastTerminal ? outcomeFromTerminalEvent(lastTerminal.type) : null,
+    activeStep: isCompleted ? null : lastStep ?? path.definedSteps[0] ?? null,
+    finalOutcome,
   };
 };
+
+export function isTerminalOutcome(outcome: CallOutcome | null): boolean {
+  return outcome !== null && TERMINAL.includes(outcome);
+}

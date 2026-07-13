@@ -1,47 +1,36 @@
+/** Observation-only call events. No secrets, transcripts, or audio. */
 export type CallEventType =
-  | "PROMPT"
-  | "INPUT"
-  | "API_REQUEST"
-  | "TRANSFER"
-  | "VERIFICATION_COMPLETE"
-  | "FAILED"
-  | "ABANDONED";
+  | "CALL_STARTED"
+  | "PROMPT_DETECTED"
+  | "PHRASE_MATCHED"
+  | "DTMF_SENT"
+  | "STEP_COMPLETED"
+  | "CALL_ENDED";
 
-export type PathStep =
-  | "GREETING"
-  | "AUTHENTICATION"
-  | "COLLECTING_MEMBER_ID"
-  | "FINAL_RESPONSE";
+export type CallOutcome = "COMPLETED" | "FAILED" | "ABANDONED";
 
 export type StatusPhase = "ACTIVE" | "COMPLETED";
 
-export type CallOutcome =
-  | "VERIFICATION_COMPLETE"
-  | "TRANSFERRED"
-  | "FAILED"
-  | "ABANDONED";
-
 export interface Path {
   id: string;
-  intent: "MEDICARE_VERIFICATION";
-  definedSteps: PathStep[];
+  intent: string;
+  definedSteps: string[];
 }
 
-/** Infrastructure metadata — not part of LiveStatus projection. */
 export interface CallSource {
   id: string;
   targetEndpoint: string;
-  connectionProtocol: "SIP" | "WEBRTC";
+  connectionProtocol: "SIP" | "WEBRTC" | "NATIVE";
 }
 
 export interface CallEvent {
   id: string;
   timestamp: string;
   type: CallEventType;
-  step: PathStep;
+  /** Non-sensitive metadata — e.g. step name, digit count, content hash. Never raw secrets. */
+  metadata?: Record<string, unknown>;
 }
 
-/** Immutable event ledger for a single call. */
 export interface Call {
   callId: string;
   sourceId: string;
@@ -49,13 +38,15 @@ export interface Call {
   events: CallEvent[];
 }
 
-/** Read-only projection: where is this call and what happened? */
 export interface LiveStatus {
   callId: string;
   pathId: string;
   phase: StatusPhase;
-  progress: PathStep[];
-  activeStep: PathStep | null;
+  progress: string[];
+  activeStep: string | null;
   events: CallEvent[];
   finalOutcome: CallOutcome | null;
 }
+
+/** @deprecated Use string step ids from Path metadata */
+export type PathStep = string;

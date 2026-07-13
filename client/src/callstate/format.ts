@@ -1,4 +1,4 @@
-import type { LiveStatus, Path, PathStep } from "./types";
+import type { LiveStatus } from "./types";
 
 const STEP_MARKERS = {
   done: "✓",
@@ -12,7 +12,7 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString("en-GB", { hour12: false });
 }
 
-function progressLine(step: PathStep, progress: PathStep[], active: PathStep | null): string {
+function progressLine(step: string, progress: string[], active: string | null): string {
   const reached = progress.includes(step);
   const marker = !reached
     ? STEP_MARKERS.pending
@@ -22,13 +22,12 @@ function progressLine(step: PathStep, progress: PathStep[], active: PathStep | n
   return `${marker} ${step}`;
 }
 
-function formatIntent(intent: Path["intent"]): string {
-  return intent.replace(/_/g, " ");
-}
-
 /** Plain-text renderer — UI/CLI layer only; not part of LiveStatus. */
-export function formatLiveStatusText(liveStatus: LiveStatus, path: Path): string {
-  const lines: string[] = ["CALL", formatIntent(path.intent), ""];
+export function formatLiveStatusText(
+  liveStatus: LiveStatus,
+  path: { intent: string; definedSteps: string[] }
+): string {
+  const lines: string[] = ["CALL", path.intent, ""];
 
   if (liveStatus.phase === "ACTIVE" && liveStatus.activeStep) {
     lines.push("CURRENT STATE", `${STEP_MARKERS.active} ${liveStatus.activeStep}`, "");
