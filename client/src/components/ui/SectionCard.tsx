@@ -1,6 +1,6 @@
 import type { ElementType, ReactNode } from "react";
 
-interface CardProps {
+interface SectionCardProps {
   title?: string;
   icon?: ElementType;
   children: ReactNode;
@@ -8,7 +8,14 @@ interface CardProps {
   variant?: "default" | "dark";
 }
 
-export function Card({ title, icon: Icon, children, className = "", variant = "default" }: CardProps) {
+/** Legacy settings section card — migrate to shadcn Card over time. */
+export function SectionCard({
+  title,
+  icon: Icon,
+  children,
+  className = "",
+  variant = "default",
+}: SectionCardProps) {
   return (
     <section className={`card card-${variant} ${className}`.trim()}>
       {(title || Icon) && (

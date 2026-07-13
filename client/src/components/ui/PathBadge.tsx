@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-type BadgeVariant = "default" | "accent" | "success" | "warn" | "muted";
+type PathBadgeVariant = "default" | "accent" | "success" | "warn" | "muted";
 
-const variantClass: Record<BadgeVariant, string> = {
+const variantClass: Record<PathBadgeVariant, string> = {
   default: "badge",
   accent: "badge badge-accent",
   success: "badge badge-success",
@@ -10,12 +10,13 @@ const variantClass: Record<BadgeVariant, string> = {
   muted: "badge badge-muted",
 };
 
-export function Badge({
+/** Legacy path readiness badge — migrate to shadcn Badge over time. */
+export function PathBadge({
   children,
   variant = "default",
 }: {
   children: ReactNode;
-  variant?: BadgeVariant;
+  variant?: PathBadgeVariant;
 }) {
   return <span className={variantClass[variant]}>{children}</span>;
 }

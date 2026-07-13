@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Clock, Download, Trash2 } from "lucide-react";
 import { PageLayout } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
-import { Badge } from "../components/ui/Badge";
+import { PathBadge } from "../components/ui/PathBadge";
 import {
   deleteRun,
   loadRunHistory,
@@ -63,7 +63,7 @@ export function HistoryPage() {
                     <span className="history-row-name">{record.pathName}</span>
                     <span className="history-row-time">{formatWhen(record.completedAt)}</span>
                   </div>
-                  <Badge variant={outcomeVariant(record.outcome)}>{record.outcome}</Badge>
+                  <PathBadge variant={outcomeVariant(record.outcome)}>{record.outcome}</PathBadge>
                 </button>
               </li>
             ))}
@@ -78,7 +78,7 @@ export function HistoryPage() {
                     Run {open.runId.slice(0, 8)} · {formatWhen(open.completedAt)}
                   </p>
                 </div>
-                <Badge variant={outcomeVariant(open.outcome)}>{open.outcome}</Badge>
+                <PathBadge variant={outcomeVariant(open.outcome)}>{open.outcome}</PathBadge>
               </header>
 
               <h4 className="outputs-subtitle">Captured</h4>

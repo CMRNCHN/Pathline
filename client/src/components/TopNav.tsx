@@ -1,3 +1,4 @@
+/** @deprecated Use AppSidebar instead. */
 import { useRef } from "react";
 import { Search, Settings, Radio, GitBranch, Clock, Pencil, Play, Upload } from "lucide-react";
 import { useScriptStore } from "../store/ScriptStore";
