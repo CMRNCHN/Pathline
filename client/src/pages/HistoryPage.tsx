@@ -1,8 +1,23 @@
 import { useEffect, useState } from "react";
 import { Clock, Download, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PageLayout } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
-import { PathBadge } from "../components/ui/PathBadge";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+} from "../components/ui/table";
 import {
   deleteRun,
   loadRunHistory,
@@ -16,10 +31,10 @@ function formatWhen(iso: string): string {
   return d.toLocaleString();
 }
 
-function outcomeVariant(outcome: RunRecord["outcome"]) {
-  if (outcome === "completed") return "success" as const;
-  if (outcome === "failed") return "warn" as const;
-  return "muted" as const;
+function outcomeBadgeVariant(outcome: RunRecord["outcome"]) {
+  if (outcome === "completed") return "default" as const;
+  if (outcome === "failed") return "destructive" as const;
+  return "secondary" as const;
 }
 
 function exportRun(record: RunRecord): void {
@@ -50,69 +65,95 @@ export function HistoryPage() {
           Run a Path and its result will appear here.
         </EmptyState>
       ) : (
-        <div className="history-layout">
-          <ul className="history-list">
-            {records.map((record) => (
-              <li key={record.runId}>
-                <button
-                  type="button"
-                  className={`history-row${openId === record.runId ? " history-row-active" : ""}`}
-                  onClick={() => setOpenId(record.runId)}
-                >
-                  <div className="history-row-main">
-                    <span className="history-row-name">{record.pathName}</span>
-                    <span className="history-row-time">{formatWhen(record.completedAt)}</span>
-                  </div>
-                  <PathBadge variant={outcomeVariant(record.outcome)}>{record.outcome}</PathBadge>
-                </button>
-              </li>
-            ))}
-          </ul>
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(16rem,22rem)_1fr]">
+          <Card size="sm">
+            <CardContent className="flex flex-col gap-2 pt-0">
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {records.map((record) => (
+                  <li key={record.runId}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(record.runId)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-colors hover:bg-muted/50",
+                        openId === record.runId
+                          ? "border-foreground ring-1 ring-foreground/20"
+                          : "border-border"
+                      )}
+                    >
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="truncate text-sm font-semibold">{record.pathName}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatWhen(record.completedAt)}
+                        </span>
+                      </div>
+                      <Badge variant={outcomeBadgeVariant(record.outcome)}>
+                        {record.outcome}
+                      </Badge>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
 
           {open && (
-            <section className="history-detail">
-              <header className="history-detail-head">
-                <div>
-                  <h3>{open.pathName}</h3>
-                  <p className="field-hint">
-                    Run {open.runId.slice(0, 8)} · {formatWhen(open.completedAt)}
-                  </p>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>{open.pathName}</CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Run {open.runId.slice(0, 8)} · {formatWhen(open.completedAt)}
+                    </p>
+                  </div>
+                  <Badge variant={outcomeBadgeVariant(open.outcome)}>{open.outcome}</Badge>
                 </div>
-                <PathBadge variant={outcomeVariant(open.outcome)}>{open.outcome}</PathBadge>
-              </header>
+              </CardHeader>
 
-              <h4 className="outputs-subtitle">Captured</h4>
-              {Object.keys(open.captured).length === 0 ? (
-                <p className="field-hint">Nothing was captured on this Run.</p>
-              ) : (
-                <dl className="history-captured">
-                  {Object.entries(open.captured).map(([key, value]) => (
-                    <div key={key} className="data-row">
-                      <span className="data-row-label mono">{key}</span>
-                      <span className="data-row-value mono">{value}</span>
-                    </div>
-                  ))}
-                </dl>
-              )}
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="mb-2 text-sm font-medium">Captured</h4>
+                  {Object.keys(open.captured).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Nothing was captured on this Run.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableBody>
+                        {Object.entries(open.captured).map(([key, value]) => (
+                          <TableRow key={key}>
+                            <TableCell className="font-mono text-muted-foreground">
+                              {key}
+                            </TableCell>
+                            <TableCell className="font-mono">{value}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              </CardContent>
 
-              <div className="history-detail-actions">
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportRun(open)}>
-                  <Download size={14} />
+              <CardFooter className="gap-2 border-t">
+                <Button type="button" variant="outline" size="sm" onClick={() => exportRun(open)}>
+                  <Download />
                   Export
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="btn btn-danger btn-sm"
+                  variant="destructive"
+                  size="sm"
                   onClick={() => {
                     deleteRun(open.runId);
                     setOpenId(null);
                   }}
                 >
-                  <Trash2 size={14} />
+                  <Trash2 />
                   Delete
-                </button>
-              </div>
-            </section>
+                </Button>
+              </CardFooter>
+            </Card>
           )}
         </div>
       )}
