@@ -1,5 +1,6 @@
 import type { RuleSummary } from "../../../script/ruleIntent";
 import { ruleFieldLabel, triggerLabelForIntent } from "../../../script/ruleCopy";
+import { Button } from "@/components/ui/button";
 import { summaryEditStep } from "./selectors";
 import type { StepProps } from "./types";
 
@@ -26,9 +27,15 @@ function SummaryRow({
       <div className="rule-wizard-summary-row-head">
         <span className="rule-wizard-summary-key">{label}</span>
         {editable && onEdit && (
-          <button type="button" className="rule-wizard-summary-edit" onClick={onEdit}>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="rule-wizard-summary-edit h-auto p-0"
+            onClick={onEdit}
+          >
             Edit
-          </button>
+          </Button>
         )}
       </div>
       <span className="rule-wizard-summary-val">{value}</span>
@@ -85,12 +92,12 @@ export function Summary({ state, dispatch, summary, editing, onSave, onCancel }:
         )}
       </div>
       <div className="rule-builder-actions">
-        <button type="button" className="btn btn-secondary btn-sm" onClick={onCancel}>
+        <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
           Cancel
-        </button>
-        <button type="button" className="btn btn-primary btn-sm" onClick={onSave}>
+        </Button>
+        <Button type="button" size="sm" onClick={onSave}>
           {editing ? "Save rule" : "Save rule"}
-        </button>
+        </Button>
       </div>
     </div>
   );

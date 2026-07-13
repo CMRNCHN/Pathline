@@ -4,6 +4,8 @@ import {
   RESPOND_PRESETS,
 } from "../../../../script/rulePresets";
 import { ruleFieldHint, ruleFieldLabel } from "../../../../script/ruleCopy";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { stepLabel } from "../machine";
 import { canProceedFromStep } from "../selectors";
 import type { StepProps } from "../types";
@@ -47,8 +49,8 @@ export function RespondStep({ state, dispatch }: StepProps) {
           <>
             <label className="rule-builder-field">
               <span>{ruleFieldLabel.runValue}</span>
-              <input
-                className="editor-input mono"
+              <Input
+                className="font-mono"
                 value={respond.variable}
                 onChange={(e) =>
                   dispatch({
@@ -63,14 +65,14 @@ export function RespondStep({ state, dispatch }: StepProps) {
               <span className="field-hint mono">{`{{${respond.variable || "field_name"}}}`}</span>
             </label>
             <div className="rule-builder-actions">
-              <button
+              <Button
                 type="button"
-                className="btn btn-primary btn-sm"
+                size="sm"
                 onClick={() => dispatch({ type: "NEXT" })}
                 disabled={!respond.variable.trim()}
               >
                 Continue
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -105,9 +107,9 @@ export function RespondStep({ state, dispatch }: StepProps) {
           </div>
         </fieldset>
         <div className="rule-builder-actions">
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => dispatch({ type: "NEXT" })}>
+          <Button type="button" size="sm" onClick={() => dispatch({ type: "NEXT" })}>
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -122,8 +124,8 @@ export function RespondStep({ state, dispatch }: StepProps) {
         <p className="rule-builder-prompt">{stepLabel(step, intent)}</p>
         <label className="rule-builder-field">
           <span>{ruleFieldLabel.runValue}</span>
-          <input
-            className="editor-input mono"
+          <Input
+            className="font-mono"
             value={variable}
             onChange={(e) =>
               dispatch({
@@ -138,14 +140,14 @@ export function RespondStep({ state, dispatch }: StepProps) {
           <span className="field-hint">{ruleFieldHint.runValue}</span>
         </label>
         <div className="rule-builder-actions">
-          <button
+          <Button
             type="button"
-            className="btn btn-primary btn-sm"
+            size="sm"
             onClick={() => dispatch({ type: "NEXT" })}
             disabled={!variable.trim()}
           >
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -182,8 +184,7 @@ export function RespondStep({ state, dispatch }: StepProps) {
         </div>
         <label className="rule-builder-field">
           <span>{ruleFieldLabel.whenIvrAsks}</span>
-          <input
-            className="editor-input"
+          <Input
             value={respond.trigger}
             onChange={(e) => dispatch({ type: "SET_RESPOND_TRIGGER", trigger: e.target.value })}
             placeholder="Please enter your account number"
@@ -191,14 +192,14 @@ export function RespondStep({ state, dispatch }: StepProps) {
           />
         </label>
         <div className="rule-builder-actions">
-          <button
+          <Button
             type="button"
-            className="btn btn-primary btn-sm"
+            size="sm"
             onClick={() => dispatch({ type: "NEXT" })}
             disabled={!canProceedFromStep(state)}
           >
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     );

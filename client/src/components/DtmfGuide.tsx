@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { dtmfStepDelayMs, splitDtmfSequence } from "../dtmf";
 
 interface DtmfGuideProps {
@@ -32,9 +33,9 @@ export function DtmfGuide({ sequence, trigger, onComplete }: DtmfGuideProps) {
         {sequence.trim() && <code className="dtmf-action-value">{sequence}</code>}
         {trigger && <span className="dtmf-action-trigger">Heard: {trigger}</span>}
         <p className="field-hint">This prompt has no dialable digits (0–9, #, *).</p>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onComplete}>
+        <Button type="button" variant="secondary" size="sm" onClick={onComplete}>
           Dismiss
-        </button>
+        </Button>
       </div>
     );
   }
@@ -45,9 +46,9 @@ export function DtmfGuide({ sequence, trigger, onComplete }: DtmfGuideProps) {
         <span className="dtmf-action-label">Send on your phone</span>
         <code className="dtmf-action-value">{sequence}</code>
         {trigger && <span className="dtmf-action-trigger">Heard: {trigger}</span>}
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onComplete}>
+        <Button type="button" variant="secondary" size="sm" onClick={onComplete}>
           Sent ✓
-        </button>
+        </Button>
       </div>
     );
   }
@@ -81,17 +82,18 @@ export function DtmfGuide({ sequence, trigger, onComplete }: DtmfGuideProps) {
       </p>
 
       <div className="dtmf-guide-actions">
-        <button
+        <Button
           type="button"
-          className="btn btn-sm btn-secondary"
+          variant="secondary"
+          size="sm"
           onClick={() => setIndex((i) => Math.min(i + 1, digits.length - 1))}
           disabled={atLastDigit}
         >
           Next key →
-        </button>
-        <button type="button" className="btn btn-sm btn-primary" onClick={onComplete}>
+        </Button>
+        <Button type="button" size="sm" onClick={onComplete}>
           Done sending
-        </button>
+        </Button>
       </div>
     </div>
   );
