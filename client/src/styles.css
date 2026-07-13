@@ -41,7 +41,7 @@
   --warning: #d97706;
   --danger: #dc2626;
   --danger-soft: color-mix(in srgb, var(--ink) var(--ink-tint), #fef2f2);
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   --radius-sm: 8px;
   --shadow-sm: 0 1px 2px #0a0a0b0c, 0 1px 3px #0a0a0b10;
   --shadow-md: 0 4px 16px #0a0a0b12, 0 2px 6px #0a0a0b0c;
@@ -53,8 +53,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: #5c5c9a;
+  --primary-foreground: #f8f8fc;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted-foreground: oklch(0.556 0 0);
@@ -69,8 +69,8 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: #5c5c9a;
+  --sidebar-primary-foreground: #f8f8fc;
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
@@ -2618,8 +2618,8 @@ button {
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: #7a7ab8;
+  --primary-foreground: #f8f8fc;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -2637,8 +2637,8 @@ button {
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: #7a7ab8;
+  --sidebar-primary-foreground: #f8f8fc;
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
