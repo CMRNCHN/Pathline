@@ -170,7 +170,7 @@ export function EditForm({
         <SectionBlock
           index="01"
           title="Steps"
-          description="Each Step has a When (what starts it) and a Then (what Pathline does)."
+          description="Each Step has a When (what starts it) and a Then (what PromptPath does)."
           wide
         >
           <div className="rule-card-list">

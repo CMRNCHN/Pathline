@@ -6,6 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface RunConfigureStepProps {
   script: Path;
@@ -54,18 +61,21 @@ export function RunConfigureStep({
             <label htmlFor="script" className="text-sm font-medium">
               Path
             </label>
-            <select
-              id="script"
+            <Select
               value={activeId}
-              onChange={(e) => onActiveIdChange(e.target.value)}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+              onValueChange={(id) => id && onActiveIdChange(id)}
             >
-              {scripts.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {scriptDisplayName(s)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="script" className="w-full">
+                <SelectValue placeholder="Select a Path" />
+              </SelectTrigger>
+              <SelectContent>
+                {scripts.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {scriptDisplayName(s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {script.setup.description && (
               <p className="text-xs text-muted-foreground">{script.setup.description}</p>
             )}

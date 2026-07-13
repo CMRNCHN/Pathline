@@ -62,7 +62,7 @@ export function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "pathline-paths.json";
+    a.download = "promptpath-paths.json";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -79,7 +79,7 @@ export function SettingsPage() {
   return (
     <PageLayout
       title="Settings"
-      subtitle="Privacy, health, and local data — everything Pathline keeps on your device."
+      subtitle="Privacy, health, and local data — everything PromptPath keeps on your device."
       wide
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -144,7 +144,7 @@ export function SettingsPage() {
 
         <SettingsCard title="About" icon={Info}>
           <p className="text-sm text-muted-foreground">
-            Pathline · Client-mediated · DTMF Runs · Encrypted Status export
+            PromptPath · Client-mediated · DTMF Runs · Encrypted Status export
           </p>
         </SettingsCard>
       </div>

@@ -27,6 +27,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { Input } from "@/components/ui/input";
 
 interface AppSidebarProps {
   view: AppView;
@@ -53,7 +54,7 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
               onClick={() => onNavigate({ category: "paths" })}
             >
               <Radio className="size-4" />
-              <span>Pathline</span>
+              <span>PromptPath</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -176,12 +177,12 @@ export function ShellHeader({ view, searchQuery, onSearchChange }: ShellHeaderPr
   return (
     <div className="flex items-center gap-2 border-b px-4 py-2">
       <Search className="size-4 shrink-0 text-muted-foreground" />
-      <input
-        type="text"
+      <Input
+        type="search"
         placeholder="Search paths…"
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
-        className="h-8 w-full max-w-sm bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        className="max-w-sm border-0 bg-transparent shadow-none focus-visible:ring-0"
       />
     </div>
   );
