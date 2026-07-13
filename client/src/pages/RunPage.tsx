@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Play } from "lucide-react";
 import {
   mintToken,
@@ -15,27 +15,24 @@ import { CallStateBoard } from "../components/CallStateBoard";
 import {
   pathFromScript,
   projectLiveStatus,
-  runLogToCallEvents,
-  newCallEvent,
   callFromSession,
   type CallEvent,
 } from "../callstate";
 import type { Path } from "../script/types";
 import { extractOutputRules, extractVariableNames } from "../script/compile";
-import {
-  hashCollected,
-  initialRunState,
-  processPhrase,
-  type RunState,
-} from "../script/runEngine";
 import { getActiveScript, mergeScripts } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
 import { recordRun } from "../history/runHistory";
 import { useScriptStore } from "../store/ScriptStore";
-import { isSpeechRecognitionAvailable, startContinuousRecognition } from "../localStt";
 import { PageLayout } from "../components/ui/PageHeader";
 import { RunStepBar } from "../components/ui/RunStepBar";
-import { DtmfGuide } from "../components/DtmfGuide";
+import { RunActivePanel } from "../components/run/RunActivePanel";
+import { RunConfigureStep } from "../components/run/RunConfigureStep";
+import { RunConsentStep } from "../components/run/RunConsentStep";
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
 
 type Step = "consent" | "configure" | "active";
 
@@ -64,10 +61,10 @@ export function RunPage({ scriptId }: RunPageProps) {
       title={script ? scriptDisplayName(script) : "Run"}
       subtitle="Inputs stay on your device. Call audio is processed locally."
       action={
-        <span className="run-badge">
+        <Badge variant="secondary" className="gap-1">
           <Play size={14} />
           Client-mediated
-        </span>
+        </Badge>
       }
     >
       <RunFlow
@@ -240,135 +237,60 @@ function RunFlow({
 
   if (step === "consent") {
     return wrap(
-      <div className="consent-panel">
-        <h2>Consent & Authorization</h2>
-        <p className="consent-intro">
-          Pathline is client-mediated. Your device places the call, holds your Inputs and Secrets,
-          and processes audio locally. The server only receives encrypted Status blobs.
-        </p>
-
-        <div className="consent-terms">
-          <ul>
-            <li>Your Secrets and target number stay on this device — never sent to our servers</li>
-            <li>Speech recognition runs locally when available</li>
-            <li>Only encrypted Status is reported to Pathline</li>
-            <li>Run data is auto-purged; you can revoke and delete anytime</li>
-            <li>Carriers still see calling/called numbers, times, and duration</li>
-            <li>You confirm lawful usage and authorization for third-party IVR interactions</li>
-          </ul>
-        </div>
-
-        <label className="consent-checkbox">
-          <input
-            type="checkbox"
-            checked={consentChecked}
-            onChange={(e) => setConsentChecked(e.target.checked)}
-          />
-          <span>I have read and accept these terms (v1.0)</span>
-        </label>
-
-        <div className="consent-actions">
-          <button className="btn btn-secondary" onClick={() => setError("Consent declined — cannot proceed")}>
-            Decline
-          </button>
-          <button className="btn btn-primary" disabled={!consentChecked || loading} onClick={handleConsent}>
-            Accept & Continue
-          </button>
-        </div>
-
-        {error && <div className="error-banner">{error}</div>}
-      </div>
+      <RunConsentStep
+        consentChecked={consentChecked}
+        onConsentChange={setConsentChecked}
+        loading={loading}
+        error={error}
+        onDecline={() => setError("Consent declined — cannot proceed")}
+        onAccept={handleConsent}
+      />
     );
   }
 
   if (step === "configure") {
     if (loadingScripts) {
-      return wrap(<p className="hint">Loading scripts…</p>);
+      return wrap(<p className="text-sm text-muted-foreground">Loading scripts…</p>);
     }
 
     if (scriptError) {
-      return wrap(<div className="error-banner">{scriptError}</div>);
+      return wrap(
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{scriptError}</AlertDescription>
+        </Alert>
+      );
     }
 
     if (!script) {
       return wrap(
-        <div className="call-form">
-          <p className="hint">No Paths yet. Create one from Paths.</p>
-        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">No Paths yet. Create one from Paths.</p>
+          </CardContent>
+        </Card>
       );
     }
 
     return wrap(
-      <>
-        <form className="call-form" onSubmit={handleStart}>
-          <div className="mode-badge">{scriptDisplayName(script)}</div>
-
-          <p className="hint privacy-note">Inputs stay on your device.</p>
-
-          <div className="form-group">
-            <label htmlFor="script">Path</label>
-            <select id="script" value={script.id} onChange={(e) => setActiveId(e.target.value)}>
-              {scripts.map((s) => (
-                <option key={s.id} value={s.id}>{scriptDisplayName(s)}</option>
-              ))}
-            </select>
-            {script.setup.description && <p className="field-hint">{script.setup.description}</p>}
-          </div>
-
-          {variableNames.length > 0 && (
-            <div className="secrets-section">
-              <h3>Inputs</h3>
-              {variableNames.map((name) => (
-                <div key={name} className="form-group">
-                  <label htmlFor={`var-${name}`}>{name}</label>
-                  <input
-                    id={`var-${name}`}
-                    type="password"
-                    value={variables[name] ?? ""}
-                    onChange={(e) => setVariables((prev) => ({ ...prev, [name]: e.target.value }))}
-                    placeholder={name}
-                    autoComplete="off"
-                    required
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {outputFields.length > 0 && (
-            <div className="run-outputs-preview">
-              <h3>Captures</h3>
-              <p className="field-hint">What this Path saves during the call — reviewable later in History.</p>
-              <div className="output-chip-row">
-                {outputFields.map((field) => (
-                  <span key={field} className="output-chip mono">{field}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="form-group">
-            <label htmlFor="target">Target number — local only</label>
-            <input
-              id="target"
-              type="tel"
-              value={targetNumber}
-              onChange={(e) => setTargetNumber(e.target.value)}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary btn-full"
-            disabled={loading || missingVariables.length > 0}
-          >
-            {loading ? "Starting…" : "Run"}
-          </button>
-        </form>
-
-        {error && <div className="error-banner">{error}</div>}
-      </>
+      <RunConfigureStep
+        script={script}
+        scripts={scripts}
+        activeId={activeId}
+        onActiveIdChange={setActiveId}
+        variableNames={variableNames}
+        variables={variables}
+        onVariableChange={(name, value) =>
+          setVariables((prev) => ({ ...prev, [name]: value }))
+        }
+        outputFields={outputFields}
+        targetNumber={targetNumber}
+        onTargetNumberChange={setTargetNumber}
+        loading={loading}
+        missingVariables={missingVariables}
+        error={error}
+        onSubmit={handleStart}
+      />
     );
   }
 
@@ -377,7 +299,7 @@ function RunFlow({
   const path = pathFromScript(activeRun.script);
 
   return wrap(
-    <div className="callstate-panel">
+    <div className="space-y-4">
       {session.phase === "completed" && session.callEvents && (
         <CallStateBoard
           liveStatus={projectLiveStatus(
@@ -390,7 +312,7 @@ function RunFlow({
       )}
 
       {session.phase === "active" && (
-        <MatcherPanel
+        <RunActivePanel
           script={activeRun.script}
           variables={activeRun.variables}
           sessionId={session.sessionId}
@@ -399,193 +321,35 @@ function RunFlow({
       )}
 
       {session.phase === "completed" && session.collected && (
-        <div className="transcript-preview">
-          <h4>Captured</h4>
-          <pre>{JSON.stringify(session.collected, null, 2)}</pre>
-          <p className="hint">Saved to History on this device. Only a hash of this payload was sent to the server.</p>
-        </div>
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <h4 className="text-sm font-medium">Captured</h4>
+            <pre className="rounded-lg bg-muted p-3 text-xs font-mono overflow-x-auto">
+              {JSON.stringify(session.collected, null, 2)}
+            </pre>
+            <p className="text-xs text-muted-foreground">
+              Saved to History on this device. Only a hash of this payload was sent to the server.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="callstate-actions">
+      <div className="flex flex-wrap gap-2">
         {session.phase === "completed" && (
-          <button className="btn btn-secondary" onClick={handleExport}>
+          <Button type="button" variant="outline" onClick={handleExport}>
             Export
-          </button>
+          </Button>
         )}
-        <button className="btn btn-danger" onClick={handleRevoke} disabled={loading}>
+        <Button type="button" variant="destructive" onClick={handleRevoke} disabled={loading}>
           Revoke & delete all
-        </button>
+        </Button>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
-    </div>
-  );
-}
-
-function MatcherPanel({
-  script,
-  variables,
-  sessionId,
-  onCallStateCaptured,
-}: {
-  script: Path;
-  variables: Record<string, string>;
-  sessionId: string;
-  onCallStateCaptured: (
-    collected: Record<string, string>,
-    transcriptHash: string,
-    callEvents: CallEvent[]
-  ) => void;
-}) {
-  const [run, setRun] = useState<RunState>(initialRunState);
-  const [ivrText, setIvrText] = useState("");
-  const path = pathFromScript(script);
-  const callEvents = runLogToCallEvents(run.log, path);
-  const call = callFromSession(sessionId, "local-client", path.id, callEvents);
-  const liveStatus = projectLiveStatus(call, path);
-  const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
-  const [listenError, setListenError] = useState<string | null>(null);
-  const debounceRef = useRef<number | undefined>(undefined);
-
-  const applyPhraseNow = useCallback(
-    (text: string) => {
-      setRun((prev) => {
-        const result = processPhrase(text, script, variables, prev);
-        if (result.shouldComplete) {
-          const { collected } = result.state;
-          const events = runLogToCallEvents(result.state.log, path);
-          const finalEvents = [
-            ...events,
-            newCallEvent("CALL_ENDED", {
-              outcome: "COMPLETED",
-              step: path.definedSteps[path.definedSteps.length - 1],
-            }),
-          ];
-          void hashCollected(collected).then((hash) =>
-            onCallStateCaptured(collected, hash, finalEvents)
-          );
-        }
-        return result.state;
-      });
-    },
-    [script, variables, onCallStateCaptured, path]
-  );
-
-  const applyPhraseDebounced = useCallback(
-    (text: string) => {
-      window.clearTimeout(debounceRef.current);
-      debounceRef.current = window.setTimeout(() => applyPhraseNow(text), 150);
-    },
-    [applyPhraseNow]
-  );
-
-  useEffect(() => {
-    if (!autoListen || run.completed) return;
-
-    setListenError(null);
-    const stop = startContinuousRecognition(
-      (phrase) => applyPhraseDebounced(phrase),
-      (msg) => setListenError(msg)
-    );
-
-    if (!stop) {
-      setAutoListen(false);
-      setListenError("Web Speech API unavailable in this browser");
-      return;
-    }
-
-    return stop;
-  }, [autoListen, run.completed, applyPhraseDebounced]);
-
-  const handleManualMatch = () => {
-    if (!ivrText.trim()) return;
-    applyPhraseNow(ivrText.trim());
-    setIvrText("");
-  };
-
-  const dismissDtmf = () => {
-    setRun((prev) => ({ ...prev, pendingDtmf: undefined, pendingTrigger: undefined }));
-  };
-
-  return (
-    <div className="navigator-panel run-panel">
-      <CallStateBoard liveStatus={liveStatus} path={path} label="Live callstate" />
-
-      <div className="run-panel-header">
-        <h4>{scriptDisplayName(script)}</h4>
-        {isSpeechRecognitionAvailable() && !run.completed && (
-          <button
-            type="button"
-            className={`btn btn-sm ${autoListen ? "btn-primary" : "btn-secondary"}`}
-            onClick={() => setAutoListen((v) => !v)}
-          >
-            {autoListen ? "● Listening" : "Auto-listen"}
-          </button>
-        )}
-      </div>
-
-      <p className="hint">
-        {autoListen
-          ? "Listening locally — IVR phrases auto-match against your script."
-          : "Paste what you hear, or enable auto-listen."}
-      </p>
-
-      {listenError && <p className="field-hint warn">{listenError}</p>}
-
-      {run.pendingDtmf && (
-        <DtmfGuide
-          sequence={run.pendingDtmf}
-          trigger={run.pendingTrigger}
-          onComplete={dismissDtmf}
-        />
-      )}
-
-      {!run.completed && (
-        <>
-          <div className="form-group">
-            <label htmlFor="ivr-phrase">Listen</label>
-            <textarea
-              id="ivr-phrase"
-              rows={2}
-              value={ivrText}
-              onChange={(e) => setIvrText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleManualMatch();
-                }
-              }}
-            />
-          </div>
-          <button
-            className="btn btn-primary btn-full"
-            onClick={handleManualMatch}
-            disabled={!ivrText.trim()}
-          >
-            Match
-          </button>
-        </>
-      )}
-
-      {Object.keys(run.collected).length > 0 && (
-        <div className="collected-json">
-          <h5>Captured</h5>
-          <pre>{JSON.stringify(run.collected, null, 2)}</pre>
-        </div>
-      )}
-
-      {run.log.length > 0 && (
-        <div className="dtmf-log">
-          <ul>
-            {run.log.map((entry, i) => (
-              <li key={i} className={`mono log-${entry.kind}`}>{entry.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {run.completed && (
-        <p className="hint success-hint">Run complete — encrypted callstate submitted.</p>
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
     </div>
   );
