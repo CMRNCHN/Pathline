@@ -13,8 +13,14 @@ export interface NativeSipBridge {
 
 declare global {
   interface Window {
-    __promptpathSipBridge?: NativeSipBridge;
+    __pathlineSipBridge?: NativeSipBridge;
+    __promptpathSipBridge?: NativeSipBridge; // legacy PromptPath
   }
+}
+
+function getNativeSipBridge(): NativeSipBridge | undefined {
+  if (typeof window === "undefined") return undefined;
+  return window.__pathlineSipBridge ?? window.__promptpathSipBridge; // legacy PromptPath
 }
 
 function wrapBridge(bridge: NativeSipBridge): CallTransport {
@@ -40,7 +46,7 @@ function wrapBridge(bridge: NativeSipBridge): CallTransport {
  * falls back to SimulatorTransport in web-only dev.
  */
 export function createSipTransport(): CallTransport {
-  const bridge = typeof window !== "undefined" ? window.__promptpathSipBridge : undefined;
+  const bridge = getNativeSipBridge();
   if (bridge) return wrapBridge(bridge);
   return new SimulatorTransport();
 }

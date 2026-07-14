@@ -21,7 +21,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-LAB_SIP_USER="${LAB_SIP_USER:-promptpath-lab}"
+LAB_SIP_USER="${LAB_SIP_USER:-pathline-lab}"
 LAB_SIP_TLS_PORT="${LAB_SIP_TLS_PORT:-5061}"
 
 ensure_env_var() {
@@ -49,7 +49,7 @@ if [[ ! -f "$TLS_DIR/asterisk.crt" || ! -f "$TLS_DIR/asterisk.key" ]]; then
     -keyout "$TLS_DIR/asterisk.key" \
     -out "$TLS_DIR/asterisk.crt" \
     -days 825 \
-    -subj "/CN=127.0.0.1/O=PromptPath Lab/C=US" \
+    -subj "/CN=127.0.0.1/O=Pathline Lab/C=US" \
     2>/dev/null
   chmod 600 "$TLS_DIR/asterisk.key"
   chmod 644 "$TLS_DIR/asterisk.crt"

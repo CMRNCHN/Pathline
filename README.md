@@ -1,8 +1,8 @@
-# PromptPath
+# Pathline
 
-Privacy-first, client-mediated call orchestration. v1 minimizes trust in PromptPath infrastructure by keeping secrets, phone numbers, and audio on the user's device.
+Privacy-first, client-mediated call orchestration. v1 minimizes trust in Pathline infrastructure by keeping secrets, phone numbers, and audio on the user's device.
 
-See [PromptPath Architecture.md](./PromptPath%20Architecture.md) for the canonical security spec.
+See [Pathline Architecture.md](./Pathline%20Architecture.md) for the canonical security spec.
 
 ## v1 Architecture
 
@@ -24,10 +24,10 @@ Device (native / web shell)
 
 ### First-time setup
 
-**From the repo root** (not `client/`). Replace the path with wherever you cloned PromptPath — e.g. `~/Developer/projects/PromptPath` on a Mac, or `/workspace` in this cloud VM:
+**From the repo root** (not `client/`). Replace the path with wherever you cloned Pathline — e.g. `~/Developer/projects/Pathline` on a Mac, or `/workspace` in this cloud VM:
 
 ```bash
-cd ~/Developer/projects/PromptPath   # your real path — not literally /path/to/PromptPath
+cd ~/Developer/projects/Pathline   # your real path — not literally /path/to/Pathline
 npm run install
 ```
 
@@ -35,8 +35,8 @@ npm run install
 
 | OS | What it does |
 |----|----------------|
-| **macOS** | Builds `PromptPath.app` with icon, links `~/Applications`, **pins to Dock** |
-| **Linux** | Installs `~/.local/share/applications/promptpath.desktop` + icon (pins GNOME dock when available) |
+| **macOS** | Builds `Pathline.app` with icon, links `~/Applications`, **pins to Dock** |
+| **Linux** | Installs `~/.local/share/applications/pathline.desktop` + icon (pins GNOME dock when available) |
 
 macOS-only / Linux-only:
 
@@ -48,11 +48,11 @@ npm run install:linux
 Then from **any directory**:
 
 ```bash
-promptpath          # start in terminal (Ctrl+C to stop)
-promptpath-stop     # stop background services
+pathline          # start in terminal (Ctrl+C to stop)
+pathline-stop     # stop background services
 ```
 
-Or **Dock** / **Spotlight** (macOS) or **app launcher** (Linux) → **PromptPath**.
+Or **Dock** / **Spotlight** (macOS) or **app launcher** (Linux) → **Pathline**.
 
 **Headless Linux** (cloud VM, SSH, no desktop): the `.desktop` file is installed but there is no dock to pin. Use `./scripts/start.sh` or open http://localhost:3000 after starting.
 
@@ -60,8 +60,8 @@ Or **Dock** / **Spotlight** (macOS) or **app launcher** (Linux) → **PromptPath
 
 | App | Action |
 |-----|--------|
-| `PromptPath.app` | Start API + client, open browser |
-| `PromptPath Stop.app` | Stop services |
+| `Pathline.app` | Start API + client, open browser |
+| `Pathline Stop.app` | Stop services |
 
 After `install-macos.sh`, these also appear in **~/Applications**.
 
@@ -70,8 +70,8 @@ After `install-macos.sh`, these also appear in **~/Applications**.
 If you have not run `install-macos.sh`, `cd` into the project first:
 
 ```bash
-cd ~/Developer/projects/PromptPath
-./PromptPath          # foreground
+cd ~/Developer/projects/Pathline
+./Pathline          # foreground
 npm start             # same
 ./scripts/stop.sh     # stop
 ```
@@ -86,7 +86,7 @@ cp .env.example .env
 # API
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e packages/shared-python -e services/api
-uvicorn promptpath_api.main:app --reload --port 8000
+uvicorn pathline_api.main:app --reload --port 8000
 
 # Client (separate terminal)
 cd client && npm install && npm run dev
@@ -125,7 +125,7 @@ The fill-in-the-blank **IVR Routines** builder lives in a separate repo: `../ivr
 ## Project Structure
 
 ```
-PromptPath/
+Pathline/
 ├── services/
 │   ├── api/              # v1 thin backend (use this)
 │   └── deferred/         # v2/v3 services (not started by default)

@@ -1,9 +1,9 @@
 ---
 name: desktop-sip-bridge
-description: Implements window.__promptpathSipBridge in Rust for Tauri using the LOCKED SIP stack from docs/desktop-sip-stack.md. Use proactively in Wave A after desktop-sip-scout completes — owns desktop/src-tauri SIP files only.
+description: Implements window.__pathlineSipBridge in Rust for Tauri using the LOCKED SIP stack from docs/desktop-sip-stack.md. Use proactively in Wave A after desktop-sip-scout completes — owns desktop/src-tauri SIP files only.
 ---
 
-You implement the native SIP bridge for PromptPath desktop.
+You implement the native SIP bridge for Pathline desktop.
 
 ## Preconditions
 
@@ -26,7 +26,7 @@ Match `client/src/transport/SipTransport.ts` `NativeSipBridge`:
 - `dial(number)`, `answer()`, `sendDtmf(digits, durationMs)`, `hangup()`
 - `onAudio(pcm, sampleRate)`, `onEvent(type, detail?)`
 
-Inject as `window.__promptpathSipBridge` before/as webview loads.
+Inject as `window.__pathlineSipBridge` before/as webview loads.
 
 Events align with `TransportEventType`: `connected` | `disconnected` | `ringing` | `answered` | `dtmf_sent` | `error`.
 

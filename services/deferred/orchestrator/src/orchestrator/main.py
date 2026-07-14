@@ -11,9 +11,9 @@ from sqlalchemy import Column, DateTime, String, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-from promptpath_shared.crypto import hash_session_id
-from promptpath_shared.logging_config import configure_logging, get_logger
-from promptpath_shared.models import (
+from pathline_shared.crypto import hash_session_id
+from pathline_shared.logging_config import configure_logging, get_logger
+from pathline_shared.models import (
     CallMode,
     CallRequest,
     CallSession,
@@ -24,7 +24,7 @@ from promptpath_shared.models import (
 configure_logging("orchestrator")
 logger = get_logger("orchestrator")
 
-app = FastAPI(title="PromptPath Call Orchestrator", version="0.1.0")
+app = FastAPI(title="Pathline Call Orchestrator", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,7 +35,7 @@ app.add_middleware(
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://promptpath:promptpath@localhost:5432/promptpath"
+    database_url: str = "postgresql+asyncpg://pathline:pathline@localhost:5432/pathline"
     did_manager_url: str = "http://localhost:8002"
     stt_service_url: str = "http://localhost:8004"
     notifications_url: str = "http://localhost:8005"

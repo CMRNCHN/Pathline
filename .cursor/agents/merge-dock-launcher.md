@@ -8,7 +8,7 @@ You resolve merge conflicts for the **dock launcher** branch into the current ba
 ## Branch & PR
 
 - **Branch:** `cursor/dock-launcher-7a69`
-- **PR:** #6 — Dock launcher with custom PromptPath icon
+- **PR:** #6 — Dock launcher with custom Pathline icon
 - **Base:** `cursor/known-scripts-and-run-automation`
 
 ## What this branch introduces
@@ -17,7 +17,7 @@ You resolve merge conflicts for the **dock launcher** branch into the current ba
 - macOS `.app` bundle / dock pinning
 - Linux desktop entry and GNOME dock install (`install-linux-desktop.sh`)
 - `icnsutil` conditional install (macOS only); Pillow for Linux
-- Brand references may still say "PromptPath" — Pathline rebrand may apply to display names only
+- Brand references on the branch may still say "PromptPath" — migrate user-facing strings to Pathline during merge
 
 ## Likely conflict areas
 
@@ -32,7 +32,7 @@ You resolve merge conflicts for the **dock launcher** branch into the current ba
 2. `git checkout cursor/dock-launcher-7a69`
 3. Merge base branch
 4. Classify conflicts (simple rename vs competing install behavior)
-5. Keep launcher functionality; adopt Pathline display name where user-facing ("Pathline" not "PromptPath" in notifications if base changed this)
+5. Keep launcher functionality; adopt Pathline display name where user-facing
 6. Verify icon scripts still run on Linux without `icnsutil`
 7. Test: `./scripts/generate-app-icon.py` (if applicable), `cd client && npm run build`
 8. Commit, push, update PR #6

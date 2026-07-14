@@ -1,14 +1,14 @@
 # Native Client Integration (v1)
 
-Production PromptPath call placement and DTMF automation belong in the **PromptPath client**, not a browser or external softphone.
+Production Pathline call placement and DTMF automation belong in the **Pathline client**, not a browser or external softphone.
 
 See [docs/architecture-boundary.md](../docs/architecture-boundary.md) for the frozen module boundary.
 
 ## Why native / desktop SIP?
 
 - Automation requires owning the **call media session** (dial + RTP + DTMF inject)
-- External softphone + web UI breaks the loop — PromptPath cannot inject DTMF into a session it does not own
-- Secrets and audio must never traverse PromptPath servers
+- External softphone + web UI breaks the loop — Pathline cannot inject DTMF into a session it does not own
+- Secrets and audio must never traverse Pathline servers
 
 ## v1 Privacy Contract
 
@@ -23,8 +23,8 @@ The client MUST:
 
 The client MUST NOT:
 
-- Send target phone numbers to PromptPath servers
-- Send transcripts or audio to PromptPath servers
+- Send target phone numbers to Pathline servers
+- Send transcripts or audio to Pathline servers
 - Log plaintext DTMF sequences in audit events
 - Use server-mediated flow without explicit v3 opt-in (removed from roadmap)
 
@@ -34,7 +34,7 @@ Implement `client/src/transport/CallTransport.ts` per platform:
 
 | Platform | Implementation |
 |----------|----------------|
-| Desktop MVP | Tauri + PJSIP/Linphone via `window.__promptpathSipBridge` |
+| Desktop MVP | Tauri + PJSIP/Linphone via `window.__pathlineSipBridge` |
 | iOS | CallKit + in-call DTMF |
 | Android | TelecomManager + in-call DTMF |
 | Web dev | `SimulatorTransport` only — manual paste fallback |

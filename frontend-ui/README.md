@@ -1,4 +1,4 @@
-# PromptPath Frontend UI
+# Pathline Frontend UI
 
 Shareable React UI for privacy-preserving IVR script editing and status runs.
 
@@ -56,7 +56,7 @@ Endpoints used by the Call tab: `/v1/token`, `/v1/status`, `/v1/revoke`.
 
 Zip or copy `frontend-ui/` as-is. Recipients run `npm install && npm run dev`.
 
-To refresh from the main PromptPath repo:
+To refresh from the main Pathline repo:
 
 ```bash
 ./scripts/sync-frontend-ui.sh

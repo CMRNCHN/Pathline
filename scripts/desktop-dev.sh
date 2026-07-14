@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PromptPath desktop dev — API sidecar + Tauri shell
+# Pathline desktop dev — API sidecar + Tauri shell
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -79,7 +79,7 @@ Do not kill unrelated processes from this script."
 
   info "[api] starting sidecar on 127.0.0.1:${API_PORT} ..."
   JWT_SECRET="$JWT_SECRET" SESSION_PEPPER="$SESSION_PEPPER" \
-    uvicorn promptpath_api.main:app \
+    uvicorn pathline_api.main:app \
       --host 127.0.0.1 \
       --port "$API_PORT" \
       --reload \

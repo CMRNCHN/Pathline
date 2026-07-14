@@ -1,9 +1,9 @@
 [project]
-name = "promptpath-kms"
+name = "pathline-kms"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "promptpath-shared",
+    "pathline-shared",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "pydantic-settings>=2.0.0",

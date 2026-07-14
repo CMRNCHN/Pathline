@@ -4,7 +4,7 @@ Aligned with [threat-model.md](./threat-model.md), [architecture-boundary.md](./
 
 ## v1 — Client-owned call automation (current)
 
-**Goal:** PromptPath client owns the call session and automation loop. Server stores identity + encrypted artifacts only.
+**Goal:** Pathline client owns the call session and automation loop. Server stores identity + encrypted artifacts only.
 
 - Single thin API (`services/api/`)
 - **Client owns:** SIP/native transport, local STT, runEngine, DTMF injection, event ledger

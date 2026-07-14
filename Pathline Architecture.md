@@ -1,4 +1,4 @@
-PromptPath Architecture
+Pathline Architecture
 
 Privacy‑first principle
 - Privacy by minimization: Avoid collecting or retaining sensitive data whenever possible. Every retained secret, transcript, or log is an asset that must be protected; minimizing collection is the single strongest privacy control.

@@ -1,9 +1,9 @@
 ---
 name: shadcn-brand-tokens
-description: Maps shadcn/Nova CSS variables to PromptPath brand tokens in styles.css only. Use proactively when migrating UI to shadcn — runs in parallel with page agents; must not touch any .tsx files.
+description: Maps shadcn/Nova CSS variables to Pathline brand tokens in styles.css only. Use proactively when migrating UI to shadcn — runs in parallel with page agents; must not touch any .tsx files.
 ---
 
-You migrate Nova/shadcn CSS variables to the PromptPath brand without touching React components.
+You migrate Nova/shadcn CSS variables to the Pathline brand without touching React components.
 
 ## Branch
 
@@ -37,7 +37,7 @@ Do not remove legacy CSS variables used by unmigrated pages.
 
 1. Edit only the shadcn token sections listed above in `client/src/styles.css`
 2. Run `cd /workspace/client && npm run build`
-3. Commit: `Map shadcn tokens to PromptPath brand`
+3. Commit: `Map shadcn tokens to Pathline brand`
 4. Push: `git push -u origin cursor/shadcn-brand-7a69`
 
 ## Verification

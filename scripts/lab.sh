@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PromptPath Tier C — lab Asterisk (TLS) + API + web client
+# Pathline Tier C — lab Asterisk (TLS) + API + web client
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -53,7 +53,7 @@ start_native_asterisk() {
   sudo cp "$ROOT/lab/asterisk/generated/pjsip.lab.conf" /etc/asterisk/pjsip.lab.conf
   sudo cp "$ROOT/lab/asterisk/extensions_lab.conf" /etc/asterisk/extensions_lab.conf
 
-  MARKER="# PromptPath lab block"
+  MARKER="# Pathline lab block"
   if ! sudo grep -qF "$MARKER" /etc/asterisk/extensions.conf 2>/dev/null; then
     sudo bash -c "echo '' >> /etc/asterisk/extensions.conf"
     sudo bash -c "echo '$MARKER' >> /etc/asterisk/extensions.conf"
@@ -83,7 +83,7 @@ if ! start_docker_asterisk; then
 fi
 
 echo ""
-info "Starting PromptPath API + client..."
+info "Starting Pathline API + client..."
 echo ""
 echo "  Lab IVR:     dial 1000 on softphone (TLS ${LAB_SIP_TLS_PORT})"
 echo "  SIP user:    ${LAB_SIP_USER}"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop PromptPath API + client started by start.sh or PromptPath.app
+# Stop Pathline API + client started by start.sh or Pathline.app
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,7 +25,7 @@ if pkill -f "$ROOT/client.*vite" 2>/dev/null; then
 fi
 
 if (( stopped )); then
-  echo "PromptPath stopped."
+  echo "Pathline stopped."
 else
-  echo "PromptPath is not running."
+  echo "Pathline is not running."
 fi

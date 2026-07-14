@@ -1,6 +1,6 @@
 # Architecture Boundary (Frozen)
 
-PromptPath is a **privacy-preserving local call automation agent** with verifiable execution history.
+Pathline is a **privacy-preserving local call automation agent** with verifiable execution history.
 
 Do not split this boundary again.
 
@@ -8,19 +8,19 @@ Do not split this boundary again.
 
 | Component | Owner |
 |-----------|-------|
-| Call session (SIP / native) | PromptPath client |
+| Call session (SIP / native) | Pathline client |
 | Audio | Device |
 | STT | Device |
-| Phrase matching | PromptPath |
+| Phrase matching | Pathline |
 | Secrets | Device |
-| DTMF injection | PromptPath (via transport) |
+| DTMF injection | Pathline (via transport) |
 | Audit ledger | Device |
 | Server | Identity + encrypted artifact storage only |
 
 ## Client module stack
 
 ```
-PromptPath Client
+Pathline Client
 │
 ├── transport/          Call session — dial, RTP, DTMF inject
 │   ├── CallTransport.ts
@@ -55,7 +55,7 @@ PromptPath Client
 
 ## MVP prototype
 
-Desktop PromptPath client (Tauri + React + PJSIP/Linphone + local Whisper):
+Desktop Pathline client (Tauri + React + PJSIP/Linphone + local Whisper):
 
 ```
 Run → dial → SIP session → local STT → phrase match → runEngine → dtmf → transport inject → ledger → encrypted export
@@ -65,4 +65,4 @@ Mobile PSTN automation is deferred until desktop SIP proves the loop.
 
 ## Native bridge
 
-`SipTransport` delegates to `window.__promptpathSipBridge` when injected by the Tauri shell. Web-only dev uses `SimulatorTransport`.
+`SipTransport` delegates to `window.__pathlineSipBridge` when injected by the Tauri shell. Web-only dev uses `SimulatorTransport`.

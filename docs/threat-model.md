@@ -1,4 +1,4 @@
-# PromptPath Threat Model
+# Pathline Threat Model
 
 Canonical threat model for v1 implementation. Drives which controls are in scope and which residual risks are accepted.
 
@@ -8,10 +8,10 @@ Canonical threat model for v1 implementation. Drives which controls are in scope
 |-----------|----------|-------------------|
 | Passive network eavesdropper | Yes | Prevent casual interception of secrets and status payloads |
 | Active MitM on client↔server path | Yes | TLS + strict verification; client-side encryption of any sensitive blobs |
-| Compromised PromptPath host / insider | Partial | Minimize data at rest; no plaintext secrets; hashed session IDs only |
+| Compromised Pathline host / insider | Partial | Minimize data at rest; no plaintext secrets; hashed session IDs only |
 | SIP provider / carrier access | Yes (accepted residual) | Document visibility; reduce concentration via v2 DID strategy |
 | Correlation attacker (metadata) | Partial | Client-mediated default; v2 DID pool if correlation becomes priority |
-| Lawful process against PromptPath | Partial | Minimize retained data; short TTL; purge on revoke |
+| Lawful process against Pathline | Partial | Minimize retained data; short TTL; purge on revoke |
 
 ## Out of Scope (v1)
 
@@ -21,7 +21,7 @@ Canonical threat model for v1 implementation. Drives which controls are in scope
 
 ## Security Objectives (v1)
 
-1. **Content confidentiality** — User secrets and call audio never traverse PromptPath servers in the default path.
+1. **Content confidentiality** — User secrets and call audio never traverse Pathline servers in the default path.
 2. **Metadata exposure reduction** — Server stores only hashed session IDs and opaque encrypted status blobs; no phone numbers, no transcripts.
 3. **Data minimization** — Automatic purge after retention window; immediate delete on user revoke.
 4. **Operational safety** — Explicit consent; lawful-use terms; lab testing before third-party IVR.

@@ -16,7 +16,7 @@ execution: code
 **Authority:** `docs/architecture-boundary.md` (frozen) · `docs/roadmap.md` v1 · `client-native/README.md`
 
 **Stop when:**
-1. Desktop app dials lab extension `1000` through `window.__promptpathSipBridge`
+1. Desktop app dials lab extension `1000` through `window.__pathlineSipBridge`
 2. Local STT feeds `RunSession.processPhrase` without paste in automated mode
 3. Lab Path completes with auto-DTMF and encrypted callstate ingest to thin API
 4. `scripts/lab-verify-flow.sh` (desktop mode) exits green
@@ -34,7 +34,7 @@ execution: code
 |----|-------------|
 | R1 | Client owns the media session via `CallTransport`; engine never talks SIP |
 | R2 | Rust shell injects `NativeSipBridge` matching `client/src/transport/SipTransport.ts` |
-| R3 | On-device STT only — no audio/transcripts to PromptPath servers |
+| R3 | On-device STT only — no audio/transcripts to Pathline servers |
 | R4 | DTMF audit remains `{ step, digits, hash }` — never plaintext sequences in ledger |
 | R5 | Lab Path `lab-account-status` runs automated on desktop (target + autoListen) |
 | R6 | Fail closed when SIP/STT unavailable — clear transport `error` events, no silent `tel:` fallback |
@@ -77,7 +77,7 @@ execution: code
 | SIP stack | **Forced single choice via U0 scout** — default recommend **Linphone SDK** for macOS-first MVP | Better call/media abstraction; scout may pick PJSIP only with written rationale in `docs/desktop-sip-stack.md`. **Never both.** |
 | Media format | PCM `Float32Array` + `sampleRate` on `onAudio` (mono default) | Matches existing `CallTransport` / `NativeSipBridge` |
 | STT engine | **Whisper.cpp** local; Web Speech = browser-only fallback | Device STT; portable |
-| Bridge injection | `window.__promptpathSipBridge` before/on webview ready | Consumed by `createSipTransport()` |
+| Bridge injection | `window.__pathlineSipBridge` before/on webview ready | Consumed by `createSipTransport()` |
 | Orchestration | Do **not** split `RunSession` | Frozen boundary |
 | Fasttrack | Harden `.cursor/agents/desktop-*.md` then spawn parallel Tasks | Exclusive file ownership |
 
@@ -143,7 +143,7 @@ interface NativeSipBridge {
   onAudio(callback: (pcm: Float32Array, sampleRate: number) => void): () => void;
   onEvent(callback: (type: string, detail?: string) => void): () => void;
 }
-// Injected as window.__promptpathSipBridge
+// Injected as window.__pathlineSipBridge
 ```
 
 ### Layer rules (non-negotiable)
@@ -204,7 +204,7 @@ Documented in `docs/desktop-audio-contract.md` (U0/U1):
 
 ### U1. Native SIP bridge
 
-**Goal:** Inject working `window.__promptpathSipBridge` so Tauri stops using `SimulatorTransport` for dial/DTMF.
+**Goal:** Inject working `window.__pathlineSipBridge` so Tauri stops using `SimulatorTransport` for dial/DTMF.
 
 **Files:**
 - `desktop/src-tauri/src/sip_bridge.rs`
@@ -221,7 +221,7 @@ Documented in `docs/desktop-audio-contract.md` (U0/U1):
 4. Lab dial URI from `lab/asterisk/generated/credentials.env`
 
 **Acceptance:**
-- [ ] In Tauri, `__promptpathSipBridge` is defined
+- [ ] In Tauri, `__pathlineSipBridge` is defined
 - [ ] Lab Asterisk receives INVITE for extension 1000
 - [ ] Matched-step DTMF advances IVR
 - [ ] Bad creds / down daemon → `error` event (failure matrix)
@@ -315,7 +315,7 @@ Documented in `docs/desktop-audio-contract.md` (U0/U1):
 Required before U4 passes:
 
 - [ ] No outbound audio streams except SIP RTP to the intended peer
-- [ ] No transcript POST requests to PromptPath or third parties
+- [ ] No transcript POST requests to Pathline or third parties
 - [ ] Callstate payload is encrypted blob + nonce only
 - [ ] DTMF ledger stores hash (and digit **count**), never plaintext sequences
 - [ ] Whisper model executes locally
@@ -331,7 +331,7 @@ Required before U4 passes:
 | Desktop | `cd desktop && npm run build` (Mac) |
 | API | `curl -sf http://127.0.0.1:8000/health` |
 | Lab | SIP TLS port up after `./scripts/lab.sh` |
-| Bridge | `__promptpathSipBridge` present in Tauri |
+| Bridge | `__pathlineSipBridge` present in Tauri |
 | E2E | Lab Path completes; Runs shows completed |
 | Privacy | Checklist above |
 
@@ -359,7 +359,7 @@ Required before U4 passes:
 5. Wave C: `desktop-integration` + full `desktop-lab-e2e` verify
 
 ```bash
-cd /Users/cameroncohen/Developer/projects/PromptPath
+cd /Users/cameroncohen/Developer/projects/Pathline
 git fetch && git checkout cursor/desktop-mvp-7a69 && git pull
 ./scripts/lab.sh
 npm run desktop:dev

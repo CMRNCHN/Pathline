@@ -1,6 +1,6 @@
 ---
 name: ui-phase-e-brand-cleanup
-description: Unifies PromptPath branding, DM Sans fonts, removes dead TopNav/PathBadge/SectionCard and prunes unused legacy CSS. Use proactively in wave 2 after B+C+D are merged.
+description: Unifies Pathline branding, DM Sans fonts, removes dead TopNav/PathBadge/SectionCard and prunes unused legacy CSS. Use proactively in wave 2 after B+C+D are merged.
 ---
 
 You execute Phase E — brand and CSS cleanup.
@@ -17,7 +17,7 @@ You execute Phase E — brand and CSS cleanup.
 | `client/index.html` — title, fonts | |
 | Delete `client/src/components/TopNav.tsx` if unused | |
 | Delete `client/src/components/ui/PathBadge.tsx`, `SectionCard.tsx` if no imports | |
-| Brand strings: unify to **PromptPath** in AppSidebar, RunConsentStep, SettingsPage, EditForm copy | |
+| Brand strings: unify to **Pathline** in AppSidebar, RunConsentStep, SettingsPage, EditForm copy | |
 
 ## Font rule
 

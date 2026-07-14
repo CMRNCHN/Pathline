@@ -220,7 +220,7 @@ function RunFlow({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `promptpath-export-${session.sessionId.slice(0, 8)}.json`;
+      a.download = `pathline-export-${session.sessionId.slice(0, 8)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {

@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "packages" / "shared-python" / "src"))
 
-from promptpath_shared.call_script import IVRNavigator, load_call_script  # noqa: E402
+from pathline_shared.call_script import IVRNavigator, load_call_script  # noqa: E402
 
 SECRETS = {"account_pin": "1234", "ssn_last4": "5678"}
 

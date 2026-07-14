@@ -1,8 +1,19 @@
 import type { ScriptDocument } from "./types";
 import { newConversationStep } from "./compile";
 
-export const CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts";
-export const ACTIVE_SCRIPT_KEY = "promptpath-active-script";
+export const CUSTOM_SCRIPTS_KEY = "pathline-custom-scripts";
+export const ACTIVE_SCRIPT_KEY = "pathline-active-script";
+const LEGACY_CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts"; // legacy PromptPath
+const LEGACY_ACTIVE_SCRIPT_KEY = "promptpath-active-script"; // legacy PromptPath
+
+function readLocalStorageItem(key: string, legacyKey: string): string | null {
+  return localStorage.getItem(key) ?? localStorage.getItem(legacyKey);
+}
+
+function migrateLocalStorageKey(key: string, legacyKey: string, value: string): void {
+  localStorage.setItem(key, value);
+  localStorage.removeItem(legacyKey);
+}
 
 export const BUNDLED_SCRIPT_FILES: string[] = [];
 
@@ -28,8 +39,13 @@ export function newScript(partial?: Partial<ScriptDocument>): ScriptDocument {
 
 export function loadCustomScripts(): ScriptDocument[] {
   try {
-    const raw = localStorage.getItem(CUSTOM_SCRIPTS_KEY);
-    if (raw) return JSON.parse(raw) as ScriptDocument[];
+    const raw = readLocalStorageItem(CUSTOM_SCRIPTS_KEY, LEGACY_CUSTOM_SCRIPTS_KEY);
+    if (raw) {
+      if (!localStorage.getItem(CUSTOM_SCRIPTS_KEY) && localStorage.getItem(LEGACY_CUSTOM_SCRIPTS_KEY)) {
+        migrateLocalStorageKey(CUSTOM_SCRIPTS_KEY, LEGACY_CUSTOM_SCRIPTS_KEY, raw);
+      }
+      return JSON.parse(raw) as ScriptDocument[];
+    }
   } catch {
     /* ignore */
   }
@@ -41,7 +57,11 @@ export function saveCustomScripts(scripts: ScriptDocument[]): void {
 }
 
 export function loadActiveScriptId(): string {
-  return localStorage.getItem(ACTIVE_SCRIPT_KEY) ?? "";
+  const value = readLocalStorageItem(ACTIVE_SCRIPT_KEY, LEGACY_ACTIVE_SCRIPT_KEY);
+  if (value && !localStorage.getItem(ACTIVE_SCRIPT_KEY) && localStorage.getItem(LEGACY_ACTIVE_SCRIPT_KEY)) {
+    migrateLocalStorageKey(ACTIVE_SCRIPT_KEY, LEGACY_ACTIVE_SCRIPT_KEY, value);
+  }
+  return value ?? "";
 }
 
 export function saveActiveScriptId(id: string): void {

@@ -1,7 +1,8 @@
 import type { PathDocument } from "../script/types";
 import type { AppPreferences, PersistedRun, PERSISTENCE_VERSION, RunConfig } from "./types";
 
-const DB_NAME = "promptpath";
+const DB_NAME = "pathline";
+const LEGACY_DB_NAME = "promptpath"; // legacy PromptPath
 const DB_VERSION = 1;
 
 const STORE_KV = "kv";
@@ -12,6 +13,134 @@ const STORE_RUN_HISTORY = "run_history";
 type KvKey = "version" | "userId" | "activeScriptId" | "preferences";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
+let legacyMigrationDone = false;
+
+async function legacyDbHasData(): Promise<boolean> {
+  if (!indexedDB.databases) return false;
+  const dbs = await indexedDB.databases();
+  if (!dbs.some((db) => db.name === LEGACY_DB_NAME)) return false;
+
+  return new Promise((resolve) => {
+    const request = indexedDB.open(LEGACY_DB_NAME);
+    request.onsuccess = () => {
+      const db = request.result;
+      const storeNames = Array.from(db.objectStoreNames);
+      if (storeNames.length === 0) {
+        db.close();
+        resolve(false);
+        return;
+      }
+      const tx = db.transaction(storeNames[0], "readonly");
+      const countReq = tx.objectStore(storeNames[0]).count();
+      countReq.onsuccess = () => {
+        db.close();
+        resolve(countReq.result > 0);
+      };
+      countReq.onerror = () => {
+        db.close();
+        resolve(false);
+      };
+    };
+    request.onerror = () => resolve(false);
+  });
+}
+
+async function targetDbIsEmpty(db: IDBDatabase): Promise<boolean> {
+  const storeNames = Array.from(db.objectStoreNames);
+  if (storeNames.length === 0) return true;
+
+  const counts = await Promise.all(
+    storeNames.map(
+      (name) =>
+        new Promise<number>((resolve, reject) => {
+          const tx = db.transaction(name, "readonly");
+          const req = tx.objectStore(name).count();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        })
+    )
+  );
+  return counts.every((n) => n === 0);
+}
+
+async function copyObjectStore(
+  source: IDBDatabase,
+  target: IDBDatabase,
+  storeName: string
+): Promise<void> {
+  if (storeName === STORE_KV) {
+    const keys = await new Promise<IDBValidKey[]>((resolve, reject) => {
+      const tx = source.transaction(storeName, "readonly");
+      const req = tx.objectStore(storeName).getAllKeys();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+
+    for (const key of keys) {
+      const value = await new Promise<unknown>((resolve, reject) => {
+        const tx = source.transaction(storeName, "readonly");
+        const req = tx.objectStore(storeName).get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      await new Promise<void>((resolve, reject) => {
+        const tx = target.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+    return;
+  }
+
+  const records = await new Promise<unknown[]>((resolve, reject) => {
+    const tx = source.transaction(storeName, "readonly");
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+  if (records.length === 0) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = target.transaction(storeName, "readwrite");
+    const store = tx.objectStore(storeName);
+    for (const record of records) {
+      store.put(record);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function migrateLegacyIndexedDbIfNeeded(targetDb: IDBDatabase): Promise<void> {
+  if (legacyMigrationDone) return;
+  legacyMigrationDone = true;
+
+  if (!(await legacyDbHasData())) return;
+  if (!(await targetDbIsEmpty(targetDb))) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open(LEGACY_DB_NAME);
+    request.onsuccess = async () => {
+      const legacyDb = request.result;
+      try {
+        const stores = Array.from(legacyDb.objectStoreNames).filter((name) =>
+          targetDb.objectStoreNames.contains(name)
+        );
+        for (const storeName of stores) {
+          await copyObjectStore(legacyDb, targetDb, storeName);
+        }
+        resolve();
+      } catch (err) {
+        reject(err);
+      } finally {
+        legacyDb.close();
+      }
+    };
+    request.onerror = () => reject(request.error ?? new Error("Legacy IndexedDB open failed"));
+  });
+}
 
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
@@ -33,7 +162,15 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = async () => {
+      const db = request.result;
+      try {
+        await migrateLegacyIndexedDbIfNeeded(db);
+        resolve(db);
+      } catch (err) {
+        reject(err);
+      }
+    };
     request.onerror = () => reject(request.error ?? new Error("IndexedDB open failed"));
   });
 

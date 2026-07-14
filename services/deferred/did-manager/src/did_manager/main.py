@@ -9,13 +9,13 @@ from fastapi import Depends, FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from promptpath_shared.logging_config import configure_logging, get_logger
-from promptpath_shared.models import DIDRecord
+from pathline_shared.logging_config import configure_logging, get_logger
+from pathline_shared.models import DIDRecord
 
 configure_logging("did-manager")
 logger = get_logger("did-manager")
 
-app = FastAPI(title="PromptPath DID Manager", version="0.1.0")
+app = FastAPI(title="Pathline DID Manager", version="0.1.0")
 
 
 class Settings(BaseSettings):

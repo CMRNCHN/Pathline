@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate PromptPath launcher icons (Linux PNG; macOS ICNS when icnsutil is available)."""
+"""Generate Pathline launcher icons (Linux PNG; macOS ICNS when icnsutil is available)."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "assets" / "icon"
 OUT_DIR = ICON_DIR / "generated"
-ICNS_PATH = OUT_DIR / "PromptPath.icns"
-LINUX_PNG = OUT_DIR / "promptpath-256.png"
+ICNS_PATH = OUT_DIR / "Pathline.icns"
+LINUX_PNG = OUT_DIR / "pathline-256.png"
 
 
 def _pillow():

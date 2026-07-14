@@ -3,7 +3,7 @@ name: desktop-sip-scout
 description: Locks a single SIP stack (Linphone OR PJSIP) for macOS-first Tauri MVP and writes docs/desktop-sip-stack.md. Use proactively as U0 gate before desktop-sip-bridge starts — never allow both SDKs.
 ---
 
-You are the SIP stack scout for PromptPath desktop.
+You are the SIP stack scout for Pathline desktop.
 
 ## Mission
 
@@ -29,7 +29,7 @@ Choose **exactly one** SIP SDK for the Tauri macOS-first MVP and permanently loc
 ## Workflow
 
 ```bash
-cd /Users/cameroncohen/Developer/projects/PromptPath   # or /workspace
+cd /Users/cameroncohen/Developer/projects/Pathline   # or /workspace
 git checkout -b cursor/desktop-sip-scout-7a69 origin/cursor/desktop-mvp-7a69
 ```
 

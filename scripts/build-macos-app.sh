@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Build PromptPath.app and PromptPath Stop.app in the project root
+# Build Pathline.app and Pathline Stop.app in the project root
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-ICON_SRC="$ROOT/assets/icon/generated/PromptPath.icns"
+ICON_SRC="$ROOT/assets/icon/generated/Pathline.icns"
 
 info() { echo "▸ $*"; }
 
@@ -74,10 +74,10 @@ LAUNCH
 }
 
 ensure_icon
-build_app "PromptPath" "scripts/launch-desktop.sh" "com.promptpath.desktop"
-build_app "PromptPath Stop" "scripts/stop.sh" "dev.promptpath.stop"
+build_app "Pathline" "scripts/launch-desktop.sh" "com.pathline.desktop"
+build_app "Pathline Stop" "scripts/stop.sh" "dev.pathline.stop"
 
 echo ""
-echo "Double-click PromptPath.app to start the Tauri desktop shell."
-echo "Double-click PromptPath Stop.app to stop."
+echo "Double-click Pathline.app to start the Tauri desktop shell."
+echo "Double-click Pathline Stop.app to stop."
 echo "Run ./scripts/install-macos.sh to link into ~/Applications and pin to the Dock."

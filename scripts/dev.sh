@@ -12,5 +12,5 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
 fi
 
 pip install -q -e packages/shared-python -e services/api
-echo "Starting PromptPath API (v1) on :$PORT..."
-uvicorn promptpath_api.main:app --host 0.0.0.0 --port "$PORT" --reload
+echo "Starting Pathline API (v1) on :$PORT..."
+uvicorn pathline_api.main:app --host 0.0.0.0 --port "$PORT" --reload

@@ -1,8 +1,8 @@
 [package]
-name = "promptpath-desktop"
+name = "pathline-desktop"
 version = "0.1.0"
-description = "PromptPath desktop client"
-authors = ["PromptPath"]
+description = "Pathline desktop client"
+authors = ["Pathline"]
 license = ""
 repository = ""
 edition = "2021"

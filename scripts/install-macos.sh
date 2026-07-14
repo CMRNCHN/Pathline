@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Install PromptPath launcher (icon + Dock pin) on macOS
+# Install Pathline launcher (icon + Dock pin) on macOS
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BIN_DIR="$HOME/.local/bin"
 APPS_DIR="$HOME/Applications"
-APP_PATH="$APPS_DIR/PromptPath.app"
+APP_PATH="$APPS_DIR/Pathline.app"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "This installer is for macOS."
@@ -15,34 +15,34 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "  cd $ROOT"
   echo "  npm run install"
   echo ""
-  echo "(/path/to/PromptPath was just an example — use your real clone path.)"
+  echo "(/path/to/Pathline was just an example — use your real clone path.)"
   exit 1
 fi
 
-echo "Installing PromptPath from: $ROOT"
+echo "Installing Pathline from: $ROOT"
 
 mkdir -p "$BIN_DIR" "$APPS_DIR"
 
 # Global terminal commands
-ln -sf "$ROOT/bin/promptpath" "$BIN_DIR/promptpath"
-ln -sf "$ROOT/bin/promptpath-stop" "$BIN_DIR/promptpath-stop"
-echo "  → $BIN_DIR/promptpath"
-echo "  → $BIN_DIR/promptpath-stop"
+ln -sf "$ROOT/bin/pathline" "$BIN_DIR/pathline"
+ln -sf "$ROOT/bin/pathline-stop" "$BIN_DIR/pathline-stop"
+echo "  → $BIN_DIR/pathline"
+echo "  → $BIN_DIR/pathline-stop"
 
 # Icon + .app bundles
 "$ROOT/scripts/build-macos-app.sh"
-ln -sfn "$ROOT/PromptPath.app" "$APP_PATH"
-ln -sfn "$ROOT/PromptPath Stop.app" "$APPS_DIR/PromptPath Stop.app"
+ln -sfn "$ROOT/Pathline.app" "$APP_PATH"
+ln -sfn "$ROOT/Pathline Stop.app" "$APPS_DIR/Pathline Stop.app"
 echo "  → $APP_PATH"
-echo "  → $APPS_DIR/PromptPath Stop.app"
+echo "  → $APPS_DIR/Pathline Stop.app"
 
 # Ensure ~/.local/bin is on PATH for zsh
 ZSHRC="$HOME/.zshrc"
-MARKER="# PromptPath"
+MARKER="# Pathline"
 if ! grep -qF "$MARKER" "$ZSHRC" 2>/dev/null; then
   cat >>"$ZSHRC" <<'EOF'
 
-# PromptPath — global launch commands
+# Pathline — global launch commands
 export PATH="$HOME/.local/bin:$PATH"
 EOF
   echo "  → Added ~/.local/bin to PATH in ~/.zshrc"
@@ -88,13 +88,13 @@ PLIST
   fi
 }
 
-pin_to_dock "$APP_PATH" "PromptPath"
+pin_to_dock "$APP_PATH" "Pathline"
 killall Dock 2>/dev/null || true
 
 echo ""
-echo "Done — PromptPath is in your Dock."
+echo "Done — Pathline is in your Dock."
 echo ""
 echo "  Click the icon to start the Tauri desktop app"
-echo "  promptpath-stop  — stop background services"
+echo "  pathline-stop  — stop background services"
 echo ""
 echo "Run:  source ~/.zshrc   (or open a new terminal)"

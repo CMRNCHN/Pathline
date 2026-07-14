@@ -29,6 +29,12 @@ import { PERSISTENCE_VERSION as VERSION } from "./types";
 export type { AppPreferences, PersistedRun, RunConfig };
 
 const LEGACY_AUTO_LISTEN_KEY = "pp-auto-listen";
+const LEGACY_CUSTOM_SCRIPTS_KEY = "promptpath-custom-scripts"; // legacy PromptPath
+const LEGACY_ACTIVE_SCRIPT_KEY = "promptpath-active-script"; // legacy PromptPath
+
+function readLegacyLocalStorageItem(key: string, legacyKey: string): string | null {
+  return localStorage.getItem(key) ?? localStorage.getItem(legacyKey);
+}
 
 function generateUserId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -37,7 +43,7 @@ function generateUserId(): string {
 
 function readLegacyScripts(): PathDocument[] {
   try {
-    const raw = localStorage.getItem(CUSTOM_SCRIPTS_KEY);
+    const raw = readLegacyLocalStorageItem(CUSTOM_SCRIPTS_KEY, LEGACY_CUSTOM_SCRIPTS_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as PathDocument[];
   } catch {
@@ -46,7 +52,7 @@ function readLegacyScripts(): PathDocument[] {
 }
 
 function readLegacyActiveId(): string {
-  return localStorage.getItem(ACTIVE_SCRIPT_KEY) ?? "";
+  return readLegacyLocalStorageItem(ACTIVE_SCRIPT_KEY, LEGACY_ACTIVE_SCRIPT_KEY) ?? "";
 }
 
 function readLegacyAutoListen(): boolean {
@@ -56,6 +62,8 @@ function readLegacyAutoListen(): boolean {
 function clearLegacyLocalStorage(): void {
   localStorage.removeItem(CUSTOM_SCRIPTS_KEY);
   localStorage.removeItem(ACTIVE_SCRIPT_KEY);
+  localStorage.removeItem(LEGACY_CUSTOM_SCRIPTS_KEY);
+  localStorage.removeItem(LEGACY_ACTIVE_SCRIPT_KEY);
   localStorage.removeItem(LEGACY_AUTO_LISTEN_KEY);
 }
 

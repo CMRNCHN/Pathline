@@ -1,6 +1,6 @@
 # Tier C — Lab IVR test runs
 
-Run the PromptPath lab Asterisk IVR locally with a SIP softphone (TLS) and the web UI for phrase matching.
+Run the Pathline lab Asterisk IVR locally with a SIP softphone (TLS) and the web UI for phrase matching.
 
 ## What you get
 
@@ -41,7 +41,7 @@ Open http://localhost:3000 → **Run** → **Lab account status (Asterisk 1000)*
 | Transport | **TLS** |
 | Server | `127.0.0.1` |
 | Port | `5061` (or `LAB_SIP_TLS_PORT` in `.env`) |
-| Username | `LAB_SIP_USER` from `.env` (default `promptpath-lab`) |
+| Username | `LAB_SIP_USER` from `.env` (default `pathline-lab`) |
 | Password | `LAB_SIP_PASSWORD` from `.env` |
 | Certificate | Accept self-signed / trust lab cert |
 
@@ -90,7 +90,7 @@ sudo asterisk -rx "core stop now"           # if using native Asterisk
 Enable TLS transport, port 5061, and allow the self-signed certificate. Check `lab/asterisk/generated/credentials.env` for the current password.
 
 **Upgraded from old lab/lab setup**  
-Remove the `# PromptPath lab block` section from `/etc/asterisk/pjsip.conf` if using native Asterisk, then re-run `./scripts/lab.sh`.
+Remove the `# Pathline lab block` section from `/etc/asterisk/pjsip.conf` if using native Asterisk, then re-run `./scripts/lab.sh`.
 
 **No audio**  
 Ensure RTP ports `10000-10100/udp` are open (Docker maps these automatically).

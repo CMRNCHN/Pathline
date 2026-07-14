@@ -9,11 +9,11 @@
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleIdentifier</key>
-  <string>dev.promptpath.launcher</string>
+  <string>dev.pathline.stop</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>PromptPath</string>
+  <string>Pathline Stop</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

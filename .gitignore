@@ -33,7 +33,8 @@ tmp/
 uploads/
 .logs/
 .pids/
-promptpath.db
+pathline.db
+promptpath.db  # legacy PromptPath
 
 # Docker volumes
 postgres_data/
@@ -43,6 +44,6 @@ lab/asterisk/generated/
 
 # Icon build intermediates (keep shipped icns + linux png)
 assets/icon/generated/*
-!assets/icon/generated/PromptPath.icns
-!assets/icon/generated/promptpath-256.png
+!assets/icon/generated/Pathline.icns
+!assets/icon/generated/pathline-256.png
 

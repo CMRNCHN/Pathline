@@ -1,8 +1,8 @@
 {
-  "name": "promptpath-desktop",
+  "name": "pathline-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "PromptPath desktop shell (Tauri)",
+  "description": "Pathline desktop shell (Tauri)",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",

@@ -12,7 +12,7 @@ export function ConsentPanel({ onAccept, onDecline }: ConsentPanelProps) {
     <div className="consent-panel">
       <h2>Consent & Authorization</h2>
       <p className="consent-intro">
-        PromptPath v1 uses a client-mediated architecture. Your device places the call,
+        Pathline v1 uses a client-mediated architecture. Your device places the call,
         holds your secrets, and processes audio locally. The server only receives encrypted status blobs.
       </p>
 
@@ -20,7 +20,7 @@ export function ConsentPanel({ onAccept, onDecline }: ConsentPanelProps) {
         <ul>
           <li>Your secrets and target number stay on this device — never sent to our servers</li>
           <li>Speech recognition runs locally when available</li>
-          <li>Only encrypted status is reported to PromptPath</li>
+          <li>Only encrypted status is reported to Pathline</li>
           <li>Session data is auto-purged; you can revoke and delete anytime</li>
           <li>Carriers still see calling/called numbers, times, and duration</li>
           <li>You confirm lawful usage and authorization for third-party IVR interactions</li>

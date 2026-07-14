@@ -9,13 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic_settings import BaseSettings
 
-from promptpath_shared.logging_config import configure_logging, get_logger
-from promptpath_shared.models import TokenRequest, TokenResponse
+from pathline_shared.logging_config import configure_logging, get_logger
+from pathline_shared.models import TokenRequest, TokenResponse
 
 configure_logging("auth")
 logger = get_logger("auth")
 
-app = FastAPI(title="PromptPath Auth Service", version="0.1.0")
+app = FastAPI(title="Pathline Auth Service", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

@@ -1,6 +1,6 @@
 # Known IVR Scripts
 
-PromptPath v1 runs **known scripts only** — no discovery, no auto-adding prompts.
+Pathline v1 runs **known scripts only** — no discovery, no auto-adding prompts.
 
 ## Rule format
 

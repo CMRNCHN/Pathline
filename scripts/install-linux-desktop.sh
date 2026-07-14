@@ -6,9 +6,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ICON_DIR="$HOME/.local/share/icons"
 APPS_DIR="$HOME/.local/share/applications"
 DESKTOP_DIR="$HOME/Desktop"
-DESKTOP="$APPS_DIR/promptpath.desktop"
-DESKTOP_ID="promptpath.desktop"
-ICON_SRC="$ROOT/assets/icon/generated/icon_256x256.png"
+DESKTOP="$APPS_DIR/pathline.desktop"
+DESKTOP_ID="pathline.desktop"
+ICON_SRC="$ROOT/assets/icon/generated/pathline-256.png"
 ICON_FALLBACK="$ROOT/desktop/src-tauri/icons/128x128.png"
 LAUNCHER="$ROOT/scripts/launch-desktop.sh"
 
@@ -33,33 +33,33 @@ ensure_launcher_png() {
     python3 -m pip install -q pillow
   fi
   python3 "$ROOT/scripts/generate-app-icon.py" --png-only
-  ICON_SRC="$ROOT/assets/icon/generated/icon_256x256.png"
+  ICON_SRC="$ROOT/assets/icon/generated/pathline-256.png"
 }
 
 ensure_launcher_png
 
 mkdir -p "$ICON_DIR" "$APPS_DIR" "$DESKTOP_DIR"
-cp "$ICON_SRC" "$ICON_DIR/promptpath.png"
+cp "$ICON_SRC" "$ICON_DIR/pathline.png"
 
 cat >"$DESKTOP" <<DESKTOP
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=PromptPath
-Comment=PromptPath desktop — local API + Tauri shell
+Name=Pathline
+Comment=Pathline desktop — local API + Tauri shell
 Exec=$LAUNCHER
-Icon=$ICON_DIR/promptpath.png
+Icon=$ICON_DIR/pathline.png
 Terminal=false
 Categories=Development;Utility;Network;
 StartupNotify=true
-StartupWMClass=promptpath-desktop
+StartupWMClass=pathline-desktop
 DESKTOP
 
 chmod +x "$DESKTOP"
-cp "$DESKTOP" "$DESKTOP_DIR/promptpath.desktop"
-chmod +x "$DESKTOP_DIR/promptpath.desktop"
+cp "$DESKTOP" "$DESKTOP_DIR/pathline.desktop"
+chmod +x "$DESKTOP_DIR/pathline.desktop"
 # Mark trusted so XFCE does not block “Untrusted application launcher”
-gio set "$DESKTOP_DIR/promptpath.desktop" metadata::trusted true 2>/dev/null || true
+gio set "$DESKTOP_DIR/pathline.desktop" metadata::trusted true 2>/dev/null || true
 gio set "$DESKTOP" metadata::trusted true 2>/dev/null || true
 update-desktop-database "$APPS_DIR" 2>/dev/null || true
 
@@ -132,13 +132,13 @@ pin_xfce_panel() {
 }
 
 echo "Installed $DESKTOP"
-echo "  Icon: $ICON_DIR/promptpath.png"
+echo "  Icon: $ICON_DIR/pathline.png"
 echo "  Launch: $LAUNCHER"
-echo "  Desktop shortcut: $DESKTOP_DIR/promptpath.desktop"
+echo "  Desktop shortcut: $DESKTOP_DIR/pathline.desktop"
 echo "  Repo: $ROOT"
 
 pin_gnome_dock || true
 pin_xfce_panel || true
 
 echo ""
-echo "Click the PromptPath icon in the panel/dock or Desktop to launch."
+echo "Click the Pathline icon in the panel/dock or Desktop to launch."

@@ -10,12 +10,12 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from promptpath_shared.logging_config import configure_logging, get_logger
+from pathline_shared.logging_config import configure_logging, get_logger
 
 configure_logging("stt")
 logger = get_logger("stt")
 
-app = FastAPI(title="PromptPath STT Service", version="0.1.0")
+app = FastAPI(title="Pathline STT Service", version="0.1.0")
 
 
 class Settings(BaseSettings):

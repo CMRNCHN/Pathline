@@ -1,7 +1,7 @@
 [project]
-name = "promptpath-shared"
+name = "pathline-shared"
 version = "0.1.0"
-description = "Shared utilities for PromptPath services"
+description = "Shared utilities for Pathline services"
 requires-python = ">=3.12"
 dependencies = [
     "cryptography>=42.0.0",

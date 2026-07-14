@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch PromptPath Tauri desktop (API sidecar + shell)
+# Launch Pathline Tauri desktop (API sidecar + shell)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -7,12 +7,12 @@ cd "$ROOT"
 export PATH="${HOME}/.cargo/bin:${PATH}"
 export DISPLAY="${DISPLAY:-:1}"
 
-RELEASE="$ROOT/desktop/src-tauri/target/release/promptpath-desktop"
-DEBUG="$ROOT/desktop/src-tauri/target/debug/promptpath-desktop"
+RELEASE="$ROOT/desktop/src-tauri/target/release/pathline-desktop"
+DEBUG="$ROOT/desktop/src-tauri/target/debug/pathline-desktop"
 
 # Default to live Vite + tauri dev so UI always loads.
-# Set PROMPTPATH_USE_RELEASE=1 to force the packaged binary (needs a rebuild after UI changes).
-USE_RELEASE="${PROMPTPATH_USE_RELEASE:-0}"
+# Set PATHLINE_USE_RELEASE=1 to force the packaged binary (needs a rebuild after UI changes).
+USE_RELEASE="${PATHLINE_USE_RELEASE:-${PROMPTPATH_USE_RELEASE:-0}}"  # legacy PromptPath
 
 ensure_api() {
   if curl -sf "http://127.0.0.1:${API_PORT:-8000}/health" >/dev/null 2>&1; then
@@ -25,7 +25,7 @@ ensure_api() {
   fi
   if command -v uvicorn >/dev/null 2>&1; then
     JWT_SECRET="${JWT_SECRET:-devsecret}" SESSION_PEPPER="${SESSION_PEPPER:-devpepper}" \
-      uvicorn promptpath_api.main:app --host 127.0.0.1 --port "${API_PORT:-8000}" \
+      uvicorn pathline_api.main:app --host 127.0.0.1 --port "${API_PORT:-8000}" \
       >"$ROOT/.logs/api-desktop.log" 2>&1 &
     echo $! >"$ROOT/.pids/api-desktop.pid"
     sleep 1
@@ -33,8 +33,8 @@ ensure_api() {
 }
 
 # Focus existing window if already running
-if pgrep -f '[p]romptpath-desktop' >/dev/null 2>&1; then
-  echo "PromptPath desktop is already running."
+if pgrep -f '[p]athline-desktop' >/dev/null 2>&1; then
+  echo "Pathline desktop is already running."
   exit 0
 fi
 
@@ -44,7 +44,7 @@ if [[ "$USE_RELEASE" == "1" && -x "$RELEASE" ]]; then
   if [[ ! -f "$ROOT/client/dist/index.html" ]]; then
     (cd "$ROOT/client" && npm run build)
   fi
-  echo "Launching release binary (PROMPTPATH_USE_RELEASE=1)..."
+  echo "Launching release binary (PATHLINE_USE_RELEASE=1)..."
   exec "$RELEASE"
 fi
 

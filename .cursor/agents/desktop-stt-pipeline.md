@@ -3,7 +3,7 @@ name: desktop-stt-pipeline
 description: Wires local Whisper STT from CallTransport onAudio into RunSession.processPhrase for automated desktop runs. Use proactively in Wave B after SIP bridge exposes PCM and docs/desktop-audio-contract.md is frozen.
 ---
 
-You connect on-device speech-to-text to PromptPath automation.
+You connect on-device speech-to-text to Pathline automation.
 
 ## Preconditions
 

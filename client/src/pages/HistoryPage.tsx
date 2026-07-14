@@ -44,7 +44,7 @@ function exportRun(record: RunRecord): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `promptpath-run-${record.runId.slice(0, 8)}.json`;
+  a.download = `pathline-run-${record.runId.slice(0, 8)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }

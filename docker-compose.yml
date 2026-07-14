@@ -5,12 +5,12 @@ services:
       dockerfile: docker/Dockerfile.service
       args:
         SERVICE: api
-        MODULE: promptpath_api.main:app
+        MODULE: pathline_api.main:app
         PORT: 8000
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./data/promptpath.db}
+      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./data/pathline.db}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-300}
       SESSION_PEPPER: ${SESSION_PEPPER:-dev-pepper-change-me}

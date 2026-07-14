@@ -1,6 +1,6 @@
 # Call Scripts
 
-How to map and automate IVR navigation in PromptPath.
+How to map and automate IVR navigation in Pathline.
 
 ## Core idea
 

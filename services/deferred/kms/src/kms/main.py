@@ -8,13 +8,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from promptpath_shared.crypto import decrypt_payload, encrypt_payload
-from promptpath_shared.logging_config import configure_logging, get_logger
+from pathline_shared.crypto import decrypt_payload, encrypt_payload
+from pathline_shared.logging_config import configure_logging, get_logger
 
 configure_logging("kms")
 logger = get_logger("kms")
 
-app = FastAPI(title="PromptPath KMS (Dev Mock)", version="0.1.0")
+app = FastAPI(title="Pathline KMS (Dev Mock)", version="0.1.0")
 
 
 class Settings(BaseSettings):

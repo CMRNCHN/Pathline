@@ -139,14 +139,14 @@ Documented start (from `scripts/start.sh`) — do not invent alternatives:
 ```bash
 # after: source .venv/bin/activate
 # after: pip install -e packages/shared-python -e services/api
-uvicorn promptpath_api.main:app --host 127.0.0.1 --port "$API_PORT" --reload
+uvicorn pathline_api.main:app --host 127.0.0.1 --port "$API_PORT" --reload
 ```
 
 **Do not invent** paths such as:
 
 ```bash
 python services/api/main.py
-python -m promptpath_api
+python -m pathline_api
 ```
 
 ---

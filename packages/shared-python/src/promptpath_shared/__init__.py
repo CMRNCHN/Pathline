@@ -1,1 +1,0 @@
-"""PromptPath shared library."""

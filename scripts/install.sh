@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install PromptPath launcher for the current OS (macOS Dock or Linux .desktop)
+# Install Pathline launcher for the current OS (macOS Dock or Linux .desktop)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

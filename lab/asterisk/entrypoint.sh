@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-MARKER="# PromptPath lab block"
+MARKER="# Pathline lab block"
 EXT="/etc/asterisk/extensions.conf"
 PJSIP="/etc/asterisk/pjsip.conf"
 

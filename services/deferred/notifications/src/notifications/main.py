@@ -5,13 +5,13 @@ from datetime import UTC, datetime
 
 from fastapi import FastAPI
 
-from promptpath_shared.logging_config import configure_logging, get_logger
-from promptpath_shared.models import NotificationPayload
+from pathline_shared.logging_config import configure_logging, get_logger
+from pathline_shared.models import NotificationPayload
 
 configure_logging("notifications")
 logger = get_logger("notifications")
 
-app = FastAPI(title="PromptPath Notifications", version="0.1.0")
+app = FastAPI(title="Pathline Notifications", version="0.1.0")
 
 # In-memory store for dev — production would use webhook/email/push
 _notifications: deque[dict] = deque(maxlen=100)

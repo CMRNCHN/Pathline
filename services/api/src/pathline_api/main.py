@@ -15,10 +15,10 @@ from sqlalchemy import Column, DateTime, String, Text, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-from promptpath_shared.crypto import hash_session_id
-from promptpath_shared.logging_config import configure_logging, get_logger
-from promptpath_shared.models import ConsentRecord as ConsentPayload
-from promptpath_shared.models import TokenRequest, TokenResponse
+from pathline_shared.crypto import hash_session_id
+from pathline_shared.logging_config import configure_logging, get_logger
+from pathline_shared.models import ConsentRecord as ConsentPayload
+from pathline_shared.models import TokenRequest, TokenResponse
 
 configure_logging("api")
 logger = get_logger("api")
@@ -26,7 +26,7 @@ security = HTTPBearer(auto_error=False)
 
 
 class Settings(BaseSettings):
-    database_url: str = "sqlite+aiosqlite:///./promptpath.db"
+    database_url: str = "sqlite+aiosqlite:///./pathline.db"
     jwt_secret: str = "dev-secret-change-me"
     jwt_ttl_seconds: int = 300
     jwt_algorithm: str = "HS256"
@@ -164,7 +164,7 @@ async def lifespan(app: FastAPI):
     purge_task.cancel()
 
 
-app = FastAPI(title="PromptPath API (v1)", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Pathline API (v1)", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
