@@ -3,18 +3,14 @@ import { CallStateBoard } from "@/components/CallStateBoard";
 import { DtmfGuide } from "@/components/DtmfGuide";
 import {
   callFromSession,
-  newCallEvent,
   pathFromScript,
   projectLiveStatus,
   runLogToCallEvents,
 } from "@/callstate";
+import type { CallEvent } from "@/callstate";
+import type { RunSession } from "@/engine/runSession";
 import { isSpeechRecognitionAvailable, startContinuousRecognition } from "@/localStt";
-import {
-  hashCollected,
-  initialRunState,
-  processPhrase,
-  type RunState,
-} from "@/script/runEngine";
+import type { RunState } from "@/script/runEngine";
 import type { Path } from "@/script/types";
 import { scriptDisplayName } from "@/script/storage";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,60 +21,61 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
 interface RunActivePanelProps {
+  runSession: RunSession;
   script: Path;
-  variables: Record<string, string>;
   sessionId: string;
+  automated: boolean;
   onCallStateCaptured: (
     collected: Record<string, string>,
-    transcriptHash: string,
-    callEvents: ReturnType<typeof runLogToCallEvents>
+    collectedHash: string,
+    callEvents: CallEvent[]
   ) => void;
 }
 
 export function RunActivePanel({
+  runSession,
   script,
-  variables,
   sessionId,
+  automated,
   onCallStateCaptured,
 }: RunActivePanelProps) {
-  const [run, setRun] = useState<RunState>(initialRunState);
+  const [run, setRun] = useState<RunState>(() => runSession.getState());
+  const [ledgerEvents, setLedgerEvents] = useState<CallEvent[]>(() => runSession.getEvents());
   const [ivrText, setIvrText] = useState("");
   const path = pathFromScript(script);
   const callEvents = runLogToCallEvents(run.log, path);
-  const call = callFromSession(sessionId, "local-client", path.id, callEvents);
+  const mergedEvents = [...ledgerEvents, ...callEvents];
+  const call = callFromSession(sessionId, "local-client", path.id, mergedEvents);
   const liveStatus = projectLiveStatus(call, path);
   const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
   const [listenError, setListenError] = useState<string | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
+  const syncFromSession = useCallback(() => {
+    setRun(runSession.getState());
+    setLedgerEvents(runSession.getEvents());
+  }, [runSession]);
+
   const applyPhraseNow = useCallback(
-    (text: string) => {
-      setRun((prev) => {
-        const result = processPhrase(text, script, variables, prev);
-        if (result.shouldComplete) {
-          const { collected } = result.state;
-          const events = runLogToCallEvents(result.state.log, path);
-          const finalEvents = [
-            ...events,
-            newCallEvent("CALL_ENDED", {
-              outcome: "COMPLETED",
-              step: path.definedSteps[path.definedSteps.length - 1],
-            }),
-          ];
-          void hashCollected(collected).then((hash) =>
-            onCallStateCaptured(collected, hash, finalEvents)
-          );
-        }
-        return result.state;
-      });
+    async (text: string) => {
+      const result = await runSession.processPhrase(text);
+      syncFromSession();
+
+      if (result.shouldComplete) {
+        const state = runSession.getState();
+        const { collectedHash, events } = await runSession.finalizeCollected();
+        onCallStateCaptured(state.collected, collectedHash, events);
+      }
     },
-    [script, variables, onCallStateCaptured, path]
+    [runSession, syncFromSession, onCallStateCaptured]
   );
 
   const applyPhraseDebounced = useCallback(
     (text: string) => {
       window.clearTimeout(debounceRef.current);
-      debounceRef.current = window.setTimeout(() => applyPhraseNow(text), 150);
+      debounceRef.current = window.setTimeout(() => {
+        void applyPhraseNow(text);
+      }, 150);
     },
     [applyPhraseNow]
   );
@@ -103,7 +100,7 @@ export function RunActivePanel({
 
   const handleManualMatch = () => {
     if (!ivrText.trim()) return;
-    applyPhraseNow(ivrText.trim());
+    void applyPhraseNow(ivrText.trim());
     setIvrText("");
   };
 
@@ -127,6 +124,16 @@ export function RunActivePanel({
         )}
       </CardHeader>
       <CardContent className="space-y-4">
+        {!automated && (
+          <Alert>
+            <AlertTitle>Manual mode</AlertTitle>
+            <AlertDescription>
+              Automated calls require the PromptPath desktop app. Paste IVR phrases below and send
+              DTMF on your phone when prompted.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Tabs defaultValue="steps">
           <TabsList>
             <TabsTrigger value="steps">Steps</TabsTrigger>
@@ -136,9 +143,13 @@ export function RunActivePanel({
 
           <TabsContent value="steps" className="space-y-4 pt-4">
             <p className="text-sm text-muted-foreground">
-              {autoListen
-                ? "Listening locally — IVR phrases auto-match against your script."
-                : "Paste what you hear, or enable auto-listen."}
+              {automated
+                ? autoListen
+                  ? "Listening locally — IVR phrases auto-match; DTMF injects via transport."
+                  : "Paste what you hear, or enable auto-listen. DTMF injects automatically."
+                : autoListen
+                  ? "Listening locally — paste or speak IVR phrases to match your script."
+                  : "Paste what you hear, or enable auto-listen."}
             </p>
 
             {listenError && (
@@ -209,7 +220,11 @@ export function RunActivePanel({
           </TabsContent>
 
           <TabsContent value="dtmf" className="pt-4">
-            {run.pendingDtmf ? (
+            {automated ? (
+              <p className="text-sm text-muted-foreground">
+                DTMF sequences are injected automatically via CallTransport when phrases match.
+              </p>
+            ) : run.pendingDtmf ? (
               <DtmfGuide
                 sequence={run.pendingDtmf}
                 trigger={run.pendingTrigger}

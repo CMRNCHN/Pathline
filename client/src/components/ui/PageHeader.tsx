@@ -17,9 +17,9 @@ export function PageHeader({ eyebrow, title, subtitle, action }: PageHeaderProps
             {eyebrow}
           </p>
         )}
-        <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight">{title}</h1>
+        <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-foreground">{title}</h1>
         {subtitle && (
-          <p className="mt-2 max-w-xl text-[0.9375rem] text-muted-foreground">{subtitle}</p>
+          <p className="mt-2 max-w-xl text-[0.9375rem] leading-relaxed text-muted-foreground">{subtitle}</p>
         )}
       </div>
       {action && <div className="shrink-0">{action}</div>}

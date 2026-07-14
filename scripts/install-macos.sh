@@ -94,7 +94,7 @@ killall Dock 2>/dev/null || true
 echo ""
 echo "Done — PromptPath is in your Dock."
 echo ""
-echo "  Click the icon to start (opens http://localhost:3000)"
+echo "  Click the icon to start the Tauri desktop app"
 echo "  promptpath-stop  — stop background services"
 echo ""
 echo "Run:  source ~/.zshrc   (or open a new terminal)"

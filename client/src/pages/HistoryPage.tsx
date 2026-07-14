@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock, Download, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageLayout } from "../components/ui/PageHeader";
@@ -25,6 +25,8 @@ import {
   type RunRecord,
 } from "../history/runHistory";
 
+type RunFilter = "all" | "completed" | "failed" | "abandoned";
+
 function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -42,34 +44,80 @@ function exportRun(record: RunRecord): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `pathline-run-${record.runId.slice(0, 8)}.json`;
+  a.download = `promptpath-run-${record.runId.slice(0, 8)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
 export function HistoryPage() {
+  return <RunsPage />;
+}
+
+export function RunsPage() {
   const [records, setRecords] = useState<RunRecord[]>(() => loadRunHistory());
   const [openId, setOpenId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<RunFilter>("all");
 
   useEffect(() => subscribeRunHistory(() => setRecords(loadRunHistory())), []);
 
+  const filtered = useMemo(() => {
+    if (filter === "all") return records;
+    return records.filter((r) => r.outcome === filter);
+  }, [records, filter]);
+
   const open = openId ? records.find((r) => r.runId === openId) : undefined;
+
+  const counts = useMemo(
+    () => ({
+      all: records.length,
+      completed: records.filter((r) => r.outcome === "completed").length,
+      failed: records.filter((r) => r.outcome === "failed").length,
+      abandoned: records.filter((r) => r.outcome === "abandoned").length,
+    }),
+    [records]
+  );
 
   return (
     <PageLayout
-      title="History"
-      subtitle="Every completed Run of a Path, stored on this device only."
+      title="Runs"
+      subtitle="Every Path execution on this device — completed, failed, or abandoned."
     >
-      {records.length === 0 ? (
-        <EmptyState icon={Clock} title="No Runs yet">
-          Run a Path and its result will appear here.
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["all", "All"],
+            ["completed", "Completed"],
+            ["failed", "Failed"],
+            ["abandoned", "Abandoned"],
+          ] as const
+        ).map(([key, label]) => (
+          <Button
+            key={key}
+            type="button"
+            size="sm"
+            variant={filter === key ? "default" : "outline"}
+            onClick={() => setFilter(key)}
+          >
+            {label}
+            <Badge variant="secondary" className="ml-1 tabular-nums">
+              {counts[key]}
+            </Badge>
+          </Button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={Clock} title="No Runs in this view">
+          {records.length === 0
+            ? "Run a Path and its result will appear here."
+            : "Try another filter."}
         </EmptyState>
       ) : (
         <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(16rem,22rem)_1fr]">
           <Card size="sm">
             <CardContent className="flex flex-col gap-2 pt-0">
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {records.map((record) => (
+                {filtered.map((record) => (
                   <li key={record.runId}>
                     <button
                       type="button"

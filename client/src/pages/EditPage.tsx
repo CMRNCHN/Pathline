@@ -32,7 +32,7 @@ export function EditPage({ scriptId, onNavigate }: EditPageProps) {
 
   if (!activeScript || activeScript.id !== scriptId) {
     return (
-      <div className="flex items-center justify-center h-full text-muted text-sm">
+      <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
         Loading Path…
       </div>
     );
@@ -43,7 +43,7 @@ export function EditPage({ scriptId, onNavigate }: EditPageProps) {
   const handleDelete = () => {
     if (!confirm(`Delete "${scriptDisplayName(activeScript)}"? This cannot be undone.`)) return;
     removeCustom(scriptId);
-    onNavigate({ category: "paths" });
+    onNavigate({ category: "workflows" });
   };
 
   return (

@@ -1,7 +1,5 @@
 import { useMemo } from "react";
 import { GitBranch, Phone, Plus } from "lucide-react";
-import { StatusBoard } from "../components/StatusBoard";
-import { useRuntimeStatus } from "../hooks/useRuntimeStatus";
 import { useScriptStore } from "../store/ScriptStore";
 import { isBundledScript, mergeScripts } from "../script/selectors";
 import { PageLayout } from "../components/ui/PageHeader";
@@ -33,15 +31,7 @@ function readinessBadgeVariant(readiness: ReturnType<typeof getPathReadiness>) {
 }
 
 export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
-  const { bundledScripts, customScripts, setActiveId, addCustom, loading, error } =
-    useScriptStore();
-
-  const runtime = useRuntimeStatus(
-    loading,
-    error,
-    bundledScripts.length,
-    customScripts.length
-  );
+  const { bundledScripts, customScripts, setActiveId, addCustom } = useScriptStore();
 
   const paths = mergeScripts(bundledScripts, customScripts);
 
@@ -68,8 +58,8 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
 
   return (
     <PageLayout
-      title="Paths"
-      subtitle="A Path is a call workflow. Open one to edit its Steps, or Run it on your device."
+      title="Workflows"
+      subtitle="Your library of Paths — open one to edit its Steps, or Run it on your device."
       action={
         <Button type="button" onClick={handleCreate}>
           <Plus size={16} />
@@ -77,12 +67,10 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
         </Button>
       }
     >
-      <StatusBoard status={runtime} />
-
       {filtered.length === 0 ? (
         <EmptyState
           icon={GitBranch}
-          title={paths.length === 0 ? "No Paths yet" : "No matches"}
+          title={paths.length === 0 ? "No workflows yet" : "No matches"}
           action={
             paths.length === 0 ? (
               <Button type="button" onClick={handleCreate}>
@@ -92,7 +80,7 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
           }
         >
           {paths.length === 0
-            ? "A Path is made of Steps. Each Step has a When and a Then. Create one to begin."
+            ? "A Path is a call workflow. Each Step has a When and a Then. Create one to begin."
             : "Try a different search term."}
         </EmptyState>
       ) : (
@@ -102,7 +90,7 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
             const readiness = getPathReadiness(path);
 
             return (
-              <Card key={path.id} className="flex flex-col">
+              <Card key={path.id} className="surface-contrast flex flex-col shadow-md ring-1 ring-black/10">
                 <button
                   type="button"
                   onClick={() => openPath(path.id)}
@@ -137,7 +125,7 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full"
+                    className="w-full border-[color-mix(in_srgb,var(--contrast-foreground)_22%,transparent)] bg-transparent text-[var(--contrast-foreground)] hover:bg-[color-mix(in_srgb,var(--contrast-foreground)_8%,transparent)] hover:text-[var(--contrast-foreground)]"
                     onClick={() => {
                       setActiveId(path.id);
                       onNavigate({ category: "run", scriptId: path.id });

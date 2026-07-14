@@ -74,10 +74,10 @@ LAUNCH
 }
 
 ensure_icon
-build_app "PromptPath" "scripts/start-daemon.sh" "dev.promptpath.launcher"
+build_app "PromptPath" "scripts/launch-desktop.sh" "com.promptpath.desktop"
 build_app "PromptPath Stop" "scripts/stop.sh" "dev.promptpath.stop"
 
 echo ""
-echo "Double-click PromptPath.app to start (opens browser, runs in background)."
+echo "Double-click PromptPath.app to start the Tauri desktop shell."
 echo "Double-click PromptPath Stop.app to stop."
 echo "Run ./scripts/install-macos.sh to link into ~/Applications and pin to the Dock."

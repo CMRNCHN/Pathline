@@ -17,19 +17,30 @@
 :root {
   --ink: #0a0a0b;
   --ink-tint: 10%;
-  --canvas: color-mix(in srgb, var(--ink) var(--ink-tint), #f0f0f2);
-  --canvas-dot: #0a0a0b0a;
+  --canvas: color-mix(in srgb, #0a0a0b 6%, #f2f2f4);
+  --canvas-dot: #0a0a0b10;
   --surface-dark: #1c1c1c;
   --surface-elevated: #242424;
+  /* Legacy text tokens — do not use shadcn --muted/--accent for copy color */
+  --ink-muted: color-mix(in srgb, var(--ink) 8%, #94949c);
+  --brand: #5c5c9a;
+  --brand-hover: #4a4a82;
+  --brand-pop: #6e6ea8;
+  --brand-deep: #3a3a5c;
+  --brand-soft: #5c5c9a18;
+  --brand-glow: #5c5c9a30;
+  --brand-wash: #0a0a0b06;
+  --text: var(--foreground);
+  /* shadcn surface tokens (bg-muted, bg-accent) */
   --muted: oklch(0.97 0 0);
-  --muted-light: color-mix(in srgb, var(--ink) 8%, #94949c);
   --accent: oklch(0.97 0 0);
-  --accent-hover: #4a4a82;
-  --accent-pop: #6e6ea8;
-  --accent-deep: #3a3a5c;
-  --accent-soft: #5c5c9a18;
-  --accent-glow: #5c5c9a30;
-  --accent-wash: #0a0a0b06;
+  --accent-hover: var(--brand-hover);
+  --accent-pop: var(--brand-pop);
+  --accent-deep: var(--brand-deep);
+  --accent-soft: var(--brand-soft);
+  --accent-glow: var(--brand-glow);
+  --accent-wash: var(--brand-wash);
+  --muted-light: var(--ink-muted);
   --border: oklch(0.922 0 0);
   --border-strong: color-mix(in srgb, var(--ink) 16%, transparent);
   --card: oklch(1 0 0);
@@ -47,33 +58,41 @@
   --shadow-lg: 0 12px 40px #0a0a0b1a, 0 4px 12px #0a0a0b0e;
   --font: "DM Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
-  --background: oklch(1 0 0);
+  /* Day base + night accents */
+  --background: color-mix(in srgb, #0a0a0b 6%, #f2f2f4);
   --foreground: oklch(0.145 0 0);
+  --card: oklch(0.995 0 0);
   --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
+  --popover: oklch(0.995 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: #5c5c9a;
   --primary-foreground: #f8f8fc;
-  --secondary: oklch(0.97 0 0);
+  --secondary: color-mix(in srgb, #0a0a0b 8%, #ececee);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.42 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --input: oklch(0.882 0 0);
+  --ring: oklch(0.55 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #5c5c9a;
+  /* Night ink borrowed into day chrome */
+  --sidebar: #121214;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #7a7ab8;
   --sidebar-primary-foreground: #f8f8fc;
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: #1e1e22;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #ffffff14;
+  --sidebar-ring: #7a7ab8;
+  /* Invert panel: dark island on day canvas */
+  --contrast: #161618;
+  --contrast-foreground: #f4f4f5;
+  --contrast-muted: #a1a1aa;
+  --header: color-mix(in srgb, #0a0a0b 4%, #fafafa);
 }
 
 * {
@@ -83,8 +102,8 @@
 body {
   margin: 0;
   font-family: var(--font);
-  background: var(--canvas);
-  color: var(--ink);
+  background: var(--background);
+  color: var(--foreground);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -106,11 +125,48 @@ button {
 
 /* ── App shell ── */
 .app-main {
-  background-color: var(--canvas);
+  background-color: var(--background);
   background-image:
-    linear-gradient(180deg, color-mix(in srgb, var(--ink) 8%, transparent) 0%, transparent 10rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--foreground) 5%, transparent) 0%, transparent 9rem),
     radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 0);
   background-size: auto, 24px 24px;
+}
+
+/* Cross-theme accent panels: night islands in day, day islands in night */
+.surface-contrast {
+  background: var(--contrast);
+  color: var(--contrast-foreground);
+  border-color: color-mix(in srgb, var(--contrast-foreground) 12%, transparent);
+  box-shadow: var(--shadow-md);
+}
+
+.surface-contrast .text-muted-foreground,
+.surface-contrast [data-slot="card-description"] {
+  color: var(--contrast-muted);
+}
+
+.surface-contrast [data-slot="card-footer"] {
+  background: color-mix(in srgb, var(--contrast-foreground) 6%, var(--contrast));
+  border-color: color-mix(in srgb, var(--contrast-foreground) 12%, transparent);
+}
+
+.surface-contrast [data-slot="card-title"],
+.surface-contrast .font-medium {
+  color: var(--contrast-foreground);
+}
+
+.surface-contrast .bg-muted,
+.surface-contrast .bg-muted\/50 {
+  background: color-mix(in srgb, var(--contrast-foreground) 8%, transparent);
+}
+
+.surface-contrast [data-slot="badge"] {
+  border-color: color-mix(in srgb, var(--contrast-foreground) 18%, transparent);
+}
+
+.shell-topbar {
+  background: var(--header);
+  border-bottom-color: color-mix(in srgb, var(--foreground) 10%, transparent);
 }
 
 /* ── Top navigation ── */
@@ -152,7 +208,7 @@ button {
 .topnav-brand-icon {
   width: 1.35rem;
   height: 1.35rem;
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .topnav-links {
@@ -225,7 +281,7 @@ button {
 
 .topnav-search:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
@@ -343,7 +399,7 @@ button {
 .topnav-tab-active {
   color: #fff;
   background: var(--surface-dark);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  box-shadow: inset 0 -2px 0 var(--primary);
 }
 
 @media (max-width: 640px) {
@@ -397,7 +453,7 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--accent);
+  color: var(--primary);
   margin: 0 0 0.35rem;
 }
 
@@ -411,7 +467,7 @@ button {
 
 .page-subtitle {
   font-size: 0.9375rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin: 0.5rem 0 0;
   max-width: 36rem;
 }
@@ -455,7 +511,7 @@ button {
   height: 2rem;
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .card-icon svg {
@@ -506,12 +562,16 @@ button {
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
   background: var(--card-muted);
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .badge-accent {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+}
+
+.dark .badge-accent {
+  color: var(--primary);
 }
 
 .badge-success {
@@ -556,7 +616,7 @@ button {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .callstate-board-phase {
@@ -701,7 +761,7 @@ button {
 
 .script-card-desc {
   font-size: 0.8125rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   line-height: 1.45;
   margin: 0 0 1rem;
   display: -webkit-box;
@@ -719,7 +779,7 @@ button {
 .stat-pill {
   font-size: 0.6875rem;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--muted-foreground);
   background: var(--card-muted);
   border: 1px solid var(--border);
   padding: 0.2rem 0.55rem;
@@ -769,7 +829,7 @@ button {
   height: 3.5rem;
   border-radius: 50%;
   background: var(--card-muted);
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin-bottom: 1rem;
 }
 
@@ -787,7 +847,7 @@ button {
 
 .empty-state-text {
   font-size: 0.875rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin: 0;
 }
 
@@ -896,7 +956,7 @@ button {
 }
 
 .toggle-on {
-  background: var(--accent);
+  background: var(--primary);
 }
 
 .toggle-thumb {
@@ -926,7 +986,7 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin-bottom: 0.45rem;
 }
 
@@ -948,13 +1008,13 @@ button {
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .field-hint {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin-top: 0.35rem;
 }
 
@@ -964,7 +1024,7 @@ button {
 
 .hint {
   font-size: 0.8125rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   line-height: 1.5;
 }
 
@@ -1008,14 +1068,14 @@ button {
   font-size: 0.6875rem;
   font-weight: 700;
   background: var(--card-muted);
-  color: var(--muted);
+  color: var(--muted-foreground);
   border: 1.5px solid var(--border-strong);
 }
 
 .run-step-active .run-step-dot {
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
-  border-color: var(--accent);
+  border-color: var(--primary);
 }
 
 .run-step-done .run-step-dot {
@@ -1028,7 +1088,7 @@ button {
 .run-step-label {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .run-step-active .run-step-label {
@@ -1037,7 +1097,7 @@ button {
 }
 
 .run-step-done .run-step-label {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .run-step-line {
@@ -1059,7 +1119,7 @@ button {
   gap: 0.4rem;
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--muted-foreground);
   background: var(--card);
   border: 1px solid var(--border);
   padding: 0.4rem 0.75rem;
@@ -1069,7 +1129,7 @@ button {
 .run-badge svg {
   width: 0.85rem;
   height: 0.85rem;
-  color: var(--accent);
+  color: var(--primary);
 }
 
 /* ── Consent / Call / Session panels ── */
@@ -1093,7 +1153,7 @@ button {
 
 .consent-intro {
   font-size: 0.875rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin-bottom: 1.25rem;
   line-height: 1.55;
 }
@@ -1113,7 +1173,7 @@ button {
 
 .consent-terms li {
   font-size: 0.8125rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   padding: 0.4rem 0 0.4rem 1.25rem;
   position: relative;
   line-height: 1.45;
@@ -1127,7 +1187,7 @@ button {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--primary);
 }
 
 .consent-checkbox {
@@ -1142,7 +1202,7 @@ button {
 .consent-checkbox input {
   width: 1rem;
   height: 1rem;
-  accent-color: var(--accent);
+  accent-color: var(--primary);
 }
 
 .consent-actions {
@@ -1158,7 +1218,7 @@ button {
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--primary);
   margin-bottom: 0.85rem;
 }
 
@@ -1167,7 +1227,7 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin: 1.5rem 0 0.85rem;
 }
 
@@ -1183,7 +1243,7 @@ button {
 }
 
 .session-status dt {
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-weight: 500;
 }
 
@@ -1198,7 +1258,7 @@ button {
 
 .status-in_progress {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .status-completed {
@@ -1231,7 +1291,7 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin: 0 0 0.5rem;
 }
 
@@ -1269,7 +1329,7 @@ button {
   gap: 0.75rem;
   padding: 1rem 1.15rem;
   background: var(--card);
-  border: 2px solid var(--accent);
+  border: 2px solid var(--primary);
   border-radius: var(--radius-sm);
   margin: 0.85rem 0;
   box-shadow: 0 0 0 4px var(--accent-soft);
@@ -1280,19 +1340,19 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .dtmf-action-value {
   font-family: var(--mono);
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .dtmf-action-trigger {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .dtmf-guide-current {
@@ -1312,7 +1372,7 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .dtmf-guide-digit {
@@ -1324,7 +1384,7 @@ button {
 
 .dtmf-guide-progress {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .dtmf-guide-track {
@@ -1345,7 +1405,7 @@ button {
   border: 1px solid var(--border);
   font-family: var(--mono);
   font-size: 0.875rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   background: var(--card);
 }
 
@@ -1412,6 +1472,18 @@ button {
   box-shadow: var(--shadow-md);
 }
 
+.dark .script-editor-panel {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #f4f4f5 10%, transparent),
+    var(--shadow-md);
+}
+
+:root:not(.dark) .script-editor-panel {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #0a0a0b 6%, transparent),
+    var(--shadow-md);
+}
+
 .bundled-banner {
   display: flex;
   align-items: center;
@@ -1421,7 +1493,7 @@ button {
   background: linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent), transparent);
   border-bottom: 1px solid var(--border);
   font-size: 0.8125rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .editor-topbar {
@@ -1442,7 +1514,7 @@ button {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .editor-table-row-static:hover td {
@@ -1503,7 +1575,7 @@ button {
 
 .section-desc {
   font-size: 0.8125rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin: 0;
   line-height: 1.5;
 }
@@ -1540,7 +1612,7 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .editor-input {
@@ -1557,7 +1629,7 @@ button {
 
 .editor-input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
@@ -1594,7 +1666,7 @@ button {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--muted-foreground);
   border-bottom: 1px solid var(--border);
 }
 
@@ -1616,7 +1688,7 @@ button {
 .editor-table-col-num {
   width: 2rem;
   text-align: center;
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 0.7rem;
   font-weight: 600;
   font-family: var(--mono);
@@ -1641,7 +1713,7 @@ button {
 }
 
 .editor-table-dash {
-  color: var(--muted);
+  color: var(--muted-foreground);
   opacity: 0.35;
   padding: 0 0.5rem;
 }
@@ -1668,7 +1740,7 @@ button {
   border-radius: var(--radius);
   background: var(--card);
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .editor-model-card strong {
@@ -1688,7 +1760,7 @@ button {
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .run-outputs-preview {
@@ -1770,7 +1842,7 @@ button {
 }
 
 .rule-card-key {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .rule-card-val {
@@ -1817,12 +1889,12 @@ button {
   border: none;
   background: none;
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   cursor: pointer;
 }
 
 .rule-builder-back:hover {
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .rule-builder-step {
@@ -1897,7 +1969,7 @@ button {
 
 .intent-card-hint {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   line-height: 1.35;
 }
 
@@ -1914,7 +1986,7 @@ button {
 .rule-wizard-step-indicator {
   margin: 0 0 0.65rem;
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .rule-wizard-summary {
@@ -1946,7 +2018,7 @@ button {
   border: none;
   background: none;
   font-size: 0.75rem;
-  color: var(--accent);
+  color: var(--primary);
   cursor: pointer;
 }
 
@@ -1998,7 +2070,7 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .script-header-field-narrow {
@@ -2014,7 +2086,7 @@ button {
 .script-header-status {
   margin: 0.35rem 0 0;
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .script-header-eyebrow-row {
@@ -2111,7 +2183,7 @@ button {
 
 .history-row-time {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .history-detail {
@@ -2150,7 +2222,7 @@ button {
 
 .rule-wizard-summary-key {
   font-weight: 500;
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2229,7 +2301,7 @@ button {
 
 .wait-suffix {
   font-size: 0.8125rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .outputs-block {
@@ -2288,7 +2360,7 @@ button {
 }
 
 .data-row-label {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .data-row-value {
@@ -2330,13 +2402,13 @@ button {
 
 .setting-row-desc {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin: 0;
 }
 
 .link-btn {
   font-size: 0.8125rem;
-  color: var(--muted);
+  color: var(--muted-foreground);
   background: none;
   border: none;
   text-decoration: underline;
@@ -2442,7 +2514,7 @@ button {
   border: 1px solid var(--border);
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--accent) 6%, var(--card)) 0%,
+    color-mix(in srgb, var(--primary) 6%, var(--card)) 0%,
     var(--card) 55%,
     color-mix(in srgb, var(--ink) 4%, var(--card-muted)) 100%
   );
@@ -2460,7 +2532,7 @@ button {
   background: linear-gradient(
     105deg,
     transparent 40%,
-    color-mix(in srgb, var(--accent) 12%, transparent) 50%,
+    color-mix(in srgb, var(--primary) 12%, transparent) 50%,
     transparent 60%
   );
   animation: status-scan 4s ease-in-out infinite;
@@ -2482,7 +2554,7 @@ button {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .status-board-meta {
@@ -2495,7 +2567,7 @@ button {
 .status-board-refresh {
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--primary);
   background: none;
   border: none;
   padding: 0.15rem 0.35rem;
@@ -2558,7 +2630,7 @@ button {
 }
 
 .status-tile-busy .status-tile-beacon {
-  background: var(--accent);
+  background: var(--primary);
   animation: status-beacon-busy 1s ease-in-out infinite;
 }
 
@@ -2611,37 +2683,55 @@ button {
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #7a7ab8;
+  /* Night base + day accents */
+  --background: color-mix(in srgb, #f4f4f5 4%, #121214);
+  --foreground: oklch(0.97 0 0);
+  --canvas: var(--background);
+  --canvas-dot: oklch(1 0 0 / 6%);
+  --ink: oklch(0.97 0 0);
+  --ink-muted: oklch(0.72 0 0);
+  --muted-light: var(--ink-muted);
+  --text: var(--foreground);
+  --border: oklch(1 0 0 / 12%);
+  --border-strong: oklch(1 0 0 / 20%);
+  --card: #1a1a1e;
+  --card-muted: #242428;
+  --card-raised: #222226;
+  --card-foreground: oklch(0.97 0 0);
+  --popover: #1a1a1e;
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: #8a8ac4;
   --primary-foreground: #f8f8fc;
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --secondary: #242428;
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: #242428;
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: #242428;
+  --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.62 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: #7a7ab8;
+  --sidebar: #0c0c0e;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #8a8ac4;
   --sidebar-primary-foreground: #f8f8fc;
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-accent: #1c1c20;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #ffffff12;
+  --sidebar-ring: #8a8ac4;
+  --brand: #8a8ac4;
+  --brand-soft: #8a8ac428;
+  --accent-soft: var(--brand-soft);
+  /* Day light borrowed into night as accent islands */
+  --contrast: #eef0f3;
+  --contrast-foreground: #161618;
+  --contrast-muted: #5c5c66;
+  --header: color-mix(in srgb, #f4f4f5 7%, #161618);
 }
 
 @layer base {

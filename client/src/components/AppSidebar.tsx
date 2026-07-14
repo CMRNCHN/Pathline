@@ -1,12 +1,16 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Clock,
+  AlertTriangle,
   GitBranch,
+  Home,
+  Library,
+  Monitor,
   Pencil,
   Play,
   Radio,
   Search,
   Settings,
+  Shield,
   Upload,
 } from "lucide-react";
 import { useScriptStore } from "@/store/ScriptStore";
@@ -14,6 +18,8 @@ import { getActiveScript } from "@/script/selectors";
 import { scriptDisplayName } from "@/script/storage";
 import { normalizeScript } from "@/script/compile";
 import type { AppView } from "@/navigation";
+import { loadRunHistory, subscribeRunHistory } from "@/history/runHistory";
+import { isTauriApp } from "@/transport/createAppTransport";
 import {
   Sidebar,
   SidebarContent,
@@ -23,11 +29,13 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 interface AppSidebarProps {
   view: AppView;
@@ -38,10 +46,42 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
   const { bundledScripts, customScripts, activeId, setActiveId, importScript } =
     useScriptStore();
   const importRef = useRef<HTMLInputElement>(null);
+  const [failedCount, setFailedCount] = useState(
+    () => loadRunHistory().filter((r) => r.outcome === "failed").length
+  );
+  const [apiOk, setApiOk] = useState(false);
+
+  useEffect(() => {
+    return subscribeRunHistory(() => {
+      setFailedCount(loadRunHistory().filter((r) => r.outcome === "failed").length);
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch("/api/health");
+        if (!cancelled) setApiOk(res.ok);
+      } catch {
+        if (!cancelled) setApiOk(false);
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   const openPath = activeId
     ? getActiveScript(bundledScripts, customScripts, activeId)
     : undefined;
+
+  const desktop = isTauriApp();
+  const showTemplates = bundledScripts.length > 0;
+  const showIssues = failedCount > 0;
 
   return (
     <Sidebar collapsible="icon">
@@ -50,39 +90,126 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              isActive={view.category === "paths"}
-              onClick={() => onNavigate({ category: "paths" })}
+              isActive={view.category === "dashboard"}
+              onClick={() => onNavigate({ category: "dashboard" })}
             >
               <Radio className="size-4" />
-              <span>PromptPath</span>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">PromptPath</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {desktop ? "Desktop" : "Browser"} · Local
+                </span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <div className="px-2 group-data-[collapsible=icon]:hidden">
+          <Badge variant={apiOk ? "secondary" : "destructive"} className="w-full justify-center">
+            {apiOk ? "Connected" : "API offline"}
+          </Badge>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigate</SidebarGroupLabel>
+          <SidebarGroupLabel>Workflows</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  isActive={view.category === "paths"}
-                  onClick={() => onNavigate({ category: "paths" })}
-                  tooltip="Paths"
+                  isActive={view.category === "dashboard"}
+                  onClick={() => onNavigate({ category: "dashboard" })}
+                  tooltip="Dashboard"
                 >
-                  <GitBranch />
-                  <span>Paths</span>
+                  <Home />
+                  <span>Dashboard</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  isActive={view.category === "history"}
-                  onClick={() => onNavigate({ category: "history" })}
-                  tooltip="History"
+                  isActive={view.category === "workflows"}
+                  onClick={() => onNavigate({ category: "workflows" })}
+                  tooltip="Workflows"
                 >
-                  <Clock />
-                  <span>History</span>
+                  <GitBranch />
+                  <span>Workflows</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={view.category === "runs"}
+                  onClick={() => onNavigate({ category: "runs" })}
+                  tooltip="Runs"
+                >
+                  <Play />
+                  <span>Runs</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {showTemplates && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={view.category === "templates"}
+                    onClick={() => onNavigate({ category: "templates" })}
+                    tooltip="Templates"
+                  >
+                    <Library />
+                    <span>Templates</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Operations</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={view.category === "system"}
+                  onClick={() => onNavigate({ category: "system" })}
+                  tooltip="System"
+                >
+                  <Monitor />
+                  <span>System</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {showIssues && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={view.category === "runs"}
+                    onClick={() => onNavigate({ category: "runs" })}
+                    tooltip="Issues"
+                  >
+                    <AlertTriangle />
+                    <span>Issues</span>
+                    <SidebarMenuBadge>{failedCount}</SidebarMenuBadge>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Resources</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={view.category === "vault"}
+                  onClick={() => onNavigate({ category: "vault" })}
+                  tooltip="Vault"
+                >
+                  <Shield />
+                  <span>Vault</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => importRef.current?.click()} tooltip="Import Path">
+                  <Upload />
+                  <span>Import</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -98,20 +225,20 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
                   <SidebarMenuButton
                     isActive={view.category === "edit"}
                     onClick={() => onNavigate({ category: "edit", scriptId: activeId })}
-                    tooltip="Edit"
+                    tooltip="Edit Path"
                   >
                     <Pencil />
-                    <span>Edit</span>
+                    <span>Edit Path</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     isActive={view.category === "run"}
                     onClick={() => onNavigate({ category: "run", scriptId: activeId })}
-                    tooltip="Run"
+                    tooltip="Run Path"
                   >
                     <Play />
-                    <span>Run</span>
+                    <span>Run Path</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -122,12 +249,6 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
 
       <SidebarFooter>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => importRef.current?.click()} tooltip="Import">
-              <Upload />
-              <span>Import</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               isActive={view.category === "settings"}
@@ -172,14 +293,14 @@ interface ShellHeaderProps {
 }
 
 export function ShellHeader({ view, searchQuery, onSearchChange }: ShellHeaderProps) {
-  if (view.category !== "paths") return null;
+  if (view.category !== "workflows") return null;
 
   return (
-    <div className="flex items-center gap-2 border-b px-4 py-2">
+    <div className="shell-topbar flex items-center gap-2 border-b px-4 py-2">
       <Search className="size-4 shrink-0 text-muted-foreground" />
       <Input
         type="search"
-        placeholder="Search paths…"
+        placeholder="Search workflows…"
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
         className="max-w-sm border-0 bg-transparent shadow-none focus-visible:ring-0"

@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Linux desktop launcher (.desktop file + icon, optional dock pin)
+# Linux desktop launcher (.desktop file + icon, dock/panel pin)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ICON_DIR="$HOME/.local/share/icons"
 APPS_DIR="$HOME/.local/share/applications"
+DESKTOP_DIR="$HOME/Desktop"
 DESKTOP="$APPS_DIR/promptpath.desktop"
 DESKTOP_ID="promptpath.desktop"
-ICON_SRC="$ROOT/assets/icon/generated/promptpath-256.png"
+ICON_SRC="$ROOT/assets/icon/generated/icon_256x256.png"
+ICON_FALLBACK="$ROOT/desktop/src-tauri/icons/128x128.png"
+LAUNCHER="$ROOT/scripts/launch-desktop.sh"
 
 if [[ "$(uname -s)" != "Linux" ]]; then
   echo "This installer is for Linux."
@@ -16,34 +19,48 @@ if [[ "$(uname -s)" != "Linux" ]]; then
   exit 1
 fi
 
+chmod +x "$LAUNCHER" "$ROOT/scripts/desktop-dev.sh" 2>/dev/null || true
+
 ensure_launcher_png() {
   if [[ -f "$ICON_SRC" ]]; then
+    return 0
+  fi
+  if [[ -f "$ICON_FALLBACK" ]]; then
+    ICON_SRC="$ICON_FALLBACK"
     return 0
   fi
   if ! python3 -c "import PIL" 2>/dev/null; then
     python3 -m pip install -q pillow
   fi
   python3 "$ROOT/scripts/generate-app-icon.py" --png-only
+  ICON_SRC="$ROOT/assets/icon/generated/icon_256x256.png"
 }
 
 ensure_launcher_png
 
-mkdir -p "$ICON_DIR" "$APPS_DIR"
+mkdir -p "$ICON_DIR" "$APPS_DIR" "$DESKTOP_DIR"
 cp "$ICON_SRC" "$ICON_DIR/promptpath.png"
 
 cat >"$DESKTOP" <<DESKTOP
 [Desktop Entry]
+Version=1.0
 Type=Application
 Name=PromptPath
-Comment=Start PromptPath API and web client
-Exec=env PROMPTPATH_DAEMON=1 $ROOT/scripts/start-daemon.sh
+Comment=PromptPath desktop — local API + Tauri shell
+Exec=$LAUNCHER
 Icon=$ICON_DIR/promptpath.png
 Terminal=false
-Categories=Development;Utility;
+Categories=Development;Utility;Network;
 StartupNotify=true
+StartupWMClass=promptpath-desktop
 DESKTOP
 
 chmod +x "$DESKTOP"
+cp "$DESKTOP" "$DESKTOP_DIR/promptpath.desktop"
+chmod +x "$DESKTOP_DIR/promptpath.desktop"
+# Mark trusted so XFCE does not block “Untrusted application launcher”
+gio set "$DESKTOP_DIR/promptpath.desktop" metadata::trusted true 2>/dev/null || true
+gio set "$DESKTOP" metadata::trusted true 2>/dev/null || true
 update-desktop-database "$APPS_DIR" 2>/dev/null || true
 
 pin_gnome_dock() {
@@ -57,23 +74,71 @@ pin_gnome_dock() {
     return 0
   fi
 
-  # Append to favorites array (gsettings format: ['a.desktop', 'b.desktop'])
   new="${current%]}, '${DESKTOP_ID}']"
   gsettings set org.gnome.shell favorite-apps "$new"
   echo "  → Pinned to GNOME dock"
 }
 
+pin_xfce_panel() {
+  command -v xfconf-query >/dev/null 2>&1 || return 1
+  xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids >/dev/null 2>&1 || return 1
+
+  local plugin_id=42
+  local launcher_dir="$HOME/.config/xfce4/panel/launcher-${plugin_id}"
+  local item="16700000001.desktop"
+
+  # Reuse existing plugin-42 if already a launcher
+  if xfconf-query -c xfce4-panel -p /plugins/plugin-${plugin_id} >/dev/null 2>&1; then
+    local kind
+    kind="$(xfconf-query -c xfce4-panel -p /plugins/plugin-${plugin_id} 2>/dev/null || true)"
+    if [[ "$kind" != "launcher" ]]; then
+      plugin_id=142
+      launcher_dir="$HOME/.config/xfce4/panel/launcher-${plugin_id}"
+    fi
+  fi
+
+  mkdir -p "$launcher_dir"
+  cp "$DESKTOP" "$launcher_dir/$item"
+  chmod +x "$launcher_dir/$item"
+
+  if ! xfconf-query -c xfce4-panel -p /plugins/plugin-${plugin_id} >/dev/null 2>&1; then
+    xfconf-query -c xfce4-panel -n -t string -p /plugins/plugin-${plugin_id} -s "launcher"
+  else
+    xfconf-query -c xfce4-panel -p /plugins/plugin-${plugin_id} -s "launcher"
+  fi
+
+  if xfconf-query -c xfce4-panel -p /plugins/plugin-${plugin_id}/items >/dev/null 2>&1; then
+    xfconf-query -c xfce4-panel -p /plugins/plugin-${plugin_id}/items -a -t string -s "$item" 2>/dev/null \
+      || xfconf-query -c xfce4-panel -p /plugins/plugin-${plugin_id}/items -t string -s "$item"
+  else
+    xfconf-query -c xfce4-panel -n -a -t string -p /plugins/plugin-${plugin_id}/items -s "$item"
+  fi
+
+  local ids
+  ids="$(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids | grep -E '^[0-9]+$' || true)"
+  if ! echo "$ids" | grep -qx "$plugin_id"; then
+    # Rebuild array including new plugin near the end (before last separator if present)
+    local args=()
+    while read -r id; do
+      [[ -n "$id" ]] && args+=(-t int -s "$id")
+    done <<<"$ids"
+    args+=(-t int -s "$plugin_id")
+    xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids "${args[@]}"
+  fi
+
+  # Nudge panel to reload
+  xfce4-panel -r 2>/dev/null || true
+  echo "  → Pinned to XFCE panel (dock)"
+}
+
 echo "Installed $DESKTOP"
 echo "  Icon: $ICON_DIR/promptpath.png"
+echo "  Launch: $LAUNCHER"
+echo "  Desktop shortcut: $DESKTOP_DIR/promptpath.desktop"
 echo "  Repo: $ROOT"
 
-if [[ -n "${XDG_CURRENT_DESKTOP:-}" ]]; then
-  pin_gnome_dock || true
-  echo ""
-  echo "Search \"PromptPath\" in your app launcher, or pin it to your dock/panel."
-else
-  echo ""
-  echo "No desktop session detected here (headless/SSH/cloud VM)."
-  echo "On a Linux machine with a desktop, run this same command there:"
-  echo "  cd $ROOT && npm run install"
-fi
+pin_gnome_dock || true
+pin_xfce_panel || true
+
+echo ""
+echo "Click the PromptPath icon in the panel/dock or Desktop to launch."

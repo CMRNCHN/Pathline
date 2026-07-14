@@ -8,3 +8,8 @@ export type {
 export { AudioSession } from "./AudioSession";
 export { SimulatorTransport } from "./SimulatorTransport";
 export { SipTransport, createSipTransport, type NativeSipBridge } from "./SipTransport";
+export {
+  createAppTransport,
+  isAutomatedTransport,
+  isTauriApp,
+} from "./createAppTransport";

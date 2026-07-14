@@ -133,7 +133,7 @@ export function StatusBoard({ status }: StatusBoardProps) {
   return (
     <Card
       className={cn(
-        "relative mb-5 overflow-hidden bg-linear-to-br from-primary/5 via-card to-muted/30 py-3 shadow-sm",
+        "surface-contrast relative mb-5 overflow-hidden py-3 shadow-md ring-1 ring-black/10",
         hasIssue && "border-destructive/35"
       )}
       aria-label="Runtime status"
@@ -170,7 +170,7 @@ export function StatusBoard({ status }: StatusBoardProps) {
               <Card
                 key={tile.id}
                 size="sm"
-                className="animate-[status-tile-in_0.45s_ease_both] py-2 shadow-none"
+                className="animate-[status-tile-in_0.45s_ease_both] border-0 bg-black/15 py-2 shadow-none dark:bg-black/8"
                 style={{ animationDelay: `${tile.delay}ms` }}
               >
                 <CardContent className="flex items-center gap-2 px-2 py-0">

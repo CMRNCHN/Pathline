@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Play } from "lucide-react";
 import {
   mintToken,
-  placeCallLocally,
   linkConsentSession,
   submitEncryptedCallState,
   exportCallState,
@@ -33,6 +32,8 @@ import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { RunSession } from "../engine/runSession";
+import { isAutomatedTransport, useRunSessionFactory } from "../hooks/useRunSession";
 
 type Step = "consent" | "configure" | "active";
 
@@ -96,6 +97,10 @@ function RunFlow({
 
   const [targetNumber, setTargetNumber] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>({});
+  const [runSession, setRunSession] = useState<RunSession | null>(null);
+
+  const createRunSession = useRunSessionFactory();
+  const automated = useMemo(() => isAutomatedTransport(), []);
 
   const scripts = mergeScripts(bundledScripts, customScripts);
   const script = getActiveScript(bundledScripts, customScripts, activeId) ?? scripts[0];
@@ -114,6 +119,12 @@ function RunFlow({
     if (script?.setup.target) setTargetNumber(script.setup.target);
     else setTargetNumber("");
   }, [script?.id, script?.setup.target]);
+
+  useEffect(() => {
+    return () => {
+      void runSession?.hangup();
+    };
+  }, [runSession]);
 
   const missingVariables = variableNames.filter((name) => !variables[name]?.trim());
 
@@ -143,6 +154,7 @@ function RunFlow({
     try {
       const sessionId = generateSessionId();
       await linkConsentSession(token, sessionId);
+      const nextRunSession = createRunSession(script, variables, sessionId);
       setActiveRun({ script, variables });
       setSession({
         sessionId,
@@ -152,9 +164,10 @@ function RunFlow({
         phase: "active",
         startedAt: new Date().toISOString(),
       });
+      setRunSession(nextRunSession);
       setStep("active");
       if (targetNumber.trim()) {
-        placeCallLocally(targetNumber);
+        await nextRunSession.startCall(targetNumber.trim());
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start session");
@@ -216,6 +229,7 @@ function RunFlow({
   };
 
   const handleRevoke = async () => {
+    await runSession?.hangup();
     if (token && session) {
       await deleteCallState(token, session.sessionId);
       await revokeToken(token);
@@ -224,6 +238,7 @@ function RunFlow({
     setToken(null);
     setSession(null);
     setActiveRun(null);
+    setRunSession(null);
     setStep("consent");
     setConsentChecked(false);
   };
@@ -311,11 +326,12 @@ function RunFlow({
         />
       )}
 
-      {session.phase === "active" && (
+      {session.phase === "active" && runSession && (
         <RunActivePanel
+          runSession={runSession}
           script={activeRun.script}
-          variables={activeRun.variables}
           sessionId={session.sessionId}
+          automated={automated}
           onCallStateCaptured={handleComplete}
         />
       )}

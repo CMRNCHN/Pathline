@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "desktop:dev": "npm run desktop:dev --prefix ..",
+    "desktop:build": "npm run desktop:build --prefix .."
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

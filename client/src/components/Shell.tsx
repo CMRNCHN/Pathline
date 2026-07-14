@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { AppView } from "../navigation";
+import { viewLabel } from "../navigation";
 import { AppSidebar, ShellHeader } from "./AppSidebar";
 import { ThemeToggle } from "./ThemeToggle";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "./ui/sidebar";
@@ -24,15 +25,11 @@ export function Shell({
     <SidebarProvider>
       <AppSidebar view={view} onNavigate={onNavigate} />
       <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+        <header className="shell-topbar flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="md:hidden" />
           <Separator orientation="vertical" className="mr-2 hidden h-4 md:block" />
           <span className="min-w-0 truncate text-sm font-medium text-muted-foreground">
-            {view.category === "paths" && "Paths"}
-            {view.category === "history" && "History"}
-            {view.category === "settings" && "Settings"}
-            {view.category === "edit" && "Edit Path"}
-            {view.category === "run" && "Run Path"}
+            {viewLabel(view)}
           </span>
           <div className="ml-auto">
             <ThemeToggle />
@@ -48,3 +45,4 @@ export function Shell({
     </SidebarProvider>
   );
 }
+
