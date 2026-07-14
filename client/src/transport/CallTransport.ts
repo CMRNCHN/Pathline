@@ -13,7 +13,7 @@ export interface TransportEvent {
   detail?: string;
 }
 
-/** Raw PCM audio frames for local STT — never leaves the device via PromptPath server. */
+/** Raw PCM audio frames for local STT — never leaves the device via Pathline server. */
 export type AudioFrameHandler = (pcm: Float32Array, sampleRate: number) => void;
 
 export type TransportEventHandler = (event: TransportEvent) => void;

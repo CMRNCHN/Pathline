@@ -29,11 +29,11 @@ export function TemplatesPage({ onNavigate }: TemplatesPageProps) {
   return (
     <PageLayout
       title="Templates"
-      subtitle="Starter Paths you can clone into your library. Templates never store your Inputs."
+      subtitle="Starter Workflows you can clone into your library. Templates never store your Inputs."
     >
       {templates.length === 0 ? (
         <EmptyState icon={Library} title="No templates yet">
-          Example Paths will appear here when bundled templates are available.
+          Example Workflows will appear here when bundled templates are available.
         </EmptyState>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -65,7 +65,7 @@ export function TemplatesPage({ onNavigate }: TemplatesPageProps) {
                     }}
                   >
                     <Pencil className="size-4" />
-                    Open Path
+                    Open Workflow
                   </Button>
                 </CardFooter>
               </Card>

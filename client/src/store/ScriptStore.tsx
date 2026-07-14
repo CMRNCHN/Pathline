@@ -85,12 +85,12 @@ function useScriptStoreState(): ScriptStore {
         if (!cancelled) {
           setBundledScripts(loaded);
           if (loaded.length === 0 && results.length > 0) {
-            setError("Failed to load bundled Paths");
+            setError("Failed to load bundled Workflows");
           }
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load bundled Paths");
+          setError(e instanceof Error ? e.message : "Failed to load bundled Workflows");
         }
       } finally {
         if (!cancelled) setLoading(false);

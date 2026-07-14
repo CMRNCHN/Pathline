@@ -95,7 +95,7 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
             >
               <Radio className="size-4" />
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">PromptPath</span>
+                <span className="truncate font-semibold">Pathline</span>
                 <span className="truncate text-xs text-muted-foreground">
                   {desktop ? "Desktop" : "Browser"} · Local
                 </span>
@@ -207,7 +207,7 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => importRef.current?.click()} tooltip="Import Path">
+                <SidebarMenuButton onClick={() => importRef.current?.click()} tooltip="Import workflow">
                   <Upload />
                   <span>Import</span>
                 </SidebarMenuButton>
@@ -225,20 +225,20 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
                   <SidebarMenuButton
                     isActive={view.category === "edit"}
                     onClick={() => onNavigate({ category: "edit", scriptId: activeId })}
-                    tooltip="Edit Path"
+                    tooltip="Path Editor"
                   >
                     <Pencil />
-                    <span>Edit Path</span>
+                    <span>Path Editor</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     isActive={view.category === "run"}
                     onClick={() => onNavigate({ category: "run", scriptId: activeId })}
-                    tooltip="Run Path"
+                    tooltip="Run"
                   >
                     <Play />
-                    <span>Run Path</span>
+                    <span>Run</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -275,7 +275,7 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
               setActiveId(next.id);
               onNavigate({ category: "edit", scriptId: next.id });
             } catch {
-              alert("Invalid Path file");
+              alert("Invalid workflow file");
             }
             e.target.value = "";
           }}

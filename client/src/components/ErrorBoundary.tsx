@@ -16,14 +16,14 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("PromptPath crashed:", error, info.componentStack);
+    console.error("Pathline crashed:", error, info.componentStack);
   }
 
   render() {
     if (this.state.error) {
       return (
         <div style={{ padding: "2rem", fontFamily: "system-ui", maxWidth: 640 }}>
-          <h1 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>PromptPath failed to load</h1>
+          <h1 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>Pathline failed to load</h1>
           <p style={{ color: "#595959", marginBottom: "1rem" }}>
             JavaScript hit an error — buttons will not work until this is fixed.
           </p>

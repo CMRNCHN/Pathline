@@ -82,7 +82,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   return (
     <PageLayout
       title="Dashboard"
-      subtitle="What's happening on this device — build a Path, run it, or check system health."
+      subtitle="What's happening on this device — build a Workflow, run it, or check system health."
       action={
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={() => onNavigate({ category: "workflows" })}>
@@ -91,7 +91,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           </Button>
           <Button type="button" onClick={handleCreate}>
             <Plus className="size-4" />
-            New Path
+            New Workflow
           </Button>
         </div>
       }
@@ -119,7 +119,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           <CardContent className="flex flex-col gap-2">
             <Button type="button" variant="secondary" className="justify-start" onClick={handleCreate}>
               <Plus className="size-4" />
-              Build a Path
+              Build a Workflow
             </Button>
             <Button
               type="button"
@@ -156,7 +156,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             <div className="flex items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-base">Recent activity</CardTitle>
-                <CardDescription>Latest Path runs on this device.</CardDescription>
+                <CardDescription>Latest Runs on this device.</CardDescription>
               </div>
               <Button type="button" variant="ghost" size="sm" onClick={() => onNavigate({ category: "runs" })}>
                 All runs
@@ -201,7 +201,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       {workflows.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Your Paths</CardTitle>
+            <CardTitle className="text-base">Your Workflows</CardTitle>
             <CardDescription>Jump back into a workflow.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">

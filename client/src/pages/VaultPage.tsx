@@ -19,7 +19,7 @@ export function VaultPage() {
             <div>
               <CardTitle>Device keys</CardTitle>
               <CardDescription>
-                PromptPath seals callstate with keys kept on this device. Clear them if you want
+                Pathline seals callstate with keys kept on this device. Clear them if you want
                 a fresh local crypto identity (existing encrypted blobs will no longer decrypt).
               </CardDescription>
             </div>

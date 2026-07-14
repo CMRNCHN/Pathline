@@ -59,11 +59,11 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
   return (
     <PageLayout
       title="Workflows"
-      subtitle="Your library of Paths — open one to edit its Steps, or Run it on your device."
+      subtitle="Your library of call workflows — open one in the Path Editor, or start a Run on your device."
       action={
         <Button type="button" onClick={handleCreate}>
           <Plus size={16} />
-          Create Path
+          Create Workflow
         </Button>
       }
     >
@@ -74,13 +74,13 @@ export function PathsPage({ onNavigate, searchQuery }: PathsPageProps) {
           action={
             paths.length === 0 ? (
               <Button type="button" onClick={handleCreate}>
-                Create your first Path
+                Create your first Workflow
               </Button>
             ) : undefined
           }
         >
           {paths.length === 0
-            ? "A Path is a call workflow. Each Step has a When and a Then. Create one to begin."
+            ? "A Workflow is a call automation you build. Its Path is the step-by-step route from input to outcome. Create one to begin."
             : "Try a different search term."}
         </EmptyState>
       ) : (

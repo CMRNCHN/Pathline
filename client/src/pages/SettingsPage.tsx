@@ -62,13 +62,13 @@ export function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "promptpath-paths.json";
+    a.download = "pathline-workflows.json";
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const clearAllLocalData = () => {
-    if (!confirm("Delete all Paths, Run History, and local data? This cannot be undone.")) return;
+    if (!confirm("Delete all Workflows, Run History, and local data? This cannot be undone.")) return;
     localStorage.removeItem(CUSTOM_SCRIPTS_KEY);
     localStorage.removeItem(ACTIVE_SCRIPT_KEY);
     clearRunHistory();
@@ -79,7 +79,7 @@ export function SettingsPage() {
   return (
     <PageLayout
       title="Settings"
-      subtitle="Privacy, health, and local data — everything PromptPath keeps on your device."
+      subtitle="Privacy, health, and local data — everything Pathline keeps on your device."
       wide
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -97,7 +97,7 @@ export function SettingsPage() {
           <StatusRow label="DTMF input" value="Active — required for a Run" ok />
           <StatusRow label="Voice input" value="Planned — not used yet" />
           <StatusRow label="API endpoint" value="/api → :8000" ok />
-          <StatusRow label="Paths loaded" value={`${paths.length}`} ok={paths.length > 0} />
+          <StatusRow label="Workflows loaded" value={`${paths.length}`} ok={paths.length > 0} />
           <StatusRow
             label="API sync"
             value={loading ? "Loading…" : error ? "Error" : "Ready"}
@@ -106,8 +106,8 @@ export function SettingsPage() {
         </SettingsCard>
 
         <SettingsCard title="Local data" icon={HardDrive}>
-          <StatusRow label="Your Paths" value={`${customScripts.length} saved`} />
-          <StatusRow label="Example Paths" value={`${bundledScripts.length} bundled`} />
+          <StatusRow label="Your Workflows" value={`${customScripts.length} saved`} />
+          <StatusRow label="Example Workflows" value={`${bundledScripts.length} bundled`} />
           <StatusRow label="Run History" value={`${runCount} recorded`} />
           <div className="mt-4 flex flex-wrap gap-2">
             <Button
@@ -132,19 +132,19 @@ export function SettingsPage() {
           </div>
         </SettingsCard>
 
-        <SettingsCard title="Export all Paths" icon={Download}>
+        <SettingsCard title="Export all Workflows" icon={Download}>
           <p className="mb-4 text-sm text-muted-foreground">
-            Download {paths.length} Path{paths.length !== 1 ? "s" : ""} as JSON. Paths never contain
-            Input values.
+            Download {paths.length} Workflow{paths.length !== 1 ? "s" : ""} as JSON. Workflows never
+            contain Input values.
           </p>
           <Button type="button" disabled={paths.length === 0} onClick={exportAll}>
-            Download Paths
+            Download Workflows
           </Button>
         </SettingsCard>
 
         <SettingsCard title="About" icon={Info}>
           <p className="text-sm text-muted-foreground">
-            PromptPath · Client-mediated · DTMF Runs · Encrypted Status export
+            Pathline · Client-mediated · DTMF Runs · Encrypted Status export
           </p>
         </SettingsCard>
       </div>

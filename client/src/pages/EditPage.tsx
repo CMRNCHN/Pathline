@@ -33,7 +33,7 @@ export function EditPage({ scriptId, onNavigate }: EditPageProps) {
   if (!activeScript || activeScript.id !== scriptId) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-        Loading Path…
+        Loading Workflow…
       </div>
     );
   }

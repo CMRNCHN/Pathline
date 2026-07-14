@@ -1,3 +1,12 @@
+/**
+ * Product vocabulary (UI):
+ *   Pathline  — product / platform brand
+ *   Workflow  — primary user-facing object (this document)
+ *   Path      — execution logic inside a Workflow (Path Editor)
+ *   Run       — one execution of a Workflow
+ *
+ * Types keep "Path*" names for the internal Path concept and on-disk shape.
+ */
 export const SCRIPT_VERSION = 2 as const;
 
 export type FlowAction = "trigger" | "extract" | "validate" | "end" | "pass";
@@ -24,7 +33,7 @@ export const IVR_EXECUTION_RULES = [
 ] as const;
 
 /**
- * A single Step in a Path.
+ * A single Step on a Path (within a Workflow).
  * Field keys stay stable for on-disk/back-compat; Pathline terms map as:
  *   trigger  -> When (what starts the Step)
  *   rule     -> Then (the action performed)

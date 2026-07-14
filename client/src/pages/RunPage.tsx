@@ -281,7 +281,7 @@ function RunFlow({
       return wrap(
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">No Paths yet. Create one from Paths.</p>
+            <p className="text-sm text-muted-foreground">No Workflows yet. Create one from Workflows.</p>
           </CardContent>
         </Card>
       );

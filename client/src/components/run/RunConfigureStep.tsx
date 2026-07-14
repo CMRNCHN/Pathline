@@ -59,14 +59,14 @@ export function RunConfigureStep({
 
           <div className="space-y-2">
             <label htmlFor="script" className="text-sm font-medium">
-              Path
+              Workflow
             </label>
             <Select
               value={activeId}
               onValueChange={(id) => id && onActiveIdChange(id)}
             >
               <SelectTrigger id="script" className="w-full">
-                <SelectValue placeholder="Select a Path" />
+                <SelectValue placeholder="Select a Workflow" />
               </SelectTrigger>
               <SelectContent>
                 {scripts.map((s) => (
@@ -107,7 +107,7 @@ export function RunConfigureStep({
             <div className="space-y-2">
               <h3 className="text-sm font-medium">Captures</h3>
               <p className="text-xs text-muted-foreground">
-                What this Path saves during the call — reviewable later in History.
+                What this Workflow saves during the call — reviewable later in Runs.
               </p>
               <div className="flex flex-wrap gap-2">
                 {outputFields.map((field) => (

@@ -80,7 +80,7 @@ export function EditForm({
     <div className="script-editor-panel">
       {readOnly && (
         <div className="bundled-banner">
-          Example Path (read-only).{" "}
+          Example Workflow (read-only).{" "}
           <Button type="button" variant="secondary" size="sm" onClick={onDuplicate}>
             Duplicate to edit
           </Button>
@@ -90,7 +90,7 @@ export function EditForm({
       <header className="editor-topbar script-header">
         <div className="script-header-main">
           <div className="script-header-eyebrow-row">
-            <p className="editor-eyebrow">Path</p>
+            <p className="editor-eyebrow">Workflow</p>
             <Badge variant={readinessBadgeVariant(readiness)}>{READINESS_LABEL[readiness]}</Badge>
           </div>
           {readOnly ? (
@@ -100,8 +100,8 @@ export function EditForm({
               className="script-header-name"
               value={script.setup.name}
               onChange={(e) => patchSetup({ name: e.target.value })}
-              placeholder="Untitled Path"
-              aria-label="Path name"
+              placeholder="Untitled Workflow"
+              aria-label="Workflow name"
             />
           )}
           <div className="script-header-meta">
@@ -111,7 +111,7 @@ export function EditForm({
                 value={script.setup.description}
                 onChange={(e) => patchSetup({ description: e.target.value })}
                 disabled={readOnly}
-                placeholder="What this Path does"
+                placeholder="What this Workflow does"
               />
             </label>
             <label className="script-header-field">
@@ -169,8 +169,8 @@ export function EditForm({
       <div className="editor-body">
         <SectionBlock
           index="01"
-          title="Steps"
-          description="Each Step has a When (what starts it) and a Then (what PromptPath does)."
+          title="Path Editor"
+          description="The Path is the route this Workflow follows. Each Step has a When (what starts it) and a Then (what Pathline does)."
           wide
         >
           <div className="rule-card-list">
@@ -215,7 +215,7 @@ export function EditForm({
         <SectionBlock
           index="02"
           title="Inputs"
-          description="Values you provide when you Run this Path — never stored with the Path."
+          description="Values you provide when you Run this Workflow — never stored with the Workflow."
         >
           {inputVariables.length === 0 ? (
             <p className="field-hint">

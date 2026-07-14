@@ -80,7 +80,7 @@ export function RunsPage() {
   return (
     <PageLayout
       title="Runs"
-      subtitle="Every Path execution on this device — completed, failed, or abandoned."
+      subtitle="Every Workflow Run on this device — completed, failed, or abandoned."
     >
       <div className="flex flex-wrap gap-2">
         {(
@@ -109,7 +109,7 @@ export function RunsPage() {
       {filtered.length === 0 ? (
         <EmptyState icon={Clock} title="No Runs in this view">
           {records.length === 0
-            ? "Run a Path and its result will appear here."
+            ? "Run a Workflow and its result will appear here."
             : "Try another filter."}
         </EmptyState>
       ) : (

@@ -22,7 +22,7 @@ export function SystemPage() {
   return (
     <PageLayout
       title="System"
-      subtitle="Operate PromptPath — health of the local client, API sidecar, and call stack."
+      subtitle="Operate Pathline — health of the local client, API sidecar, and call stack."
     >
       <StatusBoard status={runtime} />
 

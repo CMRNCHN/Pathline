@@ -1,6 +1,6 @@
 export type RunOutcome = "completed" | "failed" | "abandoned";
 
-/** A single past Run of a Path — stored on-device only. */
+/** A single past Run of a Workflow — stored on-device only. */
 export interface RunRecord {
   runId: string;
   pathId: string;

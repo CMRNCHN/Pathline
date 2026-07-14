@@ -128,7 +128,7 @@ export function RunActivePanel({
           <Alert>
             <AlertTitle>Manual mode</AlertTitle>
             <AlertDescription>
-              Automated calls require the PromptPath desktop app. Paste IVR phrases below and send
+              Automated calls require the Pathline desktop app. Paste IVR phrases below and send
               DTMF on your phone when prompted.
             </AlertDescription>
           </Alert>

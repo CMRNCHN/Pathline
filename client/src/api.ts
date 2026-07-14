@@ -98,7 +98,7 @@ export async function revokeToken(token: string): Promise<void> {
   });
 }
 
-/** Open native dialer — target number never sent to PromptPath servers. */
+/** Open native dialer — target number never sent to Pathline servers. */
 export function placeCallLocally(targetNumber: string): void {
   window.location.href = `tel:${encodeURIComponent(targetNumber)}`;
 }

@@ -3,7 +3,7 @@
   "version": 2,
   "setup": {
     "name": "Lab account status (Asterisk 1000)",
-    "description": "Maps to the PromptPath lab IVR. Register softphone over TLS (see .env / lab/asterisk/generated/credentials.env), dial 1000, paste phrases in the web UI.",
+    "description": "Maps to the Pathline lab IVR. Register softphone over TLS (see .env / lab/asterisk/generated/credentials.env), dial 1000, paste phrases in the web UI.",
     "target": "",
     "timeoutMs": 30000,
     "speechPreferences": { "autoListen": false },
