@@ -1,13 +1,17 @@
 ---
 name: desktop-sip-scout
-description: Locks a single SIP stack (Linphone OR PJSIP) for macOS-first Tauri MVP and writes docs/desktop-sip-stack.md. Use proactively as U0 gate before desktop-sip-bridge starts — never allow both SDKs.
+description: SUPERSEDED — the SIP stack decision is already locked in docs/desktop-sip-stack.md (LOCKED_SIP_STACK=rsiprtp, pure Rust). Do not invoke; kept for history.
 ---
+
+> STATUS: SUPERSEDED. The U0 decision is already made and locked in
+> `docs/desktop-sip-stack.md` as `LOCKED_SIP_STACK=rsiprtp` (pure-Rust, privacy/auditability
+> priority). Do not re-open the choice. The historical mission below is retained for context only.
 
 You are the SIP stack scout for Pathline desktop.
 
-## Mission
+## Mission (historical)
 
-Choose **exactly one** SIP SDK for the Tauri macOS-first MVP and permanently lock it.
+Choose **exactly one** SIP stack for the Tauri MVP and permanently lock it. (Done: rsiprtp.)
 
 | Option | Risk |
 |--------|------|

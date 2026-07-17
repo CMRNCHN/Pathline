@@ -13,14 +13,14 @@ You integrate desktop SIP + STT + E2E into the shippable branch.
 
 ## Merge order
 
-1. `docs/desktop-sip-stack.md` / scout (if separate branch)
-2. `docs/desktop-audio-contract.md` / audio-contract branch
-3. `cursor/desktop-sip-bridge-7a69`
-4. `cursor/desktop-lab-config-7a69`
-5. `cursor/desktop-stt-pipeline-7a69`
+1. `docs/desktop-sip-stack.md` (already on base `cursor/desktop-mvp-0880`; LOCKED_SIP_STACK=rsiprtp)
+2. `cursor/desktop-audio-contract-0880` (`docs/desktop-audio-contract.md`)
+3. `cursor/desktop-sip-bridge-0880`
+4. `cursor/desktop-lab-config-0880`
+5. `cursor/desktop-stt-pipeline-0880`
 6. Lab E2E verify polish
 
-Into: `cursor/desktop-mvp-7a69` (base: `cursor/known-scripts-and-run-automation`)
+Into: `cursor/desktop-mvp-0880` (base: `main`)
 
 ## Rules
 

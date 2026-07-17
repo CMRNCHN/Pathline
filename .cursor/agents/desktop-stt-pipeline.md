@@ -41,7 +41,8 @@ You connect on-device speech-to-text to Pathline automation.
 ## Workflow
 
 ```bash
-git checkout -b cursor/desktop-stt-pipeline-7a69 origin/cursor/desktop-mvp-7a69
+cd /workspace
+git checkout -b cursor/desktop-stt-pipeline-0880 origin/cursor/desktop-mvp-0880
 ./scripts/lab.sh
 npm run desktop:dev
 ```

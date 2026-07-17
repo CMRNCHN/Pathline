@@ -25,7 +25,11 @@ You own the lab Path config and desktop E2E verification scripts/docs.
 3. Rewrite `docs/lab-run.md` — desktop owns media; softphone+paste is legacy fallback only
 4. Verify script: fail fast if API/Asterisk down
 
-Branch: `cursor/desktop-lab-config-7a69`
+Branch: `cursor/desktop-lab-config-0880` (off `origin/cursor/desktop-mvp-0880`)
+
+Linux/cloud note: the lab Asterisk runs via Docker (`docker compose --profile lab`); if Docker or
+Tauri Linux libs are unavailable, verify config/docs and fixture-level checks, and document macOS as
+the full media E2E host.
 
 ## Wave C (full verify — after SIP + STT)
 
