@@ -30,7 +30,8 @@ Publish a short freeze doc (+ optional TS constants) matching existing `CallTran
 ## Workflow
 
 ```bash
-git checkout -b cursor/desktop-audio-contract-7a69 origin/cursor/desktop-mvp-7a69
+cd /workspace
+git checkout -b cursor/desktop-audio-contract-0880 origin/cursor/desktop-mvp-0880
 ```
 
 1. Read `client/src/transport/CallTransport.ts` + `SipTransport.ts`
