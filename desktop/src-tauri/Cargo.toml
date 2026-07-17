@@ -23,3 +23,10 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
+# Pure-Rust SIP/RTP stack (LOCKED: docs/desktop-sip-stack.md, LOCKED_SIP_STACK=rsiprtp).
+# Single crate covers SIP signaling (TLS via rustls), RTP, G.711 codecs, and RFC 4733 DTMF.
+# No C SDK / FFI (no Linphone/PJSIP) per the privacy-first, fully-inspectable decision.
+rsiprtp = "0.4.1"
+# Async runtime primitives for the background SIP/RTP task. Tauri already pulls tokio;
+# we declare the exact features the bridge uses.
+tokio = { version = "1", features = ["net", "sync", "time", "macros", "rt"] }
