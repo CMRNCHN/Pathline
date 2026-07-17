@@ -3,10 +3,10 @@
   "version": 2,
   "setup": {
     "name": "Lab account status (Asterisk 1000)",
-    "description": "Maps to the Pathline lab IVR. Register softphone over TLS (see .env / lab/asterisk/generated/credentials.env), dial 1000, paste phrases in the web UI.",
-    "target": "",
+    "description": "Maps to the Pathline lab IVR. Desktop app (Tauri + rsiprtp SIP bridge) owns the call: it dials extension 1000 and composes the full SIP URI from LAB_SIP_*/PATHLINE_SIP_* env (host/creds from lab/asterisk/generated/credentials.env). Softphone + manual paste is a legacy browser fallback only. See docs/lab-run.md.",
+    "target": "1000",
     "timeoutMs": 30000,
-    "speechPreferences": { "autoListen": false },
+    "speechPreferences": { "autoListen": true },
     "runtimeVariables": ["account_pin", "ssn_last4"]
   },
   "ivrRules": [
