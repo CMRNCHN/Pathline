@@ -4,6 +4,11 @@ Privacy-first, client-mediated call orchestration. See `README.md` and `Pathline
 
 ## Cursor Cloud specific instructions
 
+### Working agreement
+- **Always merge AGENTS.md updates.** The maintainer wants changes to this file kept and merged
+  every time, so future agents retain these learnings. Always include AGENTS.md edits in the PR and
+  explicitly flag them for merge. (Agents cannot merge PRs themselves; a human must click merge.)
+
 ### Scope
 The shipping product is **v1**: the FastAPI backend (`services/api`) plus the web client (`client/`).
 `frontend-ui/`, `desktop/` (Tauri/Rust), the SIP `lab/` (Asterisk/Docker), and `services/deferred/*`
