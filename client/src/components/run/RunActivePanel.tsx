@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CallStateBoard } from "@/components/CallStateBoard";
 import { DtmfGuide } from "@/components/DtmfGuide";
 import {
@@ -9,7 +9,10 @@ import {
 } from "@/callstate";
 import type { CallEvent } from "@/callstate";
 import type { RunSession } from "@/engine/runSession";
-import { isSpeechRecognitionAvailable, startContinuousRecognition } from "@/localStt";
+import { isSpeechRecognitionAvailable } from "@/localStt";
+import { createSttEngine } from "@/stt";
+import { AudioSession } from "@/transport/AudioSession";
+import { createAppTransport } from "@/transport/createAppTransport";
 import type { RunState } from "@/script/runEngine";
 import type { Path } from "@/script/types";
 import { scriptDisplayName } from "@/script/storage";
@@ -51,6 +54,15 @@ export function RunActivePanel({
   const [listenError, setListenError] = useState<string | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
+  // Reuse the app transport so onAudio subscribes to the same SIP bridge that
+  // RunSession injects DTMF through. Null in web-only manual mode.
+  const transport = useMemo(() => createAppTransport(), []);
+  const audioSession = useMemo(
+    () => (transport ? new AudioSession(transport) : null),
+    [transport]
+  );
+  const listenSupported = automated || isSpeechRecognitionAvailable();
+
   const syncFromSession = useCallback(() => {
     setRun(runSession.getState());
     setLedgerEvents(runSession.getEvents());
@@ -84,19 +96,25 @@ export function RunActivePanel({
     if (!autoListen || run.completed) return;
 
     setListenError(null);
-    const stop = startContinuousRecognition(
-      (phrase) => applyPhraseDebounced(phrase),
-      (msg) => setListenError(msg)
-    );
 
-    if (!stop) {
+    // Picks on-device Whisper when available; never Web Speech for a
+    // bridge-backed automated run (returns engine: null with a reason instead).
+    const { engine, unavailableReason } = createSttEngine({ automated });
+    if (!engine) {
       setAutoListen(false);
-      setListenError("Web Speech API unavailable in this browser");
+      setListenError(unavailableReason ?? "Listening unavailable — paste phrases manually.");
       return;
     }
 
-    return stop;
-  }, [autoListen, run.completed, applyPhraseDebounced]);
+    // Bridge-backed runs: feed transport onAudio PCM into the engine.
+    // Web Speech (browser dev) captures its own mic, so it starts standalone.
+    if (audioSession && engine.source !== "web_speech") {
+      return audioSession.runStt(engine, applyPhraseDebounced, (msg) => setListenError(msg));
+    }
+
+    engine.start(applyPhraseDebounced, (msg) => setListenError(msg));
+    return () => engine.stop();
+  }, [autoListen, run.completed, applyPhraseDebounced, automated, audioSession]);
 
   const handleManualMatch = () => {
     if (!ivrText.trim()) return;
@@ -112,7 +130,7 @@ export function RunActivePanel({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
         <CardTitle>{scriptDisplayName(script)}</CardTitle>
-        {isSpeechRecognitionAvailable() && !run.completed && (
+        {listenSupported && !run.completed && (
           <Button
             type="button"
             size="sm"
