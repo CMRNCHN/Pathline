@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 API_PORT="${API_PORT:-8000}"
+CLIENT_PORT="${CLIENT_PORT:-3000}"
 LOG_DIR="$ROOT/.logs"
 PID_DIR="$ROOT/.pids"
 VENV="$ROOT/.venv"
@@ -149,4 +150,6 @@ trap cleanup EXIT INT TERM
 info "[desktop] launching tauri dev"
 cd "$ROOT/desktop"
 # Do not exec — preserve EXIT/INT/TERM traps for owned API cleanup.
+# beforeDevCommand (scripts/desktop-before-dev.sh) reuses Vite if CLIENT_PORT
+# is already taken (e.g. lab.sh / start.sh).
 npm run dev
