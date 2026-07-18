@@ -146,8 +146,8 @@ export function RunActivePanel({
           <Alert>
             <AlertTitle>Manual mode</AlertTitle>
             <AlertDescription>
-              Automated calls require the Pathline desktop app. Paste IVR phrases below and send
-              DTMF on your phone when prompted.
+              Automated calls require the Pathline desktop app. Paste IVR phrases below and press
+              the keys on your phone when prompted.
             </AlertDescription>
           </Alert>
         )}
@@ -156,17 +156,17 @@ export function RunActivePanel({
           <TabsList>
             <TabsTrigger value="steps">Steps</TabsTrigger>
             <TabsTrigger value="audit">Audit</TabsTrigger>
-            <TabsTrigger value="dtmf">DTMF</TabsTrigger>
+            <TabsTrigger value="dtmf">Keys</TabsTrigger>
           </TabsList>
 
           <TabsContent value="steps" className="space-y-4 pt-4">
             <p className="text-sm text-muted-foreground">
               {automated
                 ? autoListen
-                  ? "Listening locally — IVR phrases auto-match; DTMF injects via transport."
-                  : "Paste what you hear, or enable auto-listen. DTMF injects automatically."
+                  ? "Listening locally — IVR phrases match and keys are pressed automatically."
+                  : "Paste what you hear, or enable auto-listen. Keys are pressed automatically."
                 : autoListen
-                  ? "Listening locally — paste or speak IVR phrases to match your script."
+                  ? "Listening locally — paste or speak IVR phrases to match your Workflow."
                   : "Paste what you hear, or enable auto-listen."}
             </p>
 
@@ -240,7 +240,7 @@ export function RunActivePanel({
           <TabsContent value="dtmf" className="pt-4">
             {automated ? (
               <p className="text-sm text-muted-foreground">
-                DTMF sequences are injected automatically via CallTransport when phrases match.
+                Key sequences are sent automatically when phrases match.
               </p>
             ) : run.pendingDtmf ? (
               <DtmfGuide
@@ -249,7 +249,7 @@ export function RunActivePanel({
                 onComplete={dismissDtmf}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">No pending DTMF sequence.</p>
+              <p className="text-sm text-muted-foreground">No pending key sequence.</p>
             )}
           </TabsContent>
         </Tabs>

@@ -3,7 +3,11 @@ import { Copy, Download, Trash2 } from "lucide-react";
 import type { Step, PathDocument } from "../../script/types";
 import { extractVariableNames, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
-import { getPathReadiness, READINESS_LABEL } from "../../script/pathReadiness";
+import {
+  getPathReadiness,
+  getWorkflowSetupIssues,
+  READINESS_LABEL,
+} from "../../script/pathReadiness";
 import { SectionBlock } from "../../components/ui/SectionBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +50,7 @@ export function EditForm({
   const inputVariables = extractVariableNames(script);
   const visibleRules = script.steps.filter((r) => !isPlaceholderRule(r));
   const readiness = getPathReadiness(script);
+  const setupIssues = getWorkflowSetupIssues(script);
   const editingRule = editingRuleId
     ? script.steps.find((r) => r.id === editingRuleId)
     : undefined;
@@ -74,6 +79,19 @@ export function EditForm({
   const openEdit = (id: string) => {
     setEditingRuleId(id);
     setBuilderOpen(true);
+  };
+
+  const moveStep = (from: number, to: number) => {
+    if (to < 0 || to >= visibleRules.length) return;
+    const reordered = [...visibleRules];
+    const [step] = reordered.splice(from, 1);
+    reordered.splice(to, 0, step);
+    updateRules(reordered);
+  };
+
+  const removeStep = (step: Step, stepNumber: number) => {
+    if (!window.confirm(`Remove Step ${stepNumber} (${step.label})?`)) return;
+    updateRules(visibleRules.filter((item) => item.id !== step.id));
   };
 
   return (
@@ -115,7 +133,7 @@ export function EditForm({
               />
             </label>
             <label className="script-header-field">
-              <span>Target</span>
+              <span>Phone to call</span>
               <Input
                 type="tel"
                 value={script.setup.target}
@@ -125,7 +143,7 @@ export function EditForm({
               />
             </label>
             <label className="script-header-field script-header-field-narrow">
-              <span>Timeout</span>
+              <span>Max wait between prompts</span>
               <div className="script-header-timeout">
                 <Input
                   type="number"
@@ -167,20 +185,35 @@ export function EditForm({
       </header>
 
       <div className="editor-body">
+        {readiness === "needs-setup" && setupIssues.length > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+            <p className="text-sm font-medium">Finish setup before running</p>
+            <ul className="mt-1 list-disc pl-5 text-sm text-muted-foreground">
+              {setupIssues.map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <SectionBlock
           index="01"
-          title="Path Editor"
-          description="The Path is the route this Workflow follows. Each Step has a When (what starts it) and a Then (what Pathline does)."
+          title="Steps"
+          description="Build the call one instruction at a time: When the IVR says something, Then Pathline acts."
           wide
         >
           <div className="rule-card-list">
-            {visibleRules.map((rule) => (
+            {visibleRules.map((rule, index) => (
               <RuleCard
                 key={rule.id}
                 rule={rule}
+                stepNumber={index + 1}
                 readOnly={readOnly}
                 onEdit={() => openEdit(rule.id)}
-                onRemove={() => updateRules(script.steps.filter((r) => r.id !== rule.id))}
+                onRemove={() => removeStep(rule, index + 1)}
+                onMoveUp={() => moveStep(index, index - 1)}
+                onMoveDown={() => moveStep(index, index + 1)}
+                canMoveUp={index > 0}
+                canMoveDown={index < visibleRules.length - 1}
               />
             ))}
           </div>
@@ -214,8 +247,8 @@ export function EditForm({
 
         <SectionBlock
           index="02"
-          title="Inputs"
-          description="Values you provide when you Run this Workflow — never stored with the Workflow."
+          title="Inputs for Run"
+          description="Values you enter when you Run this Workflow — never stored with the Workflow."
         >
           {inputVariables.length === 0 ? (
             <p className="field-hint">

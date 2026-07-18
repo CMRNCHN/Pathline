@@ -4,18 +4,18 @@ import type { StepProps } from "../types";
 const INTENTS: { value: RuleWizardType; label: string; hint: string }[] = [
   {
     value: "capture",
-    label: "Listen & save",
-    hint: "The IVR speaks → you save what it said",
+    label: "Save what the IVR says",
+    hint: "When a phrase matches → save the response",
   },
   {
     value: "navigate",
-    label: "Navigate menu",
-    hint: "Press keys or speak to move through the IVR",
+    label: "Press keys, speak, or wait",
+    hint: "When a phrase matches → take one action",
   },
   {
     value: "respond",
-    label: "Send when asked",
-    hint: "The IVR asks → you send a value from the run",
+    label: "Send an Input",
+    hint: "When the IVR asks → send a Run value",
   },
   { value: "end", label: "End the call", hint: "Hang up when this step runs" },
 ];

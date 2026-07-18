@@ -225,10 +225,10 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
                   <SidebarMenuButton
                     isActive={view.category === "edit"}
                     onClick={() => onNavigate({ category: "edit", scriptId: activeId })}
-                    tooltip="Path Editor"
+                    tooltip="Edit Workflow"
                   >
                     <Pencil />
-                    <span>Path Editor</span>
+                    <span>Edit</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>

@@ -1,12 +1,24 @@
 /**
  * Product vocabulary (UI):
- *   Pathline  — product / platform brand
- *   Workflow  — primary user-facing object (this document)
- *   Path      — execution logic inside a Workflow (Path Editor)
- *   Run       — one execution of a Workflow
+ *   Pathline — product / platform brand
+ *   Workflow — the primary user-facing document
+ *   Step     — one numbered instruction in a Workflow
+ *   When     — the cue and phrase that starts a Step
+ *   Then     — the action and value Pathline performs
+ *   Input    — a value supplied for a Run
+ *   Run      — one execution of a Workflow
  *
- * Types keep "Path*" names for the internal Path concept and on-disk shape.
+ * "Path", "Rule", and "Script" remain internal compatibility names only.
  */
+export const PRODUCT_TERMS = {
+  brand: "Pathline",
+  workflow: "Workflow",
+  step: "Step",
+  when: "When",
+  then: "Then",
+  input: "Input",
+  run: "Run",
+} as const;
 export const SCRIPT_VERSION = 2 as const;
 
 export type FlowAction = "trigger" | "extract" | "validate" | "end" | "pass";

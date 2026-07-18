@@ -74,7 +74,7 @@ function buildTiles(status: RuntimeStatus): Tile[] {
     {
       id: "templates",
       icon: Sparkles,
-      label: "Scripts",
+      label: "Workflows",
       value:
         status.templates === "loading"
           ? "Loading…"
@@ -87,7 +87,7 @@ function buildTiles(status: RuntimeStatus): Tile[] {
     {
       id: "dtmf",
       icon: Hash,
-      label: "DTMF",
+      label: "Keypad",
       value: "Active",
       state: "ok",
       delay: 120,

@@ -55,7 +55,7 @@ export function RuleWizard({ existingLabels, editingRule, onSave, onCancel }: Ru
         </Button>
       </div>
 
-      {step !== "intent" && step !== "summary" && (
+      {step !== "intent" && (
         <Button
           type="button"
           variant="link"
@@ -67,7 +67,7 @@ export function RuleWizard({ existingLabels, editingRule, onSave, onCancel }: Ru
         </Button>
       )}
 
-      {intent && step !== "intent" && step !== "summary" && (
+      {intent && step !== "intent" && (
         <p className="rule-wizard-step-indicator">
           Step {progress.current} of {progress.total}
         </p>

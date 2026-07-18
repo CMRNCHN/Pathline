@@ -27,7 +27,7 @@ export function viewLabel(view: AppView): string {
     case "settings":
       return "Settings";
     case "edit":
-      return "Path Editor";
+      return "Edit Workflow";
     case "run":
       return "Run";
   }

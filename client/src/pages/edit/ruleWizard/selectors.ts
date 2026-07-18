@@ -7,6 +7,7 @@ import type {
 import {
   buildRuleFromDraft,
   draftSummary,
+  uniqueLabel,
   validateDraft,
 } from "../../../script/ruleIntent";
 import { CUSTOM_PRESET_ID, findRespondPreset } from "../../../script/rulePresets";
@@ -70,20 +71,26 @@ export function canProceedFromStep(state: WizardState): boolean {
   const { step, capture, navigate, respond } = state;
   switch (step) {
     case "capture-info":
-      return Boolean(capture.presetId);
+      return Boolean(
+        capture.presetId &&
+          capture.trigger.trim() &&
+          (!capture.save || capture.output.trim())
+      );
     case "capture-trigger":
       return Boolean(capture.trigger.trim());
     case "capture-save":
       return capture.save ? Boolean(capture.output.trim()) : true;
     case "navigate-mode":
-      return true;
+      return navigate.mode === "wait"
+        ? navigate.waitSeconds >= 1
+        : Boolean(navigate.trigger.trim() && navigate.value.trim());
     case "navigate-action":
       if (navigate.mode === "wait") return navigate.waitSeconds >= 1;
       return Boolean(navigate.value.trim());
     case "navigate-trigger":
       return Boolean(navigate.trigger.trim());
     case "respond-info":
-      return Boolean(respond.presetId);
+      return Boolean(respond.presetId && respond.variable.trim() && respond.trigger.trim());
     case "respond-delivery":
       return true;
     case "respond-variable":
@@ -105,7 +112,11 @@ export function buildRuleFromState(
 ) {
   const draft = selectDraft(state);
   if (!draft) throw new Error("No draft");
-  return buildRuleFromDraft(draft, existingLabels, existingId, previousLabel);
+  const step = buildRuleFromDraft(draft, existingLabels, existingId, previousLabel);
+  const customLabel = state.label.trim();
+  return customLabel
+    ? { ...step, label: uniqueLabel(customLabel, existingLabels, previousLabel) }
+    : step;
 }
 
 export function summaryEditStep(state: WizardState, field: "trigger" | "action" | "input" | "output"): WizardStep | null {

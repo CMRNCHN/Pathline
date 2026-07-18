@@ -94,7 +94,7 @@ export function SettingsPage() {
         </SettingsCard>
 
         <SettingsCard title="Health" icon={Activity}>
-          <StatusRow label="DTMF input" value="Active — required for a Run" ok />
+          <StatusRow label="Phone keypad" value="Active — required for a Run" ok />
           <StatusRow label="Voice input" value="Planned — not used yet" />
           <StatusRow label="API endpoint" value="/api → :8000" ok />
           <StatusRow label="Workflows loaded" value={`${paths.length}`} ok={paths.length > 0} />

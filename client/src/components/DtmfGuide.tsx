@@ -66,7 +66,7 @@ export function DtmfGuide({ sequence, trigger, onComplete }: DtmfGuideProps) {
         </span>
       </div>
 
-      <div className="dtmf-guide-track" aria-label="Full DTMF sequence">
+      <div className="dtmf-guide-track" aria-label="Full key sequence">
         {digits.map((digit, i) => (
           <span
             key={`${digit}-${i}`}

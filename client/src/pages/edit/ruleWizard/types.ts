@@ -39,6 +39,7 @@ export interface RespondState {
 export interface WizardState {
   intent: RuleWizardType | null;
   step: WizardStep;
+  label: string;
   capture: CaptureState;
   navigate: NavigateState;
   respond: RespondState;
@@ -59,6 +60,7 @@ export type WizardAction =
   | { type: "SET_RESPOND_VARIABLE"; variable: string }
   | { type: "SET_RESPOND_DELIVERY"; delivery: RespondDelivery }
   | { type: "SET_RESPOND_TRIGGER"; trigger: string }
+  | { type: "SET_LABEL"; label: string }
   | { type: "NEXT" }
   | { type: "BACK" }
   | { type: "RESET" }

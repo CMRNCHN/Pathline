@@ -71,6 +71,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
     case "SET_RESPOND_TRIGGER":
       return { ...state, respond: { ...state.respond, trigger: action.trigger } };
 
+    case "SET_LABEL":
+      return { ...state, label: action.label };
+
     case "NEXT":
       return { ...state, step: nextStep(state) };
 

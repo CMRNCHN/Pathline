@@ -1,7 +1,9 @@
 import type { RuleSummary } from "../../../script/ruleIntent";
-import { ruleFieldLabel, triggerLabelForIntent } from "../../../script/ruleCopy";
+import { buildRuleFromDraft } from "../../../script/ruleIntent";
+import { stepDisplay } from "../../../script/stepDisplay";
 import { Button } from "@/components/ui/button";
-import { summaryEditStep } from "./selectors";
+import { Input } from "@/components/ui/input";
+import { selectDraft } from "./selectors";
 import type { StepProps } from "./types";
 
 interface SummaryProps extends StepProps {
@@ -11,92 +13,52 @@ interface SummaryProps extends StepProps {
   onCancel: () => void;
 }
 
-function SummaryRow({
-  label,
-  value,
-  editable,
-  onEdit,
-}: {
-  label: string;
-  value: string;
-  editable?: boolean;
-  onEdit?: () => void;
-}) {
+function Slot({ children, mono = false }: { children: string; mono?: boolean }) {
   return (
-    <div className="rule-wizard-summary-row">
-      <div className="rule-wizard-summary-row-head">
-        <span className="rule-wizard-summary-key">{label}</span>
-        {editable && onEdit && (
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="rule-wizard-summary-edit h-auto p-0"
-            onClick={onEdit}
-          >
-            Edit
-          </Button>
-        )}
-      </div>
-      <span className="rule-wizard-summary-val">{value}</span>
-    </div>
+    <span
+      className={`inline-flex min-h-9 items-center rounded-md border bg-muted/45 px-3 py-1.5 text-sm ${
+        mono ? "font-mono" : ""
+      }`}
+    >
+      {children || "—"}
+    </span>
   );
 }
 
-export function Summary({ state, dispatch, summary, editing, onSave, onCancel }: SummaryProps) {
-  const goEdit = (field: "trigger" | "action" | "input" | "output") => {
-    const step = summaryEditStep(state, field);
-    if (step) dispatch({ type: "GO_TO_STEP", step });
-  };
-
-  const intent = state.intent;
-  const canEditTrigger = intent === "capture" || intent === "navigate" || intent === "respond";
-  const canEditAction = intent === "capture" || intent === "navigate" || intent === "respond";
-  const canEditInput = intent === "respond";
-  const canEditOutput = intent === "capture" && state.capture.save;
+export function Summary({ state, dispatch, editing, onSave, onCancel }: SummaryProps) {
+  const draft = selectDraft(state);
+  if (!draft) return null;
+  const preview = stepDisplay(buildRuleFromDraft(draft, []));
+  const label = state.label || preview.label;
 
   return (
     <div className="rule-builder-step">
-      <p className="rule-builder-prompt">Review rule</p>
-      <div className="rule-wizard-summary">
-        <SummaryRow label="Type" value={summary.typeLabel} />
-        {summary.trigger && summary.trigger !== "—" && (
-          <SummaryRow
-            label={triggerLabelForIntent(intent)}
-            value={summary.trigger}
-            editable={canEditTrigger}
-            onEdit={() => goEdit("trigger")}
-          />
-        )}
-        <SummaryRow
-          label={ruleFieldLabel.action}
-          value={summary.action}
-          editable={canEditAction}
-          onEdit={() => goEdit("action")}
-        />
-        {summary.inputVariable && (
-          <SummaryRow
-            label={ruleFieldLabel.runValue}
-            value={summary.inputVariable}
-            editable={canEditInput}
-            onEdit={() => goEdit("input")}
-          />
-        )}
-        {summary.outputVariable && (
-          <SummaryRow
-            label={ruleFieldLabel.saveAs}
-            value={summary.outputVariable}
-            editable={canEditOutput}
-            onEdit={() => goEdit("output")}
-          />
-        )}
+      <p className="rule-builder-prompt">Review Step</p>
+      <div className="rounded-lg border bg-background/55 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <strong className="text-xs uppercase tracking-widest text-muted-foreground">When</strong>
+          <Slot>{preview.cue}</Slot>
+          <Slot>{preview.match}</Slot>
+          <strong className="ml-1 text-xs uppercase tracking-widest text-muted-foreground">Then</strong>
+          <Slot>{preview.action}</Slot>
+          {preview.value && <Slot mono>{preview.value}</Slot>}
+        </div>
       </div>
+      <label className="rule-builder-field">
+        <span>Label Step</span>
+        <Input
+          value={label}
+          onChange={(event) => dispatch({ type: "SET_LABEL", label: event.target.value })}
+          placeholder="Zipcode"
+        />
+        <span className="field-hint">A short name you will recognize in the Step list and Run log.</span>
+      </label>
       <div className="rule-builder-actions">
         <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="button" size="sm" onClick={onSave}>
-          {editing ? "Save rule" : "Save rule"}
+          {editing ? "Save Step" : "Add Step"}
         </Button>
       </div>
     </div>

@@ -9,7 +9,7 @@ export const READINESS_LABEL: Record<PathReadiness, string> = {
   "needs-setup": "Needs setup",
 };
 
-/** Is this Path runnable as-is: has a name, a target, and at least one real Step. */
+/** Is this Workflow runnable as-is: has a phone number and at least one real Step. */
 export function getPathReadiness(path: PathDocument): PathReadiness {
   const name = path.setup.name.trim();
   const target = path.setup.target.trim();
@@ -18,4 +18,11 @@ export function getPathReadiness(path: PathDocument): PathReadiness {
   if (!name && !target && realSteps.length === 0) return "draft";
   if (!target || realSteps.length === 0) return "needs-setup";
   return "ready";
+}
+
+export function getWorkflowSetupIssues(workflow: PathDocument): string[] {
+  const issues: string[] = [];
+  if (!workflow.setup.target.trim()) issues.push("Add a phone number to call");
+  if (!workflow.steps.some((step) => !isPlaceholderRule(step))) issues.push("Add at least one Step");
+  return issues;
 }

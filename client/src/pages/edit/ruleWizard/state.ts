@@ -34,6 +34,7 @@ export function emptyWizardState(): WizardState {
   return {
     intent: null,
     step: "intent",
+    label: "",
     capture: { ...emptyCapture },
     navigate: { ...emptyNavigate },
     respond: { ...emptyRespond },
@@ -44,6 +45,7 @@ function stateFromDraft(draft: WizardDraft, openAtSummary: boolean): WizardState
   const base: WizardState = {
     intent: draft.intent,
     step: openAtSummary ? "summary" : firstStepForType(draft.intent),
+    label: "",
     capture: { ...emptyCapture },
     navigate: { ...emptyNavigate },
     respond: { ...emptyRespond },
@@ -91,9 +93,9 @@ function stateFromDraft(draft: WizardDraft, openAtSummary: boolean): WizardState
 
 export function initialWizardState(editingRule?: Step): WizardState {
   if (!editingRule) return emptyWizardState();
-  return stateFromDraft(ruleToDraft(editingRule), true);
+  return { ...stateFromDraft(ruleToDraft(editingRule), true), label: editingRule.label };
 }
 
 export function wizardStateFromRule(rule: Step, openAtSummary = false): WizardState {
-  return stateFromDraft(ruleToDraft(rule), openAtSummary);
+  return { ...stateFromDraft(ruleToDraft(rule), openAtSummary), label: rule.label };
 }

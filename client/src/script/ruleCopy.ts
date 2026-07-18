@@ -1,46 +1,40 @@
-/**
- * User-facing labels for rule types and data flow.
- *
- * Direction:
- *   Listen & save  — IVR speaks → script stores a field
- *   Send when asked — you supply at run time → IVR receives it
- *   Navigate menu  — script sends keys/speech to move the IVR
- */
+/** Plain-language copy for the fixed When → Then Step shape. */
 
 export const ruleTypeLabel = {
-  capture: "Listen & save",
-  captureListenOnly: "Listen only",
-  respond: "Send when asked",
-  navigate: "Navigate menu",
+  capture: "Save what you hear",
+  captureListenOnly: "Keep listening",
+  respond: "Send an Input",
+  navigate: "Press keys or speak",
   end: "End the call",
 } as const;
 
 export const ruleFieldLabel = {
-  /** IVR phrase that activates the rule */
-  whenIvrSays: "When the IVR says",
-  whenIvrAsks: "When the IVR asks",
-  whenYouHear: "When you hear",
-  /** Capture: name for text saved from the IVR */
+  cue: "IVR says",
+  when: "When",
+  then: "Then",
+  whenIvrSays: "Phrase to match",
+  whenIvrAsks: "Phrase to match",
+  whenYouHear: "Phrase to match",
   saveAs: "Save as",
-  /** Respond: name for a value the caller enters before the run */
-  runValue: "Run value",
+  runValue: "Input",
   action: "Then",
+  label: "Label",
 } as const;
 
 export const ruleFieldHint = {
-  saveAs: "Name for what the IVR says — filled in automatically during the call.",
-  runValue: "Name only in the script — you enter the real value when you start a run.",
-  captureTrigger: "Words the IVR speaks before you save (e.g. “Your balance is”).",
-  respondTrigger: "Words the IVR uses when it wants input (e.g. “Enter your account number”).",
-  navigateTrigger: "Menu prompt that means you should press or speak next.",
+  saveAs: "Name the value Pathline saves from the IVR.",
+  runValue: "Name the value you enter when you start a Run.",
+  captureTrigger: "The words Pathline should listen for, such as “Your balance is”.",
+  respondTrigger: "The words Pathline should listen for, such as “Enter your account number”.",
+  navigateTrigger: "The words that mean Pathline should act.",
 } as const;
 
 export const outputsSection = {
   title: "Outputs",
-  description: "What this script expects to receive from you and save from the IVR.",
+  description: "What this Workflow receives from you and saves from the IVR.",
   runValues: "You provide at run time",
   savedFromIvr: "Saved from the IVR",
-  empty: "Add rules to declare run values and fields saved from the IVR.",
+  empty: "Add Steps to declare Inputs and values saved from the IVR.",
 } as const;
 
 export const runCopy = {
@@ -52,14 +46,5 @@ export const runCopy = {
 export function triggerLabelForIntent(
   intent: "capture" | "navigate" | "respond" | "end" | null
 ): string {
-  switch (intent) {
-    case "capture":
-      return ruleFieldLabel.whenIvrSays;
-    case "respond":
-      return ruleFieldLabel.whenIvrAsks;
-    case "navigate":
-      return ruleFieldLabel.whenYouHear;
-    default:
-      return "When";
-  }
+  return intent === "end" ? "When" : ruleFieldLabel.cue;
 }
