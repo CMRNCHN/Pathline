@@ -1,10 +1,10 @@
 [package]
 name = "pathline-desktop"
 version = "0.1.0"
-description = "Pathline desktop client"
+description = "Privacy-first on-device call orchestration"
 authors = ["Pathline"]
-license = ""
-repository = ""
+license = "MIT"
+repository = "https://github.com/pathline-ai/pathline"
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -30,3 +30,11 @@ rsiprtp = "0.4.1"
 # Async runtime primitives for the background SIP/RTP task. Tauri already pulls tokio;
 # we declare the exact features the bridge uses.
 tokio = { version = "1", features = ["net", "sync", "time", "macros", "rt"] }
+whisper-rs = "0.16.0"
+sha2 = "0.10"
+aes-gcm = "0.10.3"
+base64 = "0.22.1"
+rand = "0.9.5"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", features = ["apple-native"] }

@@ -11,6 +11,7 @@
     "desktop:dev": "./scripts/desktop-dev.sh",
     "desktop:build": "npm run build --prefix client && npm run build --prefix desktop",
     "desktop:deps:linux": "./scripts/install-linux-tauri-deps.sh",
+    "ci:verify": "./scripts/ci-verify.sh",
     "install": "./scripts/install.sh",
     "install:mac": "./scripts/install-macos.sh",
     "install:linux": "./scripts/install-linux-desktop.sh"

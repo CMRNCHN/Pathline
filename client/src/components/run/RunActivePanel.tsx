@@ -8,11 +8,11 @@ import {
   runLogToCallEvents,
 } from "@/callstate";
 import type { CallEvent } from "@/callstate";
-import type { RunSession } from "@/engine/runSession";
+import type { RunLifecycle, RunSession } from "@/engine/runSession";
+import { recordRun } from "@/history/runHistory";
 import { isSpeechRecognitionAvailable } from "@/localStt";
 import { createSttEngine } from "@/stt";
 import { AudioSession } from "@/transport/AudioSession";
-import { createAppTransport } from "@/transport/createAppTransport";
 import type { RunState } from "@/script/runEngine";
 import type { Path } from "@/script/types";
 import { scriptDisplayName } from "@/script/storage";
@@ -35,6 +35,17 @@ interface RunActivePanelProps {
   ) => void;
 }
 
+function listeningHint(automated: boolean, autoListen: boolean): string {
+  if (automated) {
+    return autoListen
+      ? "Listening locally — IVR phrases match and keys are pressed automatically."
+      : "Paste what you hear, or enable auto-listen. Keys are pressed automatically.";
+  }
+  return autoListen
+    ? "Listening locally — paste or speak IVR phrases to match your Workflow."
+    : "Paste what you hear, or enable auto-listen.";
+}
+
 export function RunActivePanel({
   runSession,
   script,
@@ -52,11 +63,13 @@ export function RunActivePanel({
   const liveStatus = projectLiveStatus(call, path);
   const [autoListen, setAutoListen] = useState(script.setup.speechPreferences.autoListen);
   const [listenError, setListenError] = useState<string | null>(null);
-  const debounceRef = useRef<number | undefined>(undefined);
+  const [lifecycle, setLifecycle] = useState<RunLifecycle>(() => runSession.getLifecycle());
+  const capturedRef = useRef(false);
+  const historyRef = useRef(false);
+  const startedAtRef = useRef(new Date().toISOString());
 
-  // Reuse the app transport so onAudio subscribes to the same SIP bridge that
-  // RunSession injects DTMF through. Null in web-only manual mode.
-  const transport = useMemo(() => createAppTransport(), []);
+  // Reuse the exact transport owned by RunSession for audio and lifecycle.
+  const transport = useMemo(() => runSession.getTransport(), [runSession]);
   const audioSession = useMemo(
     () => (transport ? new AudioSession(transport) : null),
     [transport]
@@ -70,27 +83,13 @@ export function RunActivePanel({
 
   const applyPhraseNow = useCallback(
     async (text: string) => {
-      const result = await runSession.processPhrase(text);
+      await runSession.processPhrase(text);
       syncFromSession();
-
-      if (result.shouldComplete) {
-        const state = runSession.getState();
-        const { collectedHash, events } = await runSession.finalizeCollected();
-        onCallStateCaptured(state.collected, collectedHash, events);
-      }
     },
-    [runSession, syncFromSession, onCallStateCaptured]
+    [runSession, syncFromSession]
   );
 
-  const applyPhraseDebounced = useCallback(
-    (text: string) => {
-      window.clearTimeout(debounceRef.current);
-      debounceRef.current = window.setTimeout(() => {
-        void applyPhraseNow(text);
-      }, 150);
-    },
-    [applyPhraseNow]
-  );
+  useEffect(() => runSession.onLifecycle(setLifecycle), [runSession]);
 
   useEffect(() => {
     if (!autoListen || run.completed) return;
@@ -108,13 +107,83 @@ export function RunActivePanel({
 
     // Bridge-backed runs: feed transport onAudio PCM into the engine.
     // Web Speech (browser dev) captures its own mic, so it starts standalone.
-    if (audioSession && engine.source !== "web_speech") {
-      return audioSession.runStt(engine, applyPhraseDebounced, (msg) => setListenError(msg));
+    let phraseQueue = Promise.resolve();
+    const handlePhrase = (phrase: string) => {
+      phraseQueue = phraseQueue
+        .then(() => applyPhraseNow(phrase))
+        .catch((error: unknown) => {
+          setListenError(error instanceof Error ? error.message : "Phrase processing failed");
+        });
+    };
+
+    engine.start(handlePhrase, (msg) => setListenError(msg));
+    const detach =
+      audioSession && engine.source !== "web_speech"
+        ? audioSession.attach((pcm, sampleRate) => engine.pushAudio(pcm, sampleRate))
+        : () => {};
+    let finalized = false;
+    const flushAndStop = async () => {
+      if (finalized) return;
+      finalized = true;
+      detach();
+      const flushable = engine as typeof engine & {
+        flush?: () => void;
+        whenIdle?: () => Promise<void>;
+      };
+      flushable.flush?.();
+      await flushable.whenIdle?.();
+      await phraseQueue;
+      engine.stop();
+      syncFromSession();
+    };
+    runSession.setBeforeFinalize(flushAndStop);
+
+    return () => {
+      runSession.setBeforeFinalize(undefined);
+      if (!finalized) {
+        detach();
+        engine.stop();
+      }
+    };
+  }, [autoListen, run.completed, applyPhraseNow, automated, audioSession, runSession, syncFromSession]);
+
+  useEffect(() => {
+    syncFromSession();
+    if (lifecycle.phase === "completed" && !capturedRef.current) {
+      capturedRef.current = true;
+      void runSession.finalizeCollected().then(({ collectedHash, events }) => {
+        onCallStateCaptured(runSession.getState().collected, collectedHash, events);
+      });
     }
 
-    engine.start(applyPhraseDebounced, (msg) => setListenError(msg));
-    return () => engine.stop();
-  }, [autoListen, run.completed, applyPhraseDebounced, automated, audioSession]);
+    if (
+      (lifecycle.phase === "failed" || lifecycle.phase === "abandoned") &&
+      !historyRef.current
+    ) {
+      historyRef.current = true;
+      void runSession.getLedgerDigest().then((ledgerHead) =>
+        recordRun({
+          runId: sessionId,
+          pathId: script.id,
+          pathName: scriptDisplayName(script),
+          outcome: lifecycle.phase === "failed" ? "failed" : "abandoned",
+          startedAt: startedAtRef.current,
+          completedAt: new Date().toISOString(),
+          captured: runSession.getState().collected,
+          ledgerEvents: runSession.getEvents(),
+          ledgerHead,
+          uploadState: "not-requested",
+        })
+      );
+    }
+  }, [
+    lifecycle,
+    onCallStateCaptured,
+    runSession,
+    script,
+    sessionId,
+    syncFromSession,
+  ]);
 
   const handleManualMatch = () => {
     if (!ivrText.trim()) return;
@@ -152,6 +221,36 @@ export function RunActivePanel({
           </Alert>
         )}
 
+        {transport?.mode === "simulator" && (
+          <Alert>
+            <AlertTitle>Development simulator</AlertTitle>
+            <AlertDescription>
+              No real call is being placed. Disable VITE_SIMULATE_TRANSPORT for truthful manual
+              fallback.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {(lifecycle.phase === "connecting" || lifecycle.phase === "active") && automated && (
+          <Alert>
+            <AlertTitle>
+              {lifecycle.phase === "connecting" ? "Connecting call" : "Call active"}
+            </AlertTitle>
+            <AlertDescription>
+              Native audio and transcription remain on this device.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {(lifecycle.phase === "failed" || lifecycle.phase === "abandoned") && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {lifecycle.phase === "failed" ? "Call failed" : "Call ended"}
+            </AlertTitle>
+            <AlertDescription>{lifecycle.detail ?? "The Run did not complete."}</AlertDescription>
+          </Alert>
+        )}
+
         <Tabs defaultValue="steps">
           <TabsList>
             <TabsTrigger value="steps">Steps</TabsTrigger>
@@ -161,13 +260,7 @@ export function RunActivePanel({
 
           <TabsContent value="steps" className="space-y-4 pt-4">
             <p className="text-sm text-muted-foreground">
-              {automated
-                ? autoListen
-                  ? "Listening locally — IVR phrases match and keys are pressed automatically."
-                  : "Paste what you hear, or enable auto-listen. Keys are pressed automatically."
-                : autoListen
-                  ? "Listening locally — paste or speak IVR phrases to match your Workflow."
-                  : "Paste what you hear, or enable auto-listen."}
+              {listeningHint(automated, autoListen)}
             </p>
 
             {listenError && (
@@ -221,6 +314,17 @@ export function RunActivePanel({
                 <AlertTitle>Complete</AlertTitle>
                 <AlertDescription>Run complete — encrypted callstate submitted.</AlertDescription>
               </Alert>
+            )}
+
+            {(lifecycle.phase === "connecting" || lifecycle.phase === "active") && automated && (
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full"
+                onClick={() => void runSession.hangup()}
+              >
+                End call
+              </Button>
             )}
           </TabsContent>
 

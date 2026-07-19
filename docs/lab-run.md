@@ -18,22 +18,22 @@ no softphone, no manual paste.
 The desktop bridge carries the call audio itself and feeds it to local STT —
 you do **not** register a softphone or paste phrases in the primary flow.
 
-> **Current status on `main`:** SIP/RTP, audio delivery, phrase matching, and
-> keypad injection are implemented and unit/fixture tested, but the Tauri shell
-> does not yet provide the real `window.__pathlineWhisper` backend or a bundled
-> Whisper model. Until that lands, desktop runs fail closed to manual phrase
-> entry. The lab dialplan also cannot currently traverse the IVR:
-> `extensions_lab.conf` jumps to nonexistent contexts and defines digit `1`
-> twice in the same context. Finally, SIP failure/disconnect events are not yet
-> connected to Run termination or final STT flushing. The SIP bridge still
-> needs its first recorded live Asterisk end-to-end proof; unit tests are not a
-> substitute for that acceptance run.
+> **Current status:** SIP/RTP, native Whisper, final STT flushing, lifecycle
+> outcomes, phrase matching, and keypad injection are implemented and locally
+> tested. `lab-verify-flow.sh` validates the loaded dialplan and completes an
+> authenticated SIP/TLS IVR traversal to remote BYE. Production dialing fails
+> closed without SRTP unless `PATHLINE_SIP_PROFILE=lab` on loopback. The
+> remaining operator gate is one recorded interactive Tauri GUI run through
+> real Asterisk media plus encrypted API submission — see
+> `docs/production-acceptance.md`.
 
 ## Prerequisites
 
 - Docker (optional — native Asterisk fallback if Docker build fails)
 - Node.js 20+ and Python 3.12+
 - Rust toolchain (per `desktop/src-tauri/rust-toolchain.toml`) for the Tauri shell
+- CMake (required to compile the bundled whisper.cpp runtime)
+- macOS 10.15+ for packaged desktop builds (required by whisper.cpp)
 - On Linux, Tauri system libraries — `./scripts/install-linux-tauri-deps.sh`
   (macOS-first; see `docs/desktop-sip-stack.md`)
 
@@ -56,8 +56,13 @@ Credentials are written to `lab/asterisk/generated/credentials.env` (gitignored)
 **2. Run the desktop app** (owns the call):
 
 ```bash
+./desktop/src-tauri/resources/models/fetch-model.sh
 npm run desktop:dev
 ```
+
+The repository includes a pinned model manifest and fetch script. The model is
+accepted only when its SHA-256 matches the bundled manifest; a missing or
+invalid model blocks automated mode before dialing.
 
 The desktop shell starts its own API sidecar if one is not already healthy,
 then launches the Tauri window. The `rsiprtp` bridge reads SIP host and

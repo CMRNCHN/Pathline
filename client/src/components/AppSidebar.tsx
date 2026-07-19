@@ -20,6 +20,7 @@ import { normalizeScript } from "@/script/compile";
 import type { AppView } from "@/navigation";
 import { loadRunHistory, subscribeRunHistory } from "@/history/runHistory";
 import { isTauriApp } from "@/transport/createAppTransport";
+import { fetchHealth } from "@/api";
 import {
   Sidebar,
   SidebarContent,
@@ -61,8 +62,8 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
     let cancelled = false;
     const tick = async () => {
       try {
-        const res = await fetch("/api/health");
-        if (!cancelled) setApiOk(res.ok);
+        await fetchHealth();
+        if (!cancelled) setApiOk(true);
       } catch {
         if (!cancelled) setApiOk(false);
       }

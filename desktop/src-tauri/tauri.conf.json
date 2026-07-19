@@ -20,12 +20,21 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8000 https:; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "Privacy-first on-device call orchestration",
+    "longDescription": "Pathline automates permitted phone workflows with native SIP, local speech recognition, and encrypted client-mediated status storage.",
+    "copyright": "Copyright © 2026 Pathline",
+    "resources": {
+      "resources/models/ggml-tiny.en.bin": "models/ggml-tiny.en.bin",
+      "resources/models/model-manifest.json": "models/model-manifest.json",
+      "resources/models/MODEL-LICENSE.txt": "models/MODEL-LICENSE.txt"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -35,6 +44,9 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
     }
   }
 }

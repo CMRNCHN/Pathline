@@ -12,7 +12,7 @@ import { SectionBlock } from "../../components/ui/SectionBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RuleWizard } from "./ruleWizard/RuleWizard";
+import { InlineStepRow } from "./InlineStepRow";
 import { RuleCard } from "./RuleCard";
 import { isPlaceholderRule } from "../../script/ruleIntent";
 
@@ -41,44 +41,27 @@ export function EditForm({
   onDelete,
   onTest,
 }: EditFormProps) {
-  const [builderOpen, setBuilderOpen] = useState(false);
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [addingStep, setAddingStep] = useState(false);
 
   const patchSetup = (patch: Partial<PathDocument["setup"]>) =>
     onPatch({ setup: { ...script.setup, ...patch } });
 
   const inputVariables = extractVariableNames(script);
   const visibleRules = script.steps.filter((r) => !isPlaceholderRule(r));
+  const stepLabels = visibleRules.map((item) => item.label);
   const readiness = getPathReadiness(script);
   const setupIssues = getWorkflowSetupIssues(script);
-  const editingRule = editingRuleId
-    ? script.steps.find((r) => r.id === editingRuleId)
-    : undefined;
 
   const updateRules = (steps: Step[]) => onPatch(withSyncedRules(script, steps));
 
-  const closeBuilder = () => {
-    setBuilderOpen(false);
-    setEditingRuleId(null);
-  };
-
-  const handleSaveRule = (rule: Step) => {
-    const baseRules = script.steps.filter((r) => !isPlaceholderRule(r));
-    const steps = editingRuleId
-      ? baseRules.map((r) => (r.id === editingRuleId ? rule : r))
-      : [...baseRules, rule];
-    updateRules(steps);
-    closeBuilder();
-  };
-
-  const openAdd = () => {
-    setEditingRuleId(null);
-    setBuilderOpen(true);
-  };
-
-  const openEdit = (id: string) => {
-    setEditingRuleId(id);
-    setBuilderOpen(true);
+  const handleSaveStep = (step: Step) => {
+    const existing = visibleRules.some((item) => item.id === step.id);
+    updateRules(
+      existing
+        ? visibleRules.map((item) => (item.id === step.id ? step : item))
+        : [...visibleRules, step]
+    );
+    setAddingStep(false);
   };
 
   const moveStep = (from: number, to: number) => {
@@ -203,44 +186,48 @@ export function EditForm({
         >
           <div className="rule-card-list">
             {visibleRules.map((rule, index) => (
-              <RuleCard
-                key={rule.id}
-                rule={rule}
-                stepNumber={index + 1}
-                readOnly={readOnly}
-                onEdit={() => openEdit(rule.id)}
-                onRemove={() => removeStep(rule, index + 1)}
-                onMoveUp={() => moveStep(index, index - 1)}
-                onMoveDown={() => moveStep(index, index + 1)}
-                canMoveUp={index > 0}
-                canMoveDown={index < visibleRules.length - 1}
-              />
+              readOnly ? (
+                <RuleCard key={rule.id} rule={rule} stepNumber={index + 1} />
+              ) : (
+                <InlineStepRow
+                  key={rule.id}
+                  step={rule}
+                  stepNumber={index + 1}
+                  existingLabels={stepLabels}
+                  onSave={handleSaveStep}
+                  onRemove={() => removeStep(rule, index + 1)}
+                  onMoveUp={() => moveStep(index, index - 1)}
+                  onMoveDown={() => moveStep(index, index + 1)}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < visibleRules.length - 1}
+                />
+              )
             ))}
           </div>
 
-          {visibleRules.length === 0 && !builderOpen && (
+          {visibleRules.length === 0 && !addingStep && (
             <p className="field-hint">No Steps yet. Add your first Step to define the call flow.</p>
           )}
 
-          {!readOnly && !builderOpen && (
+          {!readOnly && !addingStep && (
             <Button
               type="button"
               variant="secondary"
               size="sm"
               className="editor-table-add"
-              onClick={openAdd}
+              onClick={() => setAddingStep(true)}
             >
               + Add Step
             </Button>
           )}
 
-          {!readOnly && builderOpen && (
-            <RuleWizard
-              key={editingRuleId ?? "new"}
-              existingLabels={script.steps.map((r) => r.label)}
-              editingRule={editingRule}
-              onSave={handleSaveRule}
-              onCancel={closeBuilder}
+          {!readOnly && addingStep && (
+            <InlineStepRow
+              key="new-step"
+              stepNumber={visibleRules.length + 1}
+              existingLabels={stepLabels}
+              onSave={handleSaveStep}
+              onCancel={() => setAddingStep(false)}
             />
           )}
         </SectionBlock>

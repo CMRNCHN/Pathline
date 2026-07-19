@@ -32,5 +32,6 @@ if [[ -f "$CREDS" ]]; then
 fi
 
 # 3. Desktop app owns the call (foreground). Ctrl+C returns here.
+export PATHLINE_SIP_PROFILE=lab
 info "Launching desktop app (npm run desktop:dev) ..."
 exec npm run desktop:dev

@@ -21,7 +21,7 @@ import type { Path } from "../script/types";
 import { extractOutputRules, extractVariableNames } from "../script/compile";
 import { getActiveScript, mergeScripts } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
-import { recordRun } from "../history/runHistory";
+import { recordRun, updateRunUpload } from "../history/runHistory";
 import { useScriptStore } from "../store/ScriptStore";
 import { PageLayout } from "../components/ui/PageHeader";
 import { RunStepBar } from "../components/ui/RunStepBar";
@@ -93,6 +93,12 @@ function RunFlow({
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadFailed, setUploadFailed] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState<{
+    ciphertext: string;
+    nonce: string;
+    idempotencyKey: string;
+  } | null>(null);
   const [userId] = useState(() => generateUserId());
 
   const [targetNumber, setTargetNumber] = useState("");
@@ -184,29 +190,79 @@ function RunFlow({
     if (!token || !session) return;
     setLoading(true);
     setError(null);
+    const completedAt = new Date().toISOString();
     try {
       const encrypted = await encryptCallStatePayload({
         phase: "completed",
         fields: collected,
         transcript_hash: transcriptHash,
-        completed_at: new Date().toISOString(),
+        completed_at: completedAt,
       });
-
-      await submitEncryptedCallState(token, session.sessionId, encrypted.ciphertext, encrypted.nonce);
-
-      recordRun({
+      const upload = {
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        idempotencyKey: `callstate-${session.sessionId}`,
+      };
+      setPendingUpload(upload);
+      // Crash-safe ordering: persist local History, the audit chain, and the
+      // exact idempotent retry payload before attempting any network upload.
+      await recordRun({
         runId: session.sessionId,
         pathId: session.scriptId,
         pathName: session.scriptName,
         outcome: "completed",
         startedAt: session.startedAt,
-        completedAt: new Date().toISOString(),
+        completedAt,
         captured: collected,
+        ledgerEvents: callEvents,
+        ledgerHead: transcriptHash,
+        uploadState: "pending",
+        pendingUpload: upload,
       });
+
+      try {
+        await submitEncryptedCallState(
+          token,
+          session.sessionId,
+          encrypted.ciphertext,
+          encrypted.nonce,
+          upload.idempotencyKey
+        );
+        await updateRunUpload(session.sessionId, "uploaded");
+        setUploadFailed(false);
+      } catch (uploadError) {
+        const message = uploadError instanceof Error ? uploadError.message : "Encrypted upload failed";
+        await updateRunUpload(session.sessionId, "failed", message);
+        setUploadFailed(true);
+        setError(`${message}. The completed Run is saved locally and can be retried.`);
+      }
 
       setSession({ ...session, phase: "completed", collected, callEvents });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit Status");
+      setError(e instanceof Error ? e.message : "Failed to save completed Run locally");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRetryUpload = async () => {
+    if (!token || !session?.collected || !pendingUpload) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await submitEncryptedCallState(
+        token,
+        session.sessionId,
+        pendingUpload.ciphertext,
+        pendingUpload.nonce,
+        pendingUpload.idempotencyKey
+      );
+      await updateRunUpload(session.sessionId, "uploaded");
+      setUploadFailed(false);
+    } catch (retryError) {
+      const message = retryError instanceof Error ? retryError.message : "Encrypted upload retry failed";
+      await updateRunUpload(session.sessionId, "failed", message);
+      setError(`${message}. The completed Run remains saved locally.`);
     } finally {
       setLoading(false);
     }
@@ -354,6 +410,11 @@ function RunFlow({
         {session.phase === "completed" && (
           <Button type="button" variant="outline" onClick={handleExport}>
             Export
+          </Button>
+        )}
+        {session.phase === "completed" && uploadFailed && (
+          <Button type="button" variant="outline" onClick={() => void handleRetryUpload()} disabled={loading}>
+            Retry encrypted upload
           </Button>
         )}
         <Button type="button" variant="destructive" onClick={handleRevoke} disabled={loading}>

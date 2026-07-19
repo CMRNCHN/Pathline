@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client:
+    name: Client build + tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm run stt:fixture
+
+  api:
+    name: API tests + migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e packages/shared-python -e "services/api[test]"
+      - name: Run API tests
+        working-directory: services/api
+        env:
+          PATHLINE_ENV: development
+          JWT_SECRET: ci-jwt-secret-not-for-production
+          SESSION_PEPPER: ci-session-pepper-not-for-production
+          DATABASE_URL: sqlite+aiosqlite:///./ci-pathline.db
+          CORS_ALLOW_ORIGINS: http://127.0.0.1:3000
+        run: pytest -q
+      - name: Alembic upgrade head
+        working-directory: services/api
+        env:
+          PATHLINE_ENV: development
+          JWT_SECRET: ci-jwt-secret-not-for-production
+          SESSION_PEPPER: ci-session-pepper-not-for-production
+          DATABASE_URL: sqlite+aiosqlite:///./ci-migrate.db
+        run: alembic upgrade head
+
+  desktop:
+    name: Desktop Rust tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install CMake
+        run: brew install cmake
+      - name: Fetch pinned Whisper model
+        run: bash desktop/src-tauri/resources/models/fetch-model.sh
+      - name: Verify model checksum
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+          root = pathlib.Path("desktop/src-tauri/resources/models")
+          manifest = json.loads((root / "model-manifest.json").read_text())
+          digest = hashlib.sha256((root / manifest["filename"]).read_bytes()).hexdigest()
+          assert digest == manifest["sha256"], (digest, manifest["sha256"])
+          print("model checksum ok", digest)
+          PY
+      - name: Cargo test
+        working-directory: desktop/src-tauri
+        env:
+          PATHLINE_SIP_PROFILE: lab
+        run: cargo test
+
+  lab-static:
+    name: Lab static verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static lab + desktop assertions
+        run: SKIP_LAB_PREFLIGHT=1 bash scripts/lab-verify-flow.sh
+      - name: Script syntax
+        run: |
+          bash -n scripts/lab-verify-flow.sh
+          bash -n scripts/lab-desktop.sh
+          bash -n scripts/ci-verify.sh

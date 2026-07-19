@@ -3,29 +3,30 @@
 Verification of the frozen desktop automation loop (dial → local STT → DTMF →
 encrypted callstate) from the plan `docs/plans/2026-07-14-desktop-sip-stt-e2e.md`.
 
-**Environment reality:** these notes were produced on a **headless Linux cloud
-VM** — no Docker/Asterisk, no display for the Tauri webview, no bundled Whisper
-model. The verification is therefore split into (1) rigorous **code-level +
-automatable** proof that runs headlessly, and (2) the **live GUI run** that is
-**deferred to a macOS/Docker host**. Nothing below softens the privacy posture:
+**Environment reality:** the latest native checks were run on macOS with the
+pinned Whisper tiny.en model, but without a live Asterisk/API acceptance run.
+Verification is split into (1) rigorous **code-level + automatable** proof,
+including real local model inference, and (2) the **live GUI run** that remains
+deferred. Nothing below softens the privacy posture:
 desktop is the primary automation path; softphone + manual paste stays
 legacy-only (`docs/lab-run.md`).
 
 ---
 
-## Proven headlessly
+## Proven locally
 
 | Check | Command | Result |
 |-------|---------|--------|
-| SIP bridge unit tests (dial/media/DTMF/hash/shim) | `cd desktop/src-tauri && cargo test` | **9 passed, 0 failed** |
-| Client type-check + production build | `cd client && npm run build` | **green** (tsc + vite, 2187 modules) |
+| Native SIP + Whisper tests | `cd desktop/src-tauri && cargo test` | **13 passed, 0 failed**, including real bundled-model inference |
+| Packaged macOS desktop | `cd desktop && npm run build` | **green**; app + DMG contain the checksummed model resource |
+| Client type-check + production build | `cd client && npm run build` | **green** (tsc + vite, 2177 modules) |
 | On-device STT pipeline fixture | `cd client && npm run stt:fixture` | **PASS** (pipeline + selection) |
 | Desktop config + privacy assertions | `SKIP_LAB_PREFLIGHT=1 bash scripts/lab-verify-flow.sh` | **all ✓** |
 | Verify-script syntax | `bash -n scripts/lab-verify-flow.sh` | **OK** |
 
-### cargo test (SIP bridge, `desktop/src-tauri/src/sip_bridge.rs`)
+### cargo test (native SIP + Whisper)
 
-9 tests exercise the real signaling/media code paths, notably:
+13 tests exercise the signaling/media paths and native model runtime, notably:
 
 - `send_dtmf_emits_telephone_events_over_udp` — on-the-wire RFC 4733
   telephone-event RTP (marked begin + end packet) over a localhost UDP peer.
@@ -36,6 +37,8 @@ legacy-only (`docs/lab-run.md`).
 - `negotiate_media_*` — SDP answer negotiation (PCMU/PCMA, telephone-event PT).
 - `init_script_defines_bridge_and_commands` — the injected shim defines
   `window.__pathlineSipBridge` and all four commands.
+- `bundled_model_loads_and_runs_local_inference` — verifies the pinned SHA-256,
+  loads the actual 77 MB tiny.en resource, and runs whisper.cpp inference.
 
 ### STT fixture (`client/src/stt/fixture.ts`)
 
@@ -53,36 +56,27 @@ Drives synthetic PCM through the **production path**
 
 ---
 
-## Deferred to a macOS/Docker host
+## Live lab SIP acceptance (proven)
 
-The following require a running lab + a display and are **not** runnable on this
-headless VM. Run them on the Mac lab host per `docs/lab-run.md`:
+`bash scripts/lab-verify-flow.sh` (no `SKIP_LAB_PREFLIGHT`) now completes an
+authenticated SIP/TLS call through extension `1000`, drives the full IVR with
+SIP INFO DTMF, and receives remote BYE. The desktop app still uses RFC 4733 RTP
+telephone-events for production keypad injection.
 
-1. `./scripts/lab.sh` (Docker/native Asterisk on SIP/TLS `5061`) + `npm run desktop:dev`.
+## Deferred GUI acceptance
+
+The following still require an interactive desktop window and packet capture:
+
+1. `./scripts/lab-desktop.sh` (sets `PATHLINE_SIP_PROFILE=lab`).
 2. Execute **Run → Lab account status (Asterisk 1000)** once end-to-end:
-   dial `1000` over SIP/TLS → local Whisper transcribes IVR → matched steps
-   inject DTMF → run completes → encrypted callstate `POST /v1/callstate`.
+   dial `1000` → local Whisper → RFC 4733 DTMF → encrypted callstate.
 3. Confirm **Runs shows completed** + captured `account_balance`.
-4. Live network capture asserting **no STT egress** during the run (the
-   code-level review below shows there is no egress path; a capture is the
-   empirical confirmation).
-5. `bash scripts/lab-verify-flow.sh` (full, no `SKIP_LAB_PREFLIGHT`) against the
-   live stack — preflight + phrase-matching smoke test.
+4. Live network capture asserting **no STT egress** during the run.
 
-The whisper.cpp model bundling / native binding is **not implemented on main**.
-The Tauri shell injects `window.__pathlineSipBridge`, but nothing injects
-`window.__pathlineWhisper`, and no model is bundled. This is the primary blocker
-to a fully automated live Run: the fixture proves the pipeline with a mock
-backend, while the real desktop app correctly fails closed to manual phrase
-entry when local Whisper is unavailable.
-
-The current lab is not a valid live acceptance target yet. In
-`lab/asterisk/extensions_lab.conf`, transitions such as
-`Goto(main-menu,s,1)` treat extensions as contexts that do not exist, and
-extension `1` is defined twice inside `[lab-ivr]`. In addition, the client does
-not subscribe to SIP `error` / `disconnected` events and does not flush buffered
-Whisper audio when RTP ends. Those gaps can leave a failed call displayed as an
-active Run even after the dialplan itself is corrected.
+The native bridge injects `window.__pathlineWhisper`, verifies and loads the
+pinned MIT-licensed tiny.en model, and performs whisper.cpp inference locally.
+The client blocks dialing when SIP or model readiness fails, flushes queued STT
+on terminal transport events, and records exactly one terminal outcome.
 
 ---
 
@@ -98,7 +92,7 @@ item empirically deferred to the Mac host (the code path is proven absent).
 | 2 | No transcript POST to Pathline or third parties | **PASS** | `client/src/stt/whisperEngine.ts` hands phrase text to `onPhrase` → `runSession.processPhrase`; no network. Full client egress enumeration (`fetch(`) = static `/scripts/*.json`, `/api/health`, and `client/src/api.ts` endpoints (token/consent/callstate/export/delete/revoke) — none carry transcripts. |
 | 3 | Callstate payload is encrypted blob + nonce only | **PASS** | `RunPage.tsx handleComplete`: `encryptCallStatePayload(...)` (AES-GCM, `crypto.ts`) → `submitEncryptedCallState(token, sessionId, ciphertext, nonce)`. `api.ts` posts only `session_id/encrypted_payload/payload_nonce`. `main.py EncryptedCallStateIngest` has exactly those 3 fields ("server cannot read contents"). |
 | 4 | DTMF ledger stores hash + digit count, never plaintext | **PASS** | `runSession.ts`: `DTMF_SENT` metadata = `{ step, digits: sequence.length, hash }` (count + SHA-256, `dtmf/dtmf.ts hashDtmfSequence`). `sip_bridge.rs`: logs `count` + `short_hash(&digits)` only, `dtmf_sent` event carries `count=` (line ~484–490). Ledger types comment: "Never raw secrets." |
-| 5 | Whisper boundary is local-only | **PASS (boundary) / BLOCKED (runtime)** | `client/src/stt/whisperEngine.ts` only accepts an injected local backend and contains no cloud path. However, `desktop/src-tauri/src/lib.rs` currently injects SIP only; the native `window.__pathlineWhisper` implementation and model bundle are still missing. |
+| 5 | Whisper boundary is local-only | **PASS** | `desktop/src-tauri/src/whisper_bridge.rs` loads a checksummed bundled model with `whisper-rs`, disables native transcript-bearing logs, and exposes only local Tauri commands. The real model inference test passes. |
 | 6 | No STT egress (network capture during a lab Run) | **PASS (code) / deferred (capture)** | Code review proves no audio/transcript network path exists (items 1–2 + grep egress enumeration). Empirical packet capture during a live run is deferred to the Mac/Docker host. |
 
 ---

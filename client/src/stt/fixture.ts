@@ -26,9 +26,13 @@ import type { WhisperBackend } from "./whisperEngine";
 
 /** In-memory transport: drives onAudio frames and records injected DTMF. */
 class FixtureTransport implements CallTransport {
+  readonly mode = "simulator" as const;
   readonly dtmfDigits: string[] = [];
   private audioHandlers = new Set<AudioFrameHandler>();
 
+  async getReadiness() {
+    return { ready: true, mode: this.mode, label: "STT fixture" } as const;
+  }
   async dial(): Promise<void> {}
   async answer(): Promise<void> {}
   async sendDTMF(digits: string): Promise<void> {

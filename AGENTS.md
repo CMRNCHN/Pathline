@@ -38,16 +38,11 @@ thin API and launches the Tauri window. For a live lab call, run
 
 ### Current live-call blockers
 Do not describe the desktop loop as live-E2E complete until all of these land:
-- Native `window.__pathlineWhisper` implementation + bundled local model.
-- Valid Asterisk IVR routing: `extensions_lab.conf` currently uses context-style
-  `Goto(name,s,1)` calls for extensions in `[lab-ivr]` and defines extension `1`
-  twice, so the lab cannot traverse its intended states.
-- Transport lifecycle wiring: SIP `error` / `disconnected` events must end or
-  fail the active Run, and buffered STT must flush on disconnect.
-- Fail-closed transport selection: Tauri must not silently use
-  `SimulatorTransport` when the native SIP bridge is absent.
 - One recorded macOS/Tauri/Asterisk dial → RTP → local STT → keypad → encrypted
-  callstate acceptance run.
+  callstate acceptance run (operator-recorded; see `docs/production-acceptance.md`).
+- Production SIP trunk with SRTP — locked `rsiprtp 0.4.1` has no SRTP; dialing
+  fails closed unless `PATHLINE_SIP_PROFILE=lab` on loopback.
+- Apple Developer ID signing + notarization of a self-contained release DMG.
 
 `./scripts/start.sh` (aka `npm start`) starts API + browser UI only. It is useful
 for authoring/manual fallback, but it does not start the production automation
@@ -58,18 +53,28 @@ endpoint. `Ctrl+C` (or `./scripts/stop.sh`) stops background services. Logs:
 - **Python venv package is required**: creating `.venv` needs the OS `python3.12-venv` package
   (apt). Without it `python3 -m venv` fails with an `ensurepip` error. This is installed as a system
   dependency (not by the update script).
+- **Native Whisper builds require CMake**: `whisper-rs` compiles whisper.cpp from
+  source. Install CMake before `cargo test` / desktop builds, and fetch the pinned,
+  checksummed model with `desktop/src-tauri/resources/models/fetch-model.sh`.
+  Packaged macOS builds target 10.15+; keep `.cargo/config.toml` and
+  `tauri.conf.json` deployment targets aligned or whisper.cpp release builds fail.
 - **Python deps are editable installs** of `packages/shared-python` + `services/api` into `.venv`
-  (there is no `requirements.txt`). Re-run `pip install -e packages/shared-python -e services/api`
+  (there is no `requirements.txt`). Re-run `pip install -e packages/shared-python -e "services/api[test]"`
   inside the venv after pulling dependency changes; the update script does this.
 - The client dev server proxies `/api` → `http://127.0.0.1:8000` (see `client/vite.config.ts`);
-  in dev `VITE_API_URL` is `/api`. Start the API before/with the client for run flows to work.
-- **No lint or automated test framework is configured** (no ESLint/Prettier/pytest/jest, no CI).
-  Type-checking runs implicitly via `tsc` during `cd client && npm run build`. `scripts/test-navigator.py`
-  is an ad-hoc manual script, not a test suite.
+  in dev `VITE_API_URL` is `/api`. Desktop release builds must inject `PATHLINE_API_URL`.
+- **Automated gates**: GitHub Actions (`.github/workflows/ci.yml`) and
+  `./scripts/ci-verify.sh` cover client Vitest + build, STT fixture, API pytest +
+  Alembic, Rust SIP/Whisper tests, and static lab checks. Production acceptance
+  that requires Apple signing or a carrier trunk is documented in
+  `docs/production-acceptance.md`.
 - Secrets: `start.sh` auto-generates `JWT_SECRET` / `SESSION_PEPPER` per run via `openssl rand`.
-  The DB defaults to local SQLite (`pathline.db`); no external DB needed for v1.
+  The DB defaults to local SQLite (`pathline.db`); production requires PostgreSQL and
+  non-dev secrets (`PATHLINE_ENV=production`).
 - Automated calls require the desktop-native SIP transport. A plain browser run
   is **manual fallback only** — paste IVR phrases and follow the on-screen keypad
   guide. The desktop app must fail closed when native SIP or local STT is
   unavailable; it must not silently substitute browser speech or a simulated
   call for a production Run.
+- Lab dialing requires `PATHLINE_SIP_PROFILE=lab` on loopback (`lab-desktop.sh`
+  sets this). Plain RTP is lab-only.

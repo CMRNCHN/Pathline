@@ -4,6 +4,7 @@ export type {
   TransportEvent,
   TransportEventHandler,
   TransportEventType,
+  TransportReadiness,
 } from "./CallTransport";
 export { AudioSession } from "./AudioSession";
 export { SimulatorTransport } from "./SimulatorTransport";

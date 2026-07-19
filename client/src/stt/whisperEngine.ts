@@ -29,6 +29,13 @@ export interface WhisperBackend {
 
 /** Shape injected by the Tauri desktop shell for the native whisper.cpp path. */
 export interface LocalWhisperBridge {
+  readiness(): Promise<{
+    ready: boolean;
+    reason?: string;
+    model?: string;
+    license?: string;
+    sha256?: string;
+  }>;
   transcribe(pcm: Float32Array, sampleRate: number): Promise<string>;
 }
 

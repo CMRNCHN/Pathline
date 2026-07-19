@@ -302,4 +302,12 @@ export async function clearAllStores(): Promise<void> {
         })
     )
   );
+  if (indexedDB.databases && (await indexedDB.databases()).some((db) => db.name === LEGACY_DB_NAME)) {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(LEGACY_DB_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error ?? new Error("Failed to delete legacy database"));
+      request.onblocked = () => reject(new Error("Legacy database deletion was blocked"));
+    });
+  }
 }

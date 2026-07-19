@@ -35,6 +35,8 @@ uploads/
 .pids/
 pathline.db
 promptpath.db  # legacy PromptPath
+services/api/ci-*.db
+services/api/*.db
 
 # Docker volumes
 postgres_data/

@@ -11,6 +11,7 @@ function sleep(ms: number): Promise<void> {
 
 /** Dev/test transport — proves engine wiring without SIP. */
 export class SimulatorTransport implements CallTransport {
+  readonly mode = "simulator" as const;
   private audioHandlers = new Set<AudioFrameHandler>();
   private eventHandlers = new Set<TransportEventHandler>();
   private connected = false;
@@ -18,6 +19,14 @@ export class SimulatorTransport implements CallTransport {
   private emit(event: Omit<TransportEvent, "timestamp">): void {
     const full: TransportEvent = { ...event, timestamp: new Date().toISOString() };
     for (const handler of this.eventHandlers) handler(full);
+  }
+
+  async getReadiness() {
+    return {
+      ready: true,
+      mode: this.mode,
+      label: "Development simulator — no real call",
+    } as const;
   }
 
   async dial(number: string): Promise<void> {

@@ -1,0 +1,10 @@
+{
+  "name": "Whisper tiny.en (ggml)",
+  "filename": "ggml-tiny.en.bin",
+  "source": "https://huggingface.co/ggerganov/whisper.cpp/resolve/90a64d80ea254cf67575b41a5971f972c79f7b45/ggml-tiny.en.bin",
+  "sourceRevision": "90a64d80ea254cf67575b41a5971f972c79f7b45",
+  "sha256": "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f",
+  "bytes": 77704715,
+  "license": "MIT",
+  "licenseUrl": "https://huggingface.co/ggerganov/whisper.cpp/blob/90a64d80ea254cf67575b41a5971f972c79f7b45/README.md"
+}

@@ -16,6 +16,10 @@ export interface ProcessPhraseResult {
     step: string;
     sequence: string;
   };
+  speechAction?: {
+    step: string;
+    text: string;
+  };
 }
 
 export function initialRunState(): RunState {
@@ -100,10 +104,15 @@ export function processPhrase(
       const ivrRule = step.triggerLabel ? findIvrRule(doc, step.triggerLabel) : undefined;
       const resolved = ivrRule ? resolveReference(ivrRule.then, variables) : undefined;
       const stepName = step.triggerLabel ?? step.detect;
+      const isSpeech = ivrRule?.rule === "Inject speech after detect";
       const log = [
         ...prev.log,
         logEntry(
-          resolved ? `Send when asked → ${resolved.length} digit(s)` : "Send rule not found",
+          resolved
+            ? isSpeech
+              ? "Speak when asked"
+              : `Send when asked → ${resolved.length} digit(s)`
+            : "Send rule not found",
           "trigger"
         ),
       ];
@@ -113,7 +122,20 @@ export function processPhrase(
           state: { ...base, log },
           matched: true,
           shouldComplete: false,
-          dtmfAction: { step: stepName, sequence: resolved },
+          ...(isSpeech
+            ? { speechAction: { step: stepName, text: resolved } }
+            : { dtmfAction: { step: stepName, sequence: resolved } }),
+        };
+      }
+
+      if (isSpeech) {
+        return {
+          state: {
+            ...base,
+            log: [...log, logEntry("Speech action requires a speech-capable transport", "unknown")],
+          },
+          matched: true,
+          shouldComplete: false,
         };
       }
 

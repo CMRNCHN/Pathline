@@ -28,6 +28,21 @@ ensure_env_var() {
   local key="$1"
   local value="$2"
   if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    # Replace empty placeholders (e.g. LAB_SIP_PASSWORD= from .env.example).
+    if grep -Eq "^${key}=[[:space:]]*$" "$ENV_FILE" 2>/dev/null; then
+      local tmp
+      tmp="$(mktemp)"
+      awk -v key="$key" -v value="$value" '
+        BEGIN { replaced = 0 }
+        index($0, key "=") == 1 && !replaced {
+          print key "=" value
+          replaced = 1
+          next
+        }
+        { print }
+      ' "$ENV_FILE" > "$tmp"
+      mv "$tmp" "$ENV_FILE"
+    fi
     return 0
   fi
   echo "${key}=${value}" >> "$ENV_FILE"
@@ -38,10 +53,8 @@ if [[ -z "${LAB_SIP_PASSWORD:-}" ]]; then
   ensure_env_var "LAB_SIP_USER" "$LAB_SIP_USER"
   ensure_env_var "LAB_SIP_TLS_PORT" "$LAB_SIP_TLS_PORT"
   ensure_env_var "LAB_SIP_PASSWORD" "$LAB_SIP_PASSWORD"
-  # shellcheck disable=SC1090
-  set -a
-  source "$ENV_FILE"
-  set +a
+  # Keep the generated password in-shell; do not re-source .env here or an
+  # empty placeholder line would wipe the value again.
 fi
 
 if [[ ! -f "$TLS_DIR/asterisk.crt" || ! -f "$TLS_DIR/asterisk.key" ]]; then

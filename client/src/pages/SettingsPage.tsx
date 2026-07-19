@@ -12,8 +12,9 @@ import {
 import { useScriptStore } from "../store/ScriptStore";
 import { mergeScripts } from "../script/selectors";
 import { clearLocalKeys } from "../crypto";
-import { ACTIVE_SCRIPT_KEY, CUSTOM_SCRIPTS_KEY } from "../script/storage";
 import { clearRunHistory, loadRunHistory } from "../history/runHistory";
+import { clearAllPersistence } from "../persistence";
+import { isLocalWhisperAvailable } from "../stt/whisperEngine";
 
 function StatusRow({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
   return (
@@ -56,6 +57,7 @@ export function SettingsPage() {
   const { customScripts, bundledScripts, loading, error } = useScriptStore();
   const paths = mergeScripts(bundledScripts, customScripts);
   const runCount = loadRunHistory().length;
+  const whisperReady = isLocalWhisperAvailable();
 
   const exportAll = () => {
     const blob = new Blob([JSON.stringify(paths, null, 2)], { type: "application/json" });
@@ -67,12 +69,16 @@ export function SettingsPage() {
     URL.revokeObjectURL(url);
   };
 
-  const clearAllLocalData = () => {
+  const clearAllLocalData = async () => {
     if (!confirm("Delete all Workflows, Run History, and local data? This cannot be undone.")) return;
-    localStorage.removeItem(CUSTOM_SCRIPTS_KEY);
-    localStorage.removeItem(ACTIVE_SCRIPT_KEY);
-    clearRunHistory();
+    await Promise.all([clearAllPersistence(), clearRunHistory()]);
     clearLocalKeys();
+    localStorage.clear();
+    sessionStorage.clear();
+    if ("caches" in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map((name) => caches.delete(name)));
+    }
     window.location.reload();
   };
 
@@ -95,8 +101,12 @@ export function SettingsPage() {
 
         <SettingsCard title="Health" icon={Activity}>
           <StatusRow label="Phone keypad" value="Active — required for a Run" ok />
-          <StatusRow label="Voice input" value="Planned — not used yet" />
-          <StatusRow label="API endpoint" value="/api → :8000" ok />
+          <StatusRow
+            label="Local STT"
+            value={whisperReady ? "On-device Whisper ready" : "Desktop Whisper unavailable"}
+            ok={whisperReady}
+          />
+          <StatusRow label="API endpoint" value={import.meta.env.VITE_API_URL || "/api → :8000"} ok />
           <StatusRow label="Workflows loaded" value={`${paths.length}`} ok={paths.length > 0} />
           <StatusRow
             label="API sync"
@@ -125,7 +135,7 @@ export function SettingsPage() {
               type="button"
               variant="link"
               className="h-auto px-0 text-destructive hover:text-destructive"
-              onClick={clearAllLocalData}
+              onClick={() => void clearAllLocalData()}
             >
               Clear all local data
             </Button>

@@ -1,58 +1,32 @@
 import type { Step } from "./types";
-import { formatVariableRef } from "./compile";
 import { newId } from "./storage";
-import { CUSTOM_PRESET_ID } from "./rulePresets";
-import { ruleTypeLabel } from "./ruleCopy";
 
-export type RuleWizardType = "capture" | "navigate" | "respond" | "end";
+export const INLINE_STEP_ACTIONS = [
+  "press-keys",
+  "speak",
+  "save-response",
+  "keep-listening",
+  "wait",
+  "end-call",
+] as const;
 
-export type NavigateMode = "keypad" | "speak" | "wait";
-export type RespondDelivery = "keypad" | "speak";
+export type InlineStepAction = (typeof INLINE_STEP_ACTIONS)[number];
 
-const VAR_REF = /\{\{(\w+)\}\}/;
-
-export interface CaptureWizardDraft {
-  intent: "capture";
-  infoPresetId: string;
-  customOutput?: string;
-  trigger: string;
-  save: boolean;
+export interface InlineStepDraft {
+  when: string;
+  action: InlineStepAction | "";
+  value: string;
   output: string;
+  waitSeconds: number;
 }
 
-export interface NavigateWizardDraft {
-  intent: "navigate";
-  mode: NavigateMode;
-  trigger: string;
-  /** Literal DTMF key or spoken text when mode is keypad/speak */
-  responseLiteral: string;
-  waitSeconds?: number;
+export interface InlineStepValidation {
+  valid: boolean;
+  errors: string[];
 }
 
-export interface RespondWizardDraft {
-  intent: "respond";
-  infoPresetId: string;
-  customVariable?: string;
-  delivery: RespondDelivery;
-  variable: string;
-  trigger: string;
-}
-
-export interface EndWizardDraft {
-  intent: "end";
-}
-
-export type WizardDraft =
-  | CaptureWizardDraft
-  | NavigateWizardDraft
-  | RespondWizardDraft
-  | EndWizardDraft;
-
-/** @deprecated Use RuleWizardType */
-export type RuleIntent = RuleWizardType | "wait";
-
-/** @deprecated Use WizardDraft */
-export type RuleDraft = WizardDraft;
+const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const VARIABLE_REF = /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/g;
 
 function slugify(value: string): string {
   return value
@@ -62,283 +36,173 @@ function slugify(value: string): string {
 }
 
 export function uniqueLabel(base: string, existing: string[], skip?: string): string {
-  const taken = new Set(existing.filter((l) => l !== skip));
+  const taken = new Set(existing.filter((label) => label !== skip));
   if (!taken.has(base)) return base;
-  let n = 2;
-  while (taken.has(`${base}_${n}`)) n += 1;
-  return `${base}_${n}`;
+  let suffix = 2;
+  while (taken.has(`${base}_${suffix}`)) suffix += 1;
+  return `${base}_${suffix}`;
 }
 
-function hasVariableRef(response: string): boolean {
-  return VAR_REF.test(response);
-}
-
-export function inferIntent(rule: Step): RuleWizardType {
-  if (rule.rule === "End call") return "end";
-  if (rule.rule === "Capture value after detect" || (rule.output.trim() && rule.rule !== "Wait for IVR response")) {
-    return "capture";
+function actionForStep(step: Step): InlineStepAction | "" {
+  switch (step.rule) {
+    case "Inject DTMF after detect":
+      return "press-keys";
+    case "Inject speech after detect":
+      return "speak";
+    case "Capture value after detect":
+      return "save-response";
+    case "Wait for IVR response":
+      return step.waitSeconds ? "wait" : "keep-listening";
+    case "End call":
+      return "end-call";
+    default:
+      return "";
   }
-  if (rule.rule === "Wait for IVR response") {
-    if (rule.when.trim() && !rule.waitSeconds) {
-      return "capture";
+}
+
+export function inlineDraftFromStep(step: Step): InlineStepDraft {
+  const action = actionForStep(step);
+  return {
+    when: step.when,
+    action,
+    value: action === "press-keys" || action === "speak" ? step.then : "",
+    output: action === "save-response" ? step.output : "",
+    waitSeconds: action === "wait" ? step.waitSeconds ?? 3 : 3,
+  };
+}
+
+export function emptyInlineStepDraft(): InlineStepDraft {
+  return {
+    when: "",
+    action: "press-keys",
+    value: "",
+    output: "",
+    waitSeconds: 3,
+  };
+}
+
+function labelBaseForDraft(draft: InlineStepDraft): string {
+  switch (draft.action) {
+    case "press-keys":
+      return `press_${slugify(draft.value || "keys")}`;
+    case "speak":
+      return `speak_${slugify(draft.value || "response")}`;
+    case "save-response":
+      return `capture_${slugify(draft.output || "response")}`;
+    case "keep-listening":
+      return `listen_${slugify(draft.when || "phrase")}`;
+    case "wait":
+      return `wait_${draft.waitSeconds}s`;
+    case "end-call":
+      return "end_call";
+    default:
+      return "step";
+  }
+}
+
+export function validateInlineStepDraft(draft: InlineStepDraft): InlineStepValidation {
+  const errors: string[] = [];
+
+  if (!draft.action) errors.push("Choose an action.");
+  if (draft.action !== "wait" && draft.action !== "end-call" && !draft.when.trim()) {
+    errors.push("Enter the phrase Pathline should listen for.");
+  }
+
+  if (draft.action === "press-keys") {
+    const valueWithoutRefs = draft.value.replace(VARIABLE_REF, "");
+    if (!draft.value.trim()) {
+      errors.push("Enter the keys to press.");
+    } else if (!/^[0-9#*]*$/.test(valueWithoutRefs) || draft.value.includes("{{{")) {
+      errors.push("Keys can contain digits, #, *, and Input references such as {{pin}}.");
     }
-    return "navigate";
   }
+
+  if (draft.action === "speak" && !draft.value.trim()) {
+    errors.push("Enter what Pathline should say.");
+  }
+
+  if (draft.action === "save-response") {
+    if (!draft.output.trim()) {
+      errors.push("Enter a name for the saved response.");
+    } else if (!VARIABLE_NAME.test(draft.output.trim())) {
+      errors.push("Response names must start with a letter or underscore and use only letters, numbers, and underscores.");
+    }
+  }
+
   if (
-    rule.rule === "Inject DTMF after detect" ||
-    rule.rule === "Inject speech after detect"
+    draft.action === "wait" &&
+    (!Number.isFinite(draft.waitSeconds) || draft.waitSeconds < 1 || draft.waitSeconds > 120)
   ) {
-    return hasVariableRef(rule.then) ? "respond" : "navigate";
+    errors.push("Choose a wait from 1 to 120 seconds.");
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+export function buildStepFromInlineDraft(
+  draft: InlineStepDraft,
+  existingLabels: string[],
+  existingStep?: Step
+): Step {
+  const validation = validateInlineStepDraft(draft);
+  if (!validation.valid || !draft.action) {
+    throw new Error(validation.errors[0] ?? "Step is invalid.");
+  }
+
+  const label = existingStep?.label.trim()
+    ? existingStep.label
+    : uniqueLabel(labelBaseForDraft(draft), existingLabels);
+  const common = {
+    id: existingStep?.id ?? newId(),
+    label,
+    when: draft.when.trim(),
+    then: "",
+    output: "",
+  };
+
+  switch (draft.action) {
+    case "press-keys":
+      return { ...common, then: draft.value.trim(), rule: "Inject DTMF after detect" };
+    case "speak":
+      return { ...common, then: draft.value.trim(), rule: "Inject speech after detect" };
+    case "save-response":
+      return { ...common, output: draft.output.trim(), rule: "Capture value after detect" };
+    case "keep-listening":
+      return { ...common, rule: "Wait for IVR response" };
+    case "wait":
+      return {
+        ...common,
+        rule: "Wait for IVR response",
+        waitSeconds: draft.waitSeconds,
+      };
+    case "end-call":
+      return { ...common, rule: "End call" };
+  }
+}
+
+export function isStepValid(step: Step): boolean {
+  return validateInlineStepDraft(inlineDraftFromStep(step)).valid;
+}
+
+export function isPlaceholderRule(step: Step): boolean {
+  if (step.rule === "End call") return false;
+  if (step.rule === "Wait for IVR response") {
+    return !step.when.trim() && !step.waitSeconds;
+  }
+  return !step.when.trim() && !step.then.trim() && !step.output.trim();
+}
+
+export type RuleIntent = "capture" | "navigate" | "respond" | "end";
+
+export function inferIntent(step: Step): RuleIntent {
+  const action = actionForStep(step);
+  if (action === "end-call") return "end";
+  if (action === "save-response" || action === "keep-listening") return "capture";
+  if (
+    (action === "press-keys" || action === "speak") &&
+    /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/.test(step.then)
+  ) {
+    return "respond";
   }
   return "navigate";
-}
-
-export function labelBaseForDraft(draft: WizardDraft): string {
-  switch (draft.intent) {
-    case "capture":
-      return draft.save ? `capture_${slugify(draft.output || "value")}` : `listen_${slugify(draft.trigger || "phrase")}`;
-    case "navigate":
-      if (draft.mode === "wait") return `wait_${draft.waitSeconds ?? 3}s`;
-      if (draft.mode === "keypad") return `press_${slugify(draft.responseLiteral || "key")}`;
-      return `speak_${slugify(draft.responseLiteral || "phrase")}`;
-    case "respond":
-      return `submit_${slugify(draft.variable || "value")}`;
-    case "end":
-      return "end_call";
-  }
-}
-
-export function buildRuleFromDraft(
-  draft: WizardDraft,
-  existingLabels: string[],
-  existingId?: string,
-  previousLabel?: string
-): Step {
-  const base = labelBaseForDraft(draft);
-  const label = uniqueLabel(base, existingLabels, previousLabel);
-
-  switch (draft.intent) {
-    case "capture":
-      if (draft.save) {
-        return {
-          id: existingId ?? newId(),
-          label,
-          when: draft.trigger.trim(),
-          then: "",
-          rule: "Capture value after detect",
-          output: slugify(draft.output),
-        };
-      }
-      return {
-        id: existingId ?? newId(),
-        label,
-        when: draft.trigger.trim(),
-        then: "",
-        rule: "Wait for IVR response",
-        output: "",
-      };
-    case "navigate":
-      if (draft.mode === "wait") {
-        return {
-          id: existingId ?? newId(),
-          label,
-          when: "",
-          then: "",
-          rule: "Wait for IVR response",
-          output: "",
-          waitSeconds: draft.waitSeconds ?? 3,
-        };
-      }
-      return {
-        id: existingId ?? newId(),
-        label,
-        when: draft.trigger.trim(),
-        then: draft.responseLiteral.trim(),
-        rule:
-          draft.mode === "keypad" ? "Inject DTMF after detect" : "Inject speech after detect",
-        output: "",
-      };
-    case "respond":
-      return {
-        id: existingId ?? newId(),
-        label,
-        when: draft.trigger.trim(),
-        then: formatVariableRef(draft.variable),
-        rule:
-          draft.delivery === "keypad" ? "Inject DTMF after detect" : "Inject speech after detect",
-        output: "",
-      };
-    case "end":
-      return {
-        id: existingId ?? newId(),
-        label,
-        when: "",
-        then: "",
-        rule: "End call",
-        output: "",
-      };
-  }
-}
-
-export function ruleToDraft(rule: Step): WizardDraft {
-  const intent = inferIntent(rule);
-
-  switch (intent) {
-    case "capture": {
-      if (rule.rule === "Wait for IVR response") {
-        return {
-          intent: "capture",
-          infoPresetId: CUSTOM_PRESET_ID,
-          trigger: rule.when,
-          save: false,
-          output: "",
-        };
-      }
-      return {
-        intent: "capture",
-        infoPresetId: CUSTOM_PRESET_ID,
-        customOutput: rule.output,
-        trigger: rule.when,
-        save: true,
-        output: rule.output,
-      };
-    }
-    case "navigate": {
-      if (rule.rule === "Wait for IVR response") {
-        return {
-          intent: "navigate",
-          mode: "wait",
-          trigger: "",
-          responseLiteral: "",
-          waitSeconds: rule.waitSeconds ?? 3,
-        };
-      }
-      const isSpeech = rule.rule === "Inject speech after detect";
-      return {
-        intent: "navigate",
-        mode: isSpeech ? "speak" : "keypad",
-        trigger: rule.when,
-        responseLiteral: rule.then,
-      };
-    }
-    case "respond": {
-      const match = rule.then.match(/\{\{(\w+)\}\}/);
-      return {
-        intent: "respond",
-        infoPresetId: CUSTOM_PRESET_ID,
-        customVariable: match?.[1] ?? "",
-        delivery: rule.rule === "Inject speech after detect" ? "speak" : "keypad",
-        variable: match?.[1] ?? "",
-        trigger: rule.when,
-      };
-    }
-    case "end":
-      return { intent: "end" };
-  }
-}
-
-export function isPlaceholderRule(rule: Step): boolean {
-  if (rule.rule === "End call" || rule.rule === "Wait for IVR response") {
-    return rule.rule === "Wait for IVR response" && !rule.when.trim() && !rule.waitSeconds;
-  }
-  return !rule.when.trim() && !rule.then.trim() && !rule.output.trim();
-}
-
-export interface RuleSummary {
-  typeLabel: string;
-  trigger: string;
-  action: string;
-  inputVariable?: string;
-  outputVariable?: string;
-}
-
-export function ruleSummary(rule: Step): RuleSummary {
-  const intent = inferIntent(rule);
-  const varMatch = rule.then.match(/\{\{(\w+)\}\}/);
-
-  switch (intent) {
-    case "capture":
-      if (rule.rule === "Wait for IVR response") {
-        return {
-          typeLabel: ruleTypeLabel.captureListenOnly,
-          trigger: rule.when,
-          action: "Wait for the next IVR prompt",
-        };
-      }
-      return {
-        typeLabel: ruleTypeLabel.capture,
-        trigger: rule.when,
-        action: "Save what the IVR says",
-        outputVariable: rule.output ? formatVariableRef(rule.output) : undefined,
-      };
-    case "navigate":
-      if (rule.rule === "Wait for IVR response") {
-        return {
-          typeLabel: ruleTypeLabel.navigate,
-          trigger: "—",
-          action: `Wait ${rule.waitSeconds ?? 3} seconds`,
-        };
-      }
-      return {
-        typeLabel: ruleTypeLabel.navigate,
-        trigger: rule.when,
-        action:
-          rule.rule === "Inject speech after detect"
-            ? `Speak: "${rule.then}"`
-            : `Press: ${rule.then}`,
-      };
-    case "respond":
-      return {
-        typeLabel: ruleTypeLabel.respond,
-        trigger: rule.when,
-        action:
-          rule.rule === "Inject speech after detect"
-            ? "Speak your run value"
-            : "Send your run value (touch-tones)",
-        inputVariable: varMatch ? formatVariableRef(varMatch[1]) : undefined,
-      };
-    case "end":
-      return {
-        typeLabel: ruleTypeLabel.end,
-        trigger: "—",
-        action: "Hang up",
-      };
-  }
-}
-
-export function ruleCardTitle(rule: Step): string {
-  return ruleSummary(rule).typeLabel;
-}
-
-export function ruleCardAction(rule: Step): string {
-  return ruleSummary(rule).action;
-}
-
-export function draftSummary(draft: WizardDraft | null): RuleSummary | null {
-  if (!draft) return null;
-  const rule = buildRuleFromDraft(draft, []);
-  return ruleSummary(rule);
-}
-
-export function validateDraft(draft: WizardDraft | null): boolean {
-  if (!draft) return false;
-  switch (draft.intent) {
-    case "capture":
-      if (!draft.trigger.trim()) return false;
-      return draft.save ? Boolean(draft.output.trim()) : true;
-    case "navigate":
-      if (draft.mode === "wait") return (draft.waitSeconds ?? 0) >= 1;
-      return Boolean(draft.trigger.trim() && draft.responseLiteral.trim());
-    case "respond":
-      return Boolean(draft.trigger.trim() && draft.variable.trim());
-    case "end":
-      return true;
-  }
-}
-
-export function truncateTrigger(trigger: string, max = 48): string {
-  const t = trigger.trim();
-  if (!t) return "—";
-  if (t.length <= max) return `"${t}"`;
-  return `"${t.slice(0, max)}…"`;
 }

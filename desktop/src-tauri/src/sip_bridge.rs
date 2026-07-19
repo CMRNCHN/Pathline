@@ -24,7 +24,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -96,10 +96,15 @@ struct SipConfig {
     /// cert, so this defaults to `false` for localhost and must only be
     /// relaxed for the lab profile — never in production.
     verify_tls: bool,
+    /// Plain RTP is intentionally available only for the loopback Asterisk
+    /// acceptance lab. The locked stack does not currently implement SRTP, so
+    /// production dialing must fail closed instead of silently downgrading.
+    allow_plain_rtp: bool,
+    rtp_inactivity_timeout: Duration,
 }
 
 impl SipConfig {
-    fn from_env() -> Self {
+    fn from_env() -> Result<Self, String> {
         let server = env_or(&["PATHLINE_SIP_SERVER", "LAB_SIP_SERVER"], "127.0.0.1");
         let port = env_or(&["PATHLINE_SIP_TLS_PORT", "LAB_SIP_TLS_PORT"], "5061")
             .parse()
@@ -117,7 +122,22 @@ impl SipConfig {
             Ok(v) => matches!(v.as_str(), "1" | "true" | "yes"),
             Err(_) => !is_loopback,
         };
-        Self {
+        let profile = env_or(&["PATHLINE_SIP_PROFILE"], "");
+        let allow_plain_rtp = profile == "lab" && is_loopback;
+        let rtp_inactivity_timeout = Duration::from_secs(
+            env_or(&["PATHLINE_RTP_INACTIVITY_SECONDS"], "15")
+                .parse::<u64>()
+                .map_err(|_| "PATHLINE_RTP_INACTIVITY_SECONDS must be an integer".to_string())?
+                .clamp(5, 120),
+        );
+        if !allow_plain_rtp {
+            return Err(
+                "Production SIP is unavailable: rsiprtp 0.4.1 has no SRTP transport. \
+                 Plain RTP is permitted only with PATHLINE_SIP_PROFILE=lab on loopback."
+                    .to_string(),
+            );
+        }
+        Ok(Self {
             server,
             port,
             username,
@@ -125,7 +145,9 @@ impl SipConfig {
             local_ip,
             local_port,
             verify_tls,
-        }
+            allow_plain_rtp,
+            rtp_inactivity_timeout,
+        })
     }
 }
 
@@ -159,6 +181,16 @@ struct AudioPayload {
     sample_rate: u32,
 }
 
+#[derive(Clone, Serialize)]
+pub struct SipReadiness {
+    ready: bool,
+    signaling: &'static str,
+    media: &'static str,
+    certificate_verification: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<String>,
+}
+
 fn emit_event(app: &AppHandle, kind: &str, detail: Option<String>) {
     let _ = app.emit(
         EVENT_TOPIC,
@@ -189,7 +221,10 @@ pub async fn sip_dial(
         return Err("empty number".to_string());
     }
 
-    let cfg = SipConfig::from_env();
+    let cfg = SipConfig::from_env().map_err(|error| {
+        emit_event(&app, "error", Some(error.clone()));
+        error
+    })?;
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<CallCommand>();
 
     {
@@ -254,6 +289,26 @@ pub async fn sip_hangup(state: State<'_, SipBridge>) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn sip_status() -> Result<SipReadiness, String> {
+    match SipConfig::from_env() {
+        Ok(config) => Ok(SipReadiness {
+            ready: true,
+            signaling: "sip-tls",
+            media: if config.allow_plain_rtp { "rtp-lab-only" } else { "srtp" },
+            certificate_verification: config.verify_tls,
+            reason: None,
+        }),
+        Err(reason) => Ok(SipReadiness {
+            ready: false,
+            signaling: "sip-tls",
+            media: "srtp-required",
+            certificate_verification: true,
+            reason: Some(reason),
+        }),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Call task: signaling handshake + media loop.
 // ---------------------------------------------------------------------------
@@ -288,6 +343,9 @@ async fn run_call(
     let (mut sip_rx, sip_tx) = tls.start();
 
     // --- RTP media socket ------------------------------------------------
+    // `SipConfig::from_env` has already guaranteed that unencrypted RTP is
+    // confined to the explicit loopback lab profile.
+    debug_assert!(cfg.allow_plain_rtp);
     let rtp_sock = UdpSocket::bind(format!("{}:0", cfg.local_ip))
         .await
         .map_err(|e| format!("RTP bind failed: {e}"))?;
@@ -358,10 +416,40 @@ async fn run_call(
     let mut authed = false;
     let mut ringing_emitted = false;
     let (to_tag, answer_sdp) = loop {
-        let msg = match timeout(Duration::from_secs(32), sip_rx.recv()).await {
-            Ok(Some(m)) => m,
-            Ok(None) => return Err("SIP connection closed during INVITE".to_string()),
-            Err(_) => return Err("timeout waiting for INVITE response".to_string()),
+        let msg = tokio::select! {
+            cmd = cmd_rx.recv() => {
+                match cmd {
+                    Some(CallCommand::Hangup) | None => {
+                        send_cancel(
+                            &sip_tx,
+                            server_addr,
+                            &cfg,
+                            &dest_uri,
+                            &from_uri,
+                            &from_tag,
+                            &sip_call_id,
+                            cseq,
+                            &invite_branch,
+                        ).await;
+                        emit_event(&app, "disconnected", Some("dial cancelled".to_string()));
+                        return Ok(());
+                    }
+                    Some(CallCommand::Answer) => continue,
+                    Some(CallCommand::Dtmf { .. }) => {
+                        emit_event(
+                            &app,
+                            "error",
+                            Some("cannot send DTMF before call connects".to_string()),
+                        );
+                        continue;
+                    }
+                }
+            }
+            response = timeout(Duration::from_secs(32), sip_rx.recv()) => match response {
+                Ok(Some(message)) => message,
+                Ok(None) => return Err("SIP connection closed during INVITE".to_string()),
+                Err(_) => return Err("timeout waiting for INVITE response".to_string()),
+            }
         };
         let parsed = match SipMessage::parse(&msg.data) {
             Ok(p) => p,
@@ -418,9 +506,8 @@ async fn run_call(
                 } else {
                     (resp.www_authenticate(), false)
                 };
-                let header = header.ok_or_else(|| {
-                    format!("{status} without authenticate header")
-                })?;
+                let header =
+                    header.ok_or_else(|| format!("{status} without authenticate header"))?;
                 let challenge = DigestChallenge::parse(&header)
                     .map_err(|e| format!("bad auth challenge: {e}"))?;
                 let dr = DigestResponse::from_challenge(
@@ -465,6 +552,8 @@ async fn run_call(
 
     let mut ticker = interval(Duration::from_millis(20));
     let mut recv_buf = vec![0u8; 2048];
+    let mut last_media_at = Instant::now();
+    let mut last_inbound_seq: Option<u16> = None;
 
     loop {
         tokio::select! {
@@ -486,7 +575,7 @@ async fn run_call(
                         // record only a count and a non-reversible hash.
                         log::info!("DTMF send: count={count} hash={}", short_hash(&digits));
                         send_dtmf(&rtp_sock, ssrc, &mut seq, &mut ts,
-                                  media.telephone_event_pt, &digits, duration_ms).await;
+                                  media.telephone_event_pt, &digits, duration_ms).await?;
                         emit_event(&app, "dtmf_sent", Some(format!("count={count}")));
                     }
                 }
@@ -520,6 +609,17 @@ async fn run_call(
                 if let Ok(n) = r {
                     if let Ok(pkt) = RtpPacket::parse(&recv_buf[..n]) {
                         if pkt.payload_type == media.audio_pt && !pkt.payload.is_empty() {
+                            if let Some(previous) = last_inbound_seq {
+                                let delta = pkt.sequence_number.wrapping_sub(previous);
+                                // Drop duplicate and stale/reordered packets. Small forward
+                                // gaps are tolerated; speech decoding resumes at the newest
+                                // packet rather than replaying old audio into STT.
+                                if delta == 0 || delta > 0x8000 {
+                                    continue;
+                                }
+                            }
+                            last_inbound_seq = Some(pkt.sequence_number);
+                            last_media_at = Instant::now();
                             let pcm8k = codec.decode(&pkt.payload);
                             let pcm16k = upsample_8k_to_16k(&pcm8k);
                             emit_audio(&app, pcm16k, OUTPUT_SAMPLE_RATE);
@@ -528,10 +628,19 @@ async fn run_call(
                 }
             }
             _ = ticker.tick() => {
+                if last_media_at.elapsed() > cfg.rtp_inactivity_timeout {
+                    return Err(format!(
+                        "RTP media inactive for {} seconds",
+                        cfg.rtp_inactivity_timeout.as_secs()
+                    ));
+                }
                 // Keep the media path latched (RTP symmetric) and advance the
                 // clock. Comfort silence; the bridge does not capture a mic.
                 let bytes = build_rtp(media.audio_pt, seq, ts, ssrc, false, &silence);
-                let _ = rtp_sock.send(&bytes).await;
+                rtp_sock
+                    .send(&bytes)
+                    .await
+                    .map_err(|error| format!("RTP keepalive send failed: {error}"))?;
                 seq = seq.wrapping_add(1);
                 ts = ts.wrapping_add(SAMPLES_PER_FRAME);
             }
@@ -642,6 +751,33 @@ async fn send_bye(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn send_cancel(
+    sip_tx: &TlsSender,
+    server_addr: SocketAddr,
+    cfg: &SipConfig,
+    dest_uri: &str,
+    from_uri: &str,
+    from_tag: &str,
+    call_id: &str,
+    cseq: u32,
+    invite_branch: &str,
+) {
+    if let Ok(cancel) = SipRequest::builder()
+        .method(Method::Cancel)
+        .uri(dest_uri)
+        .via(&cfg.local_ip, cfg.local_port, "TLS", invite_branch)
+        .from(from_uri, from_tag)
+        .to(dest_uri)
+        .call_id(call_id)
+        .cseq(cseq)
+        .build()
+    {
+        let _ = sip_tx.send_to(&cancel.to_bytes()[..], server_addr).await;
+        log::info!("SIP CANCEL -> {dest_uri}");
+    }
+}
+
 /// Send DTMF digits as RFC 4733 telephone-events on the (already-connected)
 /// RTP socket, sharing the media SSRC and sequence space.
 async fn send_dtmf(
@@ -652,7 +788,7 @@ async fn send_dtmf(
     event_pt: u8,
     digits: &str,
     duration_ms: u32,
-) {
+) -> Result<(), String> {
     let packets = (duration_ms / 20).max(3);
     for c in digits.chars() {
         let Some(digit) = DtmfDigit::from_char(c) else {
@@ -666,23 +802,30 @@ async fn send_dtmf(
             let payload = event.encode();
             let marker = i == 0;
             let bytes = build_rtp(event_pt, *seq, event_ts, ssrc, marker, &payload);
-            let _ = rtp_sock.send(&bytes).await;
+            rtp_sock
+                .send(&bytes)
+                .await
+                .map_err(|error| format!("DTMF RTP send failed: {error}"))?;
             *seq = seq.wrapping_add(1);
             sleep(Duration::from_millis(20)).await;
         }
         // End packets (E bit) x3 for reliability (RFC 4733 §2.5.1.4).
-        let end = DtmfEvent::new(digit, ((packets * SAMPLES_PER_FRAME).min(0xFFFF)) as u16)
-            .with_end();
+        let end =
+            DtmfEvent::new(digit, ((packets * SAMPLES_PER_FRAME).min(0xFFFF)) as u16).with_end();
         let end_payload = end.encode();
         for _ in 0..3 {
             let bytes = build_rtp(event_pt, *seq, event_ts, ssrc, false, &end_payload);
-            let _ = rtp_sock.send(&bytes).await;
+            rtp_sock
+                .send(&bytes)
+                .await
+                .map_err(|error| format!("DTMF end packet send failed: {error}"))?;
             *seq = seq.wrapping_add(1);
         }
         // Advance the media clock past the event plus a short inter-digit gap.
         *ts = ts.wrapping_add((packets + 2) * SAMPLES_PER_FRAME);
         sleep(Duration::from_millis(40)).await;
     }
+    Ok(())
 }
 
 /// Build a minimal RTP packet (no CSRC / extension) via `rsiprtp`.
@@ -759,6 +902,7 @@ pub fn init_script() -> String {
     return function () {{ cancelled = true; if (unlisten) {{ unlisten(); unlisten = null; }} }};
   }}
   window.__pathlineSipBridge = {{
+    readiness: function () {{ return invoke('sip_status', {{}}); }},
     dial: function (number) {{ return invoke('sip_dial', {{ number: String(number) }}); }},
     answer: function () {{ return invoke('sip_answer', {{}}); }},
     sendDtmf: function (digits, durationMs) {{
@@ -795,6 +939,8 @@ mod tests {
             local_ip: "127.0.0.1".to_string(),
             local_port: 5065,
             verify_tls: false,
+            allow_plain_rtp: true,
+            rtp_inactivity_timeout: Duration::from_secs(15),
         }
     }
 
@@ -939,7 +1085,9 @@ a=sendrecv\r\n";
 
         let mut seq = 100u16;
         let mut ts = 0u32;
-        send_dtmf(&client, 0x1234_5678, &mut seq, &mut ts, 101, "5", 40).await;
+        send_dtmf(&client, 0x1234_5678, &mut seq, &mut ts, 101, "5", 40)
+            .await
+            .unwrap();
 
         let (begin, end) = collector.await.unwrap();
         assert!(begin, "no marked DTMF begin packet received");
@@ -952,7 +1100,7 @@ a=sendrecv\r\n";
     fn init_script_defines_bridge_and_commands() {
         let js = init_script();
         assert!(js.contains("window.__pathlineSipBridge"));
-        for cmd in ["sip_dial", "sip_answer", "sip_send_dtmf", "sip_hangup"] {
+        for cmd in ["sip_status", "sip_dial", "sip_answer", "sip_send_dtmf", "sip_hangup"] {
             assert!(js.contains(cmd), "shim missing command {cmd}");
         }
         assert!(js.contains(AUDIO_TOPIC));

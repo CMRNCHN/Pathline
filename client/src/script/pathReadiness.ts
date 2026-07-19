@@ -1,5 +1,5 @@
 import type { PathDocument } from "./types";
-import { isPlaceholderRule } from "./ruleIntent";
+import { isPlaceholderRule, isStepValid } from "./ruleIntent";
 
 export type PathReadiness = "ready" | "draft" | "needs-setup";
 
@@ -9,20 +9,51 @@ export const READINESS_LABEL: Record<PathReadiness, string> = {
   "needs-setup": "Needs setup",
 };
 
-/** Is this Workflow runnable as-is: has a phone number and at least one real Step. */
-export function getPathReadiness(path: PathDocument): PathReadiness {
-  const name = path.setup.name.trim();
-  const target = path.setup.target.trim();
-  const realSteps = path.steps.filter((r) => !isPlaceholderRule(r));
+const INPUT_REF = /\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g;
 
-  if (!name && !target && realSteps.length === 0) return "draft";
-  if (!target || realSteps.length === 0) return "needs-setup";
+function referencedInputs(workflow: PathDocument): string[] {
+  const names = new Set<string>();
+  for (const step of workflow.steps) {
+    for (const match of step.then.matchAll(INPUT_REF)) names.add(match[1]);
+  }
+  return [...names];
+}
+
+/** A Ready Workflow has complete setup, valid executable Steps, Inputs, and an end path. */
+export function getPathReadiness(path: PathDocument): PathReadiness {
+  const hasContent =
+    Boolean(path.setup.name.trim()) ||
+    Boolean(path.setup.target.trim()) ||
+    path.steps.some((step) => !isPlaceholderRule(step));
+
+  if (!hasContent) return "draft";
+  if (getWorkflowSetupIssues(path).length > 0) return "needs-setup";
   return "ready";
 }
 
 export function getWorkflowSetupIssues(workflow: PathDocument): string[] {
   const issues: string[] = [];
+  const realSteps = workflow.steps.filter((step) => !isPlaceholderRule(step));
+
   if (!workflow.setup.target.trim()) issues.push("Add a phone number to call");
-  if (!workflow.steps.some((step) => !isPlaceholderRule(step))) issues.push("Add at least one Step");
+  if (realSteps.length === 0) {
+    issues.push("Add at least one Step");
+    return issues;
+  }
+
+  realSteps.forEach((step, index) => {
+    if (!isStepValid(step)) issues.push(`Fix Step ${index + 1} (${step.label || "untitled"})`);
+  });
+
+  const configuredInputs = new Set(workflow.setup.inputs);
+  const missingInputs = referencedInputs(workflow).filter((name) => !configuredInputs.has(name));
+  if (missingInputs.length > 0) {
+    issues.push(`Synchronize missing Inputs: ${missingInputs.join(", ")}`);
+  }
+
+  if (!realSteps.some((step) => step.rule === "End call" && isStepValid(step))) {
+    issues.push("Add an End call Step");
+  }
+
   return issues;
 }
