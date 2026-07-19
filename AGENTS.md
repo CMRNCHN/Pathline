@@ -10,19 +10,49 @@ Privacy-first, client-mediated call orchestration. See `README.md` and `Pathline
   explicitly flag them for merge. (Agents cannot merge PRs themselves; a human must click merge.)
 
 ### Scope
-The shipping product is **v1**: the FastAPI backend (`services/api`) plus the web client (`client/`).
-`frontend-ui/`, `desktop/` (Tauri/Rust), the SIP `lab/` (Asterisk/Docker), and `services/deferred/*`
-are optional and NOT needed for normal development. `client-native/` is docs only.
+The shipping **v1 production automation endpoint is the native desktop app**:
+the Tauri/Rust shell (`desktop/`) embeds the React UI (`client/`) and owns SIP/RTP,
+local STT, phrase matching, keypad injection, and the on-device audit ledger. The
+FastAPI service (`services/api`) remains thin: identity plus encrypted artifact
+storage only.
+
+The same React UI may run in a browser for authoring and manual fallback, but a
+browser is **not** the telephony or automation endpoint. Never move call audio,
+transcripts, phone numbers, secrets, or orchestration into the server to make the
+browser automate calls.
+
+`frontend-ui/`, external-softphone flows, and `services/deferred/*` are not part
+of the shipping path. The SIP `lab/` (Asterisk/Docker) is development-only test
+infrastructure. `client-native/` is docs only.
 
 ### Services (v1)
 | Service | Dir | Dev command | URL |
 |---------|-----|-------------|-----|
 | API (FastAPI/uvicorn) | `services/api` | `source .venv/bin/activate && uvicorn pathline_api.main:app --reload --port 8000` | http://localhost:8000 (`/health`, `/docs`) |
-| Web client (Vite/React) | `client` | `cd client && npm run dev` | http://localhost:3000 |
+| Desktop app (Tauri/Rust + embedded React) | `desktop` + `client` | `npm run desktop:dev` | Native Pathline window |
+| Browser authoring/manual fallback | `client` | `cd client && npm run dev` | http://localhost:3000 |
 
-Easiest: `./scripts/start.sh` (aka `npm start`) starts BOTH — it creates `.env`, ensures the venv +
-editable installs, `npm install`s the client, frees ports 8000/3000, then runs uvicorn + Vite.
-`Ctrl+C` (or `./scripts/stop.sh`) stops them. Logs: `.logs/api.log`, `.logs/client.log`.
+For normal desktop development, run `npm run desktop:dev`; it starts/reuses the
+thin API and launches the Tauri window. For a live lab call, run
+`./scripts/lab-desktop.sh` to start Asterisk, API, UI, and desktop together.
+
+### Current live-call blockers
+Do not describe the desktop loop as live-E2E complete until all of these land:
+- Native `window.__pathlineWhisper` implementation + bundled local model.
+- Valid Asterisk IVR routing: `extensions_lab.conf` currently uses context-style
+  `Goto(name,s,1)` calls for extensions in `[lab-ivr]` and defines extension `1`
+  twice, so the lab cannot traverse its intended states.
+- Transport lifecycle wiring: SIP `error` / `disconnected` events must end or
+  fail the active Run, and buffered STT must flush on disconnect.
+- Fail-closed transport selection: Tauri must not silently use
+  `SimulatorTransport` when the native SIP bridge is absent.
+- One recorded macOS/Tauri/Asterisk dial → RTP → local STT → keypad → encrypted
+  callstate acceptance run.
+
+`./scripts/start.sh` (aka `npm start`) starts API + browser UI only. It is useful
+for authoring/manual fallback, but it does not start the production automation
+endpoint. `Ctrl+C` (or `./scripts/stop.sh`) stops background services. Logs:
+`.logs/api.log`, `.logs/client.log`.
 
 ### Non-obvious caveats
 - **Python venv package is required**: creating `.venv` needs the OS `python3.12-venv` package
@@ -38,6 +68,8 @@ editable installs, `npm install`s the client, frees ports 8000/3000, then runs u
   is an ad-hoc manual script, not a test suite.
 - Secrets: `start.sh` auto-generates `JWT_SECRET` / `SESSION_PEPPER` per run via `openssl rand`.
   The DB defaults to local SQLite (`pathline.db`); no external DB needed for v1.
-- Automated in-browser calls require the desktop/native SIP transport; a plain browser run is
-  **manual mode** — you paste IVR phrases and follow the on-screen DTMF guide. The full run flow
-  still exercises the backend (token mint → session link → encrypted callstate ingest).
+- Automated calls require the desktop-native SIP transport. A plain browser run
+  is **manual fallback only** — paste IVR phrases and follow the on-screen keypad
+  guide. The desktop app must fail closed when native SIP or local STT is
+  unavailable; it must not silently substitute browser speech or a simulated
+  call for a production Run.

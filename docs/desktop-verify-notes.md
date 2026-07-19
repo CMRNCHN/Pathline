@@ -69,9 +69,20 @@ headless VM. Run them on the Mac lab host per `docs/lab-run.md`:
 5. `bash scripts/lab-verify-flow.sh` (full, no `SKIP_LAB_PREFLIGHT`) against the
    live stack — preflight + phrase-matching smoke test.
 
-The whisper.cpp model bundling / native binding is also a Mac-host concern
-(`window.__pathlineWhisper`); the fixture proves the pipeline with a local mock
-backend standing in for the on-device model.
+The whisper.cpp model bundling / native binding is **not implemented on main**.
+The Tauri shell injects `window.__pathlineSipBridge`, but nothing injects
+`window.__pathlineWhisper`, and no model is bundled. This is the primary blocker
+to a fully automated live Run: the fixture proves the pipeline with a mock
+backend, while the real desktop app correctly fails closed to manual phrase
+entry when local Whisper is unavailable.
+
+The current lab is not a valid live acceptance target yet. In
+`lab/asterisk/extensions_lab.conf`, transitions such as
+`Goto(main-menu,s,1)` treat extensions as contexts that do not exist, and
+extension `1` is defined twice inside `[lab-ivr]`. In addition, the client does
+not subscribe to SIP `error` / `disconnected` events and does not flush buffered
+Whisper audio when RTP ends. Those gaps can leave a failed call displayed as an
+active Run even after the dialplan itself is corrected.
 
 ---
 
@@ -87,7 +98,7 @@ item empirically deferred to the Mac host (the code path is proven absent).
 | 2 | No transcript POST to Pathline or third parties | **PASS** | `client/src/stt/whisperEngine.ts` hands phrase text to `onPhrase` → `runSession.processPhrase`; no network. Full client egress enumeration (`fetch(`) = static `/scripts/*.json`, `/api/health`, and `client/src/api.ts` endpoints (token/consent/callstate/export/delete/revoke) — none carry transcripts. |
 | 3 | Callstate payload is encrypted blob + nonce only | **PASS** | `RunPage.tsx handleComplete`: `encryptCallStatePayload(...)` (AES-GCM, `crypto.ts`) → `submitEncryptedCallState(token, sessionId, ciphertext, nonce)`. `api.ts` posts only `session_id/encrypted_payload/payload_nonce`. `main.py EncryptedCallStateIngest` has exactly those 3 fields ("server cannot read contents"). |
 | 4 | DTMF ledger stores hash + digit count, never plaintext | **PASS** | `runSession.ts`: `DTMF_SENT` metadata = `{ step, digits: sequence.length, hash }` (count + SHA-256, `dtmf/dtmf.ts hashDtmfSequence`). `sip_bridge.rs`: logs `count` + `short_hash(&digits)` only, `dtmf_sent` event carries `count=` (line ~484–490). Ledger types comment: "Never raw secrets." |
-| 5 | Whisper executes locally | **PASS** | `client/src/stt/whisperEngine.ts`: transcribes via injected `window.__pathlineWhisper` (whisper.cpp) or in-page WASM backend; `isLocalWhisperAvailable()`/`detectSttCapability()` do no network probe; header comment forbids cloud/SaaS STT. |
+| 5 | Whisper boundary is local-only | **PASS (boundary) / BLOCKED (runtime)** | `client/src/stt/whisperEngine.ts` only accepts an injected local backend and contains no cloud path. However, `desktop/src-tauri/src/lib.rs` currently injects SIP only; the native `window.__pathlineWhisper` implementation and model bundle are still missing. |
 | 6 | No STT egress (network capture during a lab Run) | **PASS (code) / deferred (capture)** | Code review proves no audio/transcript network path exists (items 1–2 + grep egress enumeration). Empirical packet capture during a live run is deferred to the Mac/Docker host. |
 
 ---

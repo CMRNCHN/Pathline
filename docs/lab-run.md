@@ -18,6 +18,17 @@ no softphone, no manual paste.
 The desktop bridge carries the call audio itself and feeds it to local STT —
 you do **not** register a softphone or paste phrases in the primary flow.
 
+> **Current status on `main`:** SIP/RTP, audio delivery, phrase matching, and
+> keypad injection are implemented and unit/fixture tested, but the Tauri shell
+> does not yet provide the real `window.__pathlineWhisper` backend or a bundled
+> Whisper model. Until that lands, desktop runs fail closed to manual phrase
+> entry. The lab dialplan also cannot currently traverse the IVR:
+> `extensions_lab.conf` jumps to nonexistent contexts and defines digit `1`
+> twice in the same context. Finally, SIP failure/disconnect events are not yet
+> connected to Run termination or final STT flushing. The SIP bridge still
+> needs its first recorded live Asterisk end-to-end proof; unit tests are not a
+> substitute for that acceptance run.
+
 ## Prerequisites
 
 - Docker (optional — native Asterisk fallback if Docker build fails)
