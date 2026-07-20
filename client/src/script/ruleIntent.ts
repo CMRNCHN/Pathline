@@ -104,7 +104,14 @@ export function validateInlineStepDraft(draft: InlineStepDraft): InlineStepValid
   const errors: string[] = [];
 
   if (!draft.action) errors.push("Choose an action.");
-  if (draft.action !== "wait" && draft.action !== "end-call" && !draft.when.trim()) {
+  // Save response may omit a cue: Pathline saves the next reply after prior Steps.
+  // Wait / End call already allow an optional phrase.
+  if (
+    draft.action !== "wait" &&
+    draft.action !== "end-call" &&
+    draft.action !== "save-response" &&
+    !draft.when.trim()
+  ) {
     errors.push("Enter the phrase Pathline should listen for.");
   }
 

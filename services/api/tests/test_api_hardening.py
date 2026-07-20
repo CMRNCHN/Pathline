@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -48,6 +49,48 @@ def test_production_profile_rejects_unsafe_defaults() -> None:
         auto_create_schema=False,
     )
     assert production.app_env == "production"
+
+
+async def test_stale_sqlite_schema_is_rebuilt_in_development(tmp_path: Path) -> None:
+    """Older local DBs used hashed_user_id; create_all alone cannot ALTER them."""
+    import sqlite3
+
+    from pathline_api.database import create_database, initialize_database
+
+    db_path = tmp_path / "stale.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE consent_audits (
+                jti VARCHAR(36) PRIMARY KEY,
+                hashed_user_id VARCHAR(64) NOT NULL,
+                terms_version VARCHAR(32) NOT NULL,
+                consent_at DATETIME NOT NULL,
+                call_mode VARCHAR(32) NOT NULL,
+                hashed_session_id VARCHAR(64),
+                session_linked_at DATETIME,
+                created_at DATETIME NOT NULL,
+                expires_at DATETIME NOT NULL
+            )
+            """
+        )
+        conn.commit()
+
+    settings = Settings(
+        app_env="development",
+        database_url=f"sqlite+aiosqlite:///{db_path}",
+        jwt_secret="test-jwt-secret-with-at-least-32-bytes",
+        session_pepper="test-session-pepper-with-at-least-32-bytes",
+        auto_create_schema=True,
+    )
+    engine, _ = create_database(settings)
+    await initialize_database(engine, settings)
+    await engine.dispose()
+
+    with sqlite3.connect(db_path) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(consent_audits)")}
+    assert "owner_hash" in columns
+    assert "hashed_user_id" not in columns
 
 
 async def test_owner_bound_export_delete_and_notifications(client: AsyncClient) -> None:

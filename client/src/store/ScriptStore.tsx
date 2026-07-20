@@ -76,7 +76,14 @@ function useScriptStoreState(): ScriptStore {
           BUNDLED_SCRIPT_FILES.map(async (file) => {
             const res = await fetch(`/scripts/${file}`);
             if (!res.ok) throw new Error(`Failed to load ${file}`);
-            return normalizeScript(await res.json());
+            const text = await res.text();
+            try {
+              return normalizeScript(JSON.parse(text));
+            } catch {
+              throw new Error(
+                `Bundled Workflow ${file} was not valid JSON (got ${text.slice(0, 40) || "empty body"}…)`
+              );
+            }
           })
         );
         const loaded = results

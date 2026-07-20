@@ -35,14 +35,20 @@ export function syncConversationFlowFromRules(
     .filter(
       (step) =>
         step.label.trim() &&
-        (step.when.trim() || step.rule === "Wait for IVR response" || step.rule === "End call")
+        (step.when.trim() ||
+          step.rule === "Wait for IVR response" ||
+          step.rule === "End call" ||
+          step.rule === "Capture value after detect")
     )
     .map((step) => {
       const prev = byLabel.get(step.label);
       const action = flowActionForRule(step);
-      const detect =
-        step.when.trim() ||
-        (step.rule === "End call" ? "goodbye|thank you" : `__wait_${step.waitSeconds ?? 0}__`);
+      let detect = step.when.trim();
+      if (!detect) {
+        if (step.rule === "Capture value after detect") detect = "__next_utterance__";
+        else if (step.rule === "End call") detect = "__end_now__";
+        else detect = `__wait_${step.waitSeconds ?? 0}__`;
+      }
 
       return {
         id: prev?.id ?? newId(),

@@ -6,15 +6,61 @@ declare global {
   }
 }
 
-function apiUrl(): string {
-  const configured = import.meta.env.VITE_API_URL || window.__pathlineApiBase;
-  if (configured) return configured.replace(/\/+$/, "");
-  if ("__TAURI_INTERNALS__" in window) {
-    throw new Error(
-      "This desktop release has no API boundary. Rebuild with PATHLINE_API_URL set to an HTTPS origin."
-    );
+function isAbsoluteHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
+
+/**
+ * Resolve the thin API origin.
+ *
+ * Prefer the desktop-injected absolute origin. Never use Vite's browser-dev
+ * proxy path (`/api`) inside Tauri — that fetch hits the asset server, returns
+ * HTML, and WebKit throws "The string did not match the expected pattern."
+ */
+export function apiUrl(): string {
+  const injected = window.__pathlineApiBase?.trim();
+  if (injected) return injected.replace(/\/+$/, "");
+
+  const fromEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  const inTauri = "__TAURI_INTERNALS__" in window;
+
+  if (inTauri) {
+    if (fromEnv && isAbsoluteHttpUrl(fromEnv)) return fromEnv.replace(/\/+$/, "");
+    // Local desktop builds talk to the uvicorn sidecar started by desktop-dev /
+    // launch-desktop. Production packages should inject PATHLINE_API_URL instead.
+    return "http://127.0.0.1:8000";
   }
+
+  if (fromEnv) return fromEnv.replace(/\/+$/, "");
   return "/api";
+}
+
+/** WebKit turns failed JSON.parse into "The string did not match the expected pattern." */
+async function readResponseBody(res: Response): Promise<{ text: string; json: unknown | null }> {
+  const text = await res.text();
+  if (!text) return { text: "", json: null };
+  try {
+    return { text, json: JSON.parse(text) as unknown };
+  } catch {
+    return { text, json: null };
+  }
+}
+
+function detailFromBody(json: unknown | null, fallback: string): string {
+  if (json && typeof json === "object" && "detail" in json) {
+    const detail = (json as { detail: unknown }).detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (Array.isArray(detail) && detail.length > 0) return JSON.stringify(detail);
+  }
+  return fallback;
+}
+
+function httpErrorMessage(res: Response, json: unknown | null, text: string, fallback: string): string {
+  const fromDetail = detailFromBody(json, "");
+  if (fromDetail) return fromDetail;
+  const trimmed = text.trim();
+  if (trimmed && !trimmed.startsWith("<")) return trimmed.slice(0, 240);
+  return `${fallback}: ${res.status} ${res.statusText || "error"}`;
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
@@ -22,8 +68,14 @@ export async function fetchHealth(): Promise<HealthResponse> {
   const timeout = window.setTimeout(() => controller.abort(), 5000);
   try {
     const res = await fetch(`${apiUrl()}/health`, { signal: controller.signal });
-    if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`);
-    return res.json();
+    const { json, text } = await readResponseBody(res);
+    if (!res.ok) {
+      throw new Error(httpErrorMessage(res, json, text, "Health check failed"));
+    }
+    if (!json || typeof json !== "object") {
+      throw new Error("Health check returned a non-JSON response. Is the Pathline API running?");
+    }
+    return json as HealthResponse;
   } finally {
     window.clearTimeout(timeout);
   }
@@ -42,11 +94,14 @@ export async function mintToken(
       consent,
     }),
   });
+  const { json, text } = await readResponseBody(res);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Auth failed: ${res.statusText}`);
+    throw new Error(httpErrorMessage(res, json, text, "Auth failed"));
   }
-  return res.json();
+  if (!json || typeof json !== "object") {
+    throw new Error("Auth succeeded but returned non-JSON. Check the Pathline API and database schema.");
+  }
+  return json as TokenResponse;
 }
 
 export async function linkConsentSession(
@@ -61,11 +116,14 @@ export async function linkConsentSession(
     },
     body: JSON.stringify({ session_id: sessionId }),
   });
+  const { json, text } = await readResponseBody(res);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Consent link failed: ${res.statusText}`);
+    throw new Error(httpErrorMessage(res, json, text, "Consent link failed"));
   }
-  return res.json();
+  if (!json || typeof json !== "object") {
+    throw new Error("Consent link returned non-JSON. Check the Pathline API.");
+  }
+  return json as SessionLinkResponse;
 }
 
 export async function submitEncryptedCallState(
@@ -88,16 +146,28 @@ export async function submitEncryptedCallState(
       payload_nonce: payloadNonce,
     }),
   });
-  if (!res.ok) throw new Error(`Callstate submit failed: ${res.statusText}`);
-  return res.json();
+  const { json, text } = await readResponseBody(res);
+  if (!res.ok) {
+    throw new Error(httpErrorMessage(res, json, text, "Callstate submit failed"));
+  }
+  if (!json || typeof json !== "object") {
+    throw new Error("Callstate submit returned non-JSON. Check the Pathline API.");
+  }
+  return json as CallStateIngestResponse;
 }
 
 export async function exportCallState(token: string, sessionId: string) {
   const res = await fetch(`${apiUrl()}/v1/callstate/${sessionId}/export`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`Export failed: ${res.statusText}`);
-  return res.json();
+  const { json, text } = await readResponseBody(res);
+  if (!res.ok) {
+    throw new Error(httpErrorMessage(res, json, text, "Export failed"));
+  }
+  if (!json || typeof json !== "object") {
+    throw new Error("Export returned non-JSON. Check the Pathline API.");
+  }
+  return json;
 }
 
 export async function deleteCallState(token: string, sessionId: string): Promise<void> {
@@ -105,7 +175,10 @@ export async function deleteCallState(token: string, sessionId: string): Promise
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`Delete failed: ${res.statusText}`);
+  if (!res.ok) {
+    const { json, text } = await readResponseBody(res);
+    throw new Error(httpErrorMessage(res, json, text, "Delete failed"));
+  }
 }
 
 export async function revokeToken(token: string): Promise<void> {

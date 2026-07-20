@@ -114,6 +114,8 @@ export interface RunState {
   lastPhrase?: string;
   pendingDtmf?: string;
   pendingTrigger?: string;
+  /** Flow step ids already completed this Run — gates open capture / open end. */
+  matchedFlowIds?: string[];
   completed: boolean;
 }
 

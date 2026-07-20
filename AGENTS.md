@@ -62,15 +62,25 @@ endpoint. `Ctrl+C` (or `./scripts/stop.sh`) stops background services. Logs:
   (there is no `requirements.txt`). Re-run `pip install -e packages/shared-python -e "services/api[test]"`
   inside the venv after pulling dependency changes; the update script does this.
 - The client dev server proxies `/api` → `http://127.0.0.1:8000` (see `client/vite.config.ts`);
-  in dev `VITE_API_URL` is `/api`. Desktop release builds must inject `PATHLINE_API_URL`.
+  in browser-dev `VITE_API_URL` is `/api`. The Tauri shell must never use that relative
+  proxy path — it injects `window.__pathlineApiBase` (default `http://127.0.0.1:8000`,
+  override with `PATHLINE_API_URL` at desktop build time). Fetching `/api` inside the
+  webview returns HTML and WebKit reports “The string did not match the expected pattern.”
+- The packaged `/Applications/Pathline.app` does not start the API by itself. Keep the
+  sidecar up (`npm run desktop:dev`, `./scripts/launch-desktop.sh`, or uvicorn on :8000)
+  or consent/token mint will fail.
 - **Automated gates**: GitHub Actions (`.github/workflows/ci.yml`) and
   `./scripts/ci-verify.sh` cover client Vitest + build, STT fixture, API pytest +
   Alembic, Rust SIP/Whisper tests, and static lab checks. Production acceptance
   that requires Apple signing or a carrier trunk is documented in
   `docs/production-acceptance.md`.
 - Secrets: `start.sh` auto-generates `JWT_SECRET` / `SESSION_PEPPER` per run via `openssl rand`.
-  The DB defaults to local SQLite (`pathline.db`); production requires PostgreSQL and
-  non-dev secrets (`PATHLINE_ENV=production`).
+  The DB defaults to local SQLite (`pathline.db`); production requires PostgreSQL,
+  `APP_ENV=production`, and managed migrations (`AUTO_CREATE_SCHEMA=false` +
+  `alembic upgrade head`). Local/dev SQLite auto-creates tables on startup and
+  rebuilds when the on-disk schema predates owner-bound columns (consent/token
+  mint fails with a vague WebKit “expected pattern” error until the API restarts
+  against a current schema).
 - Automated calls require the desktop-native SIP transport. A plain browser run
   is **manual fallback only** — paste IVR phrases and follow the on-screen keypad
   guide. The desktop app must fail closed when native SIP or local STT is

@@ -136,9 +136,13 @@ export function InlineStepRow({
           value={draft.when}
           onChange={(event) => patchDraft({ when: event.target.value })}
           placeholder={
-            draft.action === "end-call" || draft.action === "wait"
+            draft.action === "wait"
               ? "custom phrase (optional)"
-              : "custom phrase"
+              : draft.action === "end-call"
+                ? "cue phrase (optional — blank = hang up after prior Steps)"
+                : draft.action === "save-response"
+                  ? "cue phrase (optional — blank = next reply)"
+                  : "custom phrase"
           }
           aria-label={`Step ${stepNumber} phrase`}
         />

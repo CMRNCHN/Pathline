@@ -1,7 +1,12 @@
-import type { PathDocument, RunLogEntry, RunState } from "../script/types";
+import type { FlowStep, PathDocument, RunLogEntry, RunState } from "../script/types";
 import { extractOutputRules, findIvrRule, resolveReference } from "../script/compile";
 
 export type { RunState, RunLogEntry };
+
+/** Open capture: save the next reply after prior Steps finish (no cue phrase). */
+export const NEXT_UTTERANCE_DETECT = "__next_utterance__";
+/** Open end: hang up once prior Steps finish (no goodbye cue). */
+export const END_NOW_DETECT = "__end_now__";
 
 export interface ProcessPhraseOptions {
   /** When true, DTMF actions are returned for transport injection instead of pending UI state. */
@@ -23,7 +28,7 @@ export interface ProcessPhraseResult {
 }
 
 export function initialRunState(): RunState {
-  return { collected: {}, log: [], completed: false };
+  return { collected: {}, log: [], matchedFlowIds: [], completed: false };
 }
 
 export async function hashCollected(collected: Record<string, string>): Promise<string> {
@@ -38,6 +43,7 @@ function logEntry(message: string, kind: RunLogEntry["kind"]): RunLogEntry {
 
 function matches(text: string, phrase: string): boolean {
   if (!phrase.trim()) return false;
+  if (phrase === NEXT_UTTERANCE_DETECT || phrase === END_NOW_DETECT) return false;
   const hay = text.toLowerCase().replace(/\s+/g, " ").trim();
   return phrase
     .split("|")
@@ -46,8 +52,42 @@ function matches(text: string, phrase: string): boolean {
     .some((needle) => hay.includes(needle));
 }
 
-function findMatchingFlowStep(doc: PathDocument, phrase: string) {
-  return doc.conversationFlow.find((step) => matches(phrase, step.detect));
+function priorsDone(flow: FlowStep[], index: number, matchedIds: Set<string>): boolean {
+  return flow.slice(0, index).every((step) => matchedIds.has(step.id));
+}
+
+function findMatchingFlowStep(
+  doc: PathDocument,
+  phrase: string,
+  matchedIds: Set<string>
+): FlowStep | undefined {
+  const flow = doc.conversationFlow;
+
+  for (let index = 0; index < flow.length; index++) {
+    const step = flow[index];
+    if (matchedIds.has(step.id)) continue;
+
+    if (step.detect === NEXT_UTTERANCE_DETECT || step.detect === END_NOW_DETECT) {
+      if (priorsDone(flow, index, matchedIds)) return step;
+      continue;
+    }
+
+    if (matches(phrase, step.detect)) return step;
+  }
+
+  return undefined;
+}
+
+function nextStepIsOpenEnd(doc: PathDocument, step: FlowStep): boolean {
+  const index = doc.conversationFlow.findIndex((item) => item.id === step.id);
+  if (index < 0) return false;
+  const next = doc.conversationFlow[index + 1];
+  return next?.action === "end" && next.detect === END_NOW_DETECT;
+}
+
+function withMatched(prev: RunState, stepId: string): string[] {
+  const existing = prev.matchedFlowIds ?? [];
+  return existing.includes(stepId) ? existing : [...existing, stepId];
 }
 
 /** Authority for Path execution — step state, phrase matching, and next action. */
@@ -66,12 +106,14 @@ export function processPhrase(
   if (!phrase) return { state: prev, matched: false, shouldComplete: false };
   if (phrase === prev.lastPhrase) return { state: prev, matched: false, shouldComplete: false };
 
-  const step = findMatchingFlowStep(doc, phrase);
+  const matchedIds = new Set(prev.matchedFlowIds ?? []);
+  const step = findMatchingFlowStep(doc, phrase, matchedIds);
   const base: RunState = {
     ...prev,
     lastPhrase: phrase,
     pendingDtmf: undefined,
     pendingTrigger: undefined,
+    matchedFlowIds: prev.matchedFlowIds ?? [],
   };
 
   if (!step) {
@@ -88,15 +130,18 @@ export function processPhrase(
     };
   }
 
+  const matchedFlowIds = withMatched(prev, step.id);
+
   switch (step.action) {
     case "pass": {
       return {
         state: {
           ...base,
+          matchedFlowIds,
           log: [...prev.log, logEntry(`Pass: "${step.detect}"`, "pass")],
         },
         matched: true,
-        shouldComplete: false,
+        shouldComplete: nextStepIsOpenEnd(doc, step),
       };
     }
 
@@ -116,12 +161,13 @@ export function processPhrase(
           "trigger"
         ),
       ];
+      const shouldComplete = nextStepIsOpenEnd(doc, step);
 
       if (automated && resolved) {
         return {
-          state: { ...base, log },
+          state: { ...base, matchedFlowIds, log },
           matched: true,
-          shouldComplete: false,
+          shouldComplete,
           ...(isSpeech
             ? { speechAction: { step: stepName, text: resolved } }
             : { dtmfAction: { step: stepName, sequence: resolved } }),
@@ -132,6 +178,7 @@ export function processPhrase(
         return {
           state: {
             ...base,
+            matchedFlowIds,
             log: [...log, logEntry("Speech action requires a speech-capable transport", "unknown")],
           },
           matched: true,
@@ -141,11 +188,12 @@ export function processPhrase(
 
       const state: RunState = {
         ...base,
+        matchedFlowIds,
         log,
         pendingDtmf: resolved,
         pendingTrigger: step.detect,
       };
-      return { state, matched: true, shouldComplete: false };
+      return { state, matched: true, shouldComplete };
     }
 
     case "extract": {
@@ -153,19 +201,28 @@ export function processPhrase(
       const field = ivrRule?.output ?? "";
       const value = field ? phrase : "";
       const collected = value ? { ...prev.collected, [field]: value } : prev.collected;
+      const openCapture = step.detect === NEXT_UTTERANCE_DETECT;
       const log = [
         ...prev.log,
         logEntry(
           value && field
-            ? `Saved ${field} from IVR: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}`
+            ? openCapture
+              ? `Saved ${field} from next reply: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}`
+              : `Saved ${field} from IVR: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}`
             : "Listen & save rule missing field name",
           value && field ? "extract" : "unknown"
         ),
       ];
+      const matched = Boolean(value && field);
       return {
-        state: { ...base, collected, log },
-        matched: Boolean(value && field),
-        shouldComplete: false,
+        state: {
+          ...base,
+          collected,
+          log,
+          matchedFlowIds: matched ? matchedFlowIds : base.matchedFlowIds,
+        },
+        matched,
+        shouldComplete: matched && nextStepIsOpenEnd(doc, step),
       };
     }
 
@@ -180,13 +237,23 @@ export function processPhrase(
           ok ? "validate" : "unknown"
         ),
       ];
-      return { state: { ...base, log }, matched: ok, shouldComplete: false };
+      return {
+        state: { ...base, log, matchedFlowIds: ok ? matchedFlowIds : base.matchedFlowIds },
+        matched: ok,
+        shouldComplete: false,
+      };
     }
 
     case "end": {
-      const log = [...prev.log, logEntry(`End: "${step.detect}"`, "end")];
+      const log = [
+        ...prev.log,
+        logEntry(
+          step.detect === END_NOW_DETECT ? "End call" : `End: "${step.detect}"`,
+          "end"
+        ),
+      ];
       return {
-        state: { ...base, log, completed: true },
+        state: { ...base, log, matchedFlowIds, completed: true },
         matched: true,
         shouldComplete: true,
       };

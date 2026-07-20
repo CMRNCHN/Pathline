@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { PathDocument } from "../script/types";
-import { initialRunState, processPhrase } from "./runEngine";
+import {
+  END_NOW_DETECT,
+  initialRunState,
+  NEXT_UTTERANCE_DETECT,
+  processPhrase,
+} from "./runEngine";
 
 const document: PathDocument = {
   id: "dispatch-test",
@@ -48,5 +53,75 @@ describe("runtime action dispatch", () => {
     expect(keypad.speechAction).toBeUndefined();
     expect(speech.speechAction?.text).toBe("Cameron");
     expect(speech.dtmfAction).toBeUndefined();
+  });
+
+  it("saves the next reply for open capture and ends when the following Step is open end", () => {
+    const path: PathDocument = {
+      id: "card-status",
+      version: 2,
+      setup: {
+        name: "Card Status",
+        description: "",
+        target: "8009505114",
+        timeoutMs: 10_000,
+        speechPreferences: { autoListen: true },
+        inputs: [],
+      },
+      steps: [
+        {
+          id: "zip",
+          label: "zip",
+          when: "zip code",
+          then: "98335",
+          output: "",
+          rule: "Inject DTMF after detect",
+        },
+        {
+          id: "capture",
+          label: "capture_card_status",
+          when: "",
+          then: "",
+          output: "card_status",
+          rule: "Capture value after detect",
+        },
+        {
+          id: "end",
+          label: "end_call",
+          when: "",
+          then: "",
+          output: "",
+          rule: "End call",
+        },
+      ],
+      conversationFlow: [
+        { id: "flow-zip", detect: "zip code", action: "trigger", triggerLabel: "zip" },
+        {
+          id: "flow-capture",
+          detect: NEXT_UTTERANCE_DETECT,
+          action: "extract",
+          triggerLabel: "capture_card_status",
+        },
+        { id: "flow-end", detect: END_NOW_DETECT, action: "end" },
+      ],
+    };
+
+    const afterZip = processPhrase("please enter zip code", path, {}, initialRunState(), {
+      automated: true,
+    });
+    expect(afterZip.dtmfAction?.sequence).toBe("98335");
+    expect(afterZip.state.collected.card_status).toBeUndefined();
+    expect(afterZip.shouldComplete).toBe(false);
+
+    const beforePriors = processPhrase("your card is active", path, {}, initialRunState(), {
+      automated: true,
+    });
+    expect(beforePriors.state.collected.card_status).toBeUndefined();
+    expect(beforePriors.matched).toBe(false);
+
+    const captured = processPhrase("your card is active", path, {}, afterZip.state, {
+      automated: true,
+    });
+    expect(captured.state.collected.card_status).toBe("your card is active");
+    expect(captured.shouldComplete).toBe(true);
   });
 });

@@ -16,6 +16,10 @@ alembic upgrade head
 alembic current
 ```
 
+Local desktop packages default `window.__pathlineApiBase` to `http://127.0.0.1:8000`.
+Override with `PATHLINE_API_URL=https://…` when building a non-local release. Do not ship a
+desktop build that resolves the API as the Vite browser proxy path `/api`.
+
 Run Uvicorn with `--no-access-log` unless the deployment proxy is configured to redact URL path
 parameters. Session identifiers appear in export/delete paths; application logs use only truncated
 HMAC references and correlation IDs.
