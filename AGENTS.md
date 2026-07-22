@@ -8,6 +8,9 @@ Privacy-first, client-mediated call orchestration. See `README.md` and `Pathline
 - **Always merge AGENTS.md updates.** The maintainer wants changes to this file kept and merged
   every time, so future agents retain these learnings. Always include AGENTS.md edits in the PR and
   explicitly flag them for merge. (Agents cannot merge PRs themselves; a human must click merge.)
+- **Failed Run loop (every prompt):** when the user reports a failed Run / Call failed / SIP error,
+  proactively run `.cursor/agents/run-failure-logger` then `.cursor/agents/run-failure-fixer`
+  (see `.cursor/rules/run-failure-loop.mdc`). Logger first (evidence), fixer second (minimal fix).
 
 ### Scope
 The shipping **v1 production automation endpoint is the native desktop app**:
@@ -68,7 +71,8 @@ endpoint. `Ctrl+C` (or `./scripts/stop.sh`) stops background services. Logs:
   webview returns HTML and WebKit reports “The string did not match the expected pattern.”
 - The packaged `/Applications/Pathline.app` does not start the API by itself. Keep the
   sidecar up (`npm run desktop:dev`, `./scripts/launch-desktop.sh`, or uvicorn on :8000)
-  or consent/token mint will fail.
+  or consent/token mint will fail. Development CORS defaults include `tauri://localhost`
+  and the Vite origins; without them WKWebView shows “Load failed” on `/v1/token`.
 - **Automated gates**: GitHub Actions (`.github/workflows/ci.yml`) and
   `./scripts/ci-verify.sh` cover client Vitest + build, STT fixture, API pytest +
   Alembic, Rust SIP/Whisper tests, and static lab checks. Production acceptance

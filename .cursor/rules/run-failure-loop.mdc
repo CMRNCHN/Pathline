@@ -1,0 +1,26 @@
+---
+description: On every user turn, proactively run failed-Run logging then fix agents
+alwaysApply: true
+---
+
+# Failed Run loop (every prompt)
+
+When the user message mentions a failed Run, Call failed, Error, FAILED,
+connect timeout, SIP/TLS/RTP/STT/DTMF issue, lab dial problem, or pastes an
+error from the desktop/UI:
+
+1. **First** invoke the `run-failure-logger` subagent (Task tool,
+   `subagent_type: run-failure-logger`) to ensure evidence-grade logs exist.
+2. **Then** invoke the `run-failure-fixer` subagent (`subagent_type: run-failure-fixer`)
+   to diagnose and fix using those logs.
+3. If the turn is only "retry" / "launch" / status with no
+ new error text, still
+   check `.logs/desktop-relaunch.log` and Asterisk briefly; invoke the pair if a
+   new failure appeared since last turn.
+
+If Task/`run-failure-*` subagent types are unavailable in this session, perform
+the same workflows yourself using `.cursor/agents/run-failure-logger.md` and
+`.cursor/agents/run-failure-fixer.md` as the system prompts.
+
+Do not skip this loop when the user pastes a call/Run error — even if the
+request also asks for something else.

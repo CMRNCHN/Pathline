@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Download, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Download, Trash2 } from "lucide-react";
 import type { Step, PathDocument } from "../../script/types";
 import { extractVariableNames, withSyncedRules } from "../../script/compile";
 import { scriptDisplayName } from "../../script/storage";
@@ -8,12 +8,10 @@ import {
   getWorkflowSetupIssues,
   READINESS_LABEL,
 } from "../../script/pathReadiness";
-import { SectionBlock } from "../../components/ui/SectionBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InlineStepRow } from "./InlineStepRow";
-import { RuleCard } from "./RuleCard";
 import { isPlaceholderRule } from "../../script/ruleIntent";
 
 export interface EditFormProps {
@@ -42,6 +40,9 @@ export function EditForm({
   onTest,
 }: EditFormProps) {
   const [addingStep, setAddingStep] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(
+    () => !script.setup.target.trim() || !script.setup.name.trim()
+  );
 
   const patchSetup = (patch: Partial<PathDocument["setup"]>) =>
     onPatch({ setup: { ...script.setup, ...patch } });
@@ -51,6 +52,14 @@ export function EditForm({
   const stepLabels = visibleRules.map((item) => item.label);
   const readiness = getPathReadiness(script);
   const setupIssues = getWorkflowSetupIssues(script);
+
+  const setupSummary = [
+    script.setup.target.trim() || "No phone",
+    `${Math.round(script.setup.timeoutMs / 1000)}s wait`,
+    script.setup.description.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const updateRules = (steps: Step[]) => onPatch(withSyncedRules(script, steps));
 
@@ -89,7 +98,7 @@ export function EditForm({
       )}
 
       <header className="editor-topbar script-header">
-        <div className="script-header-main">
+        <div className="script-header-main min-w-0 flex-1">
           <div className="script-header-eyebrow-row">
             <p className="editor-eyebrow">Workflow</p>
             <Badge variant={readinessBadgeVariant(readiness)}>{READINESS_LABEL[readiness]}</Badge>
@@ -105,39 +114,55 @@ export function EditForm({
               aria-label="Workflow name"
             />
           )}
-          <div className="script-header-meta">
-            <label className="script-header-field">
-              <span>Description</span>
-              <Input
-                value={script.setup.description}
-                onChange={(e) => patchSetup({ description: e.target.value })}
-                disabled={readOnly}
-                placeholder="What this Workflow does"
-              />
-            </label>
-            <label className="script-header-field">
-              <span>Phone to call</span>
-              <Input
-                type="tel"
-                value={script.setup.target}
-                onChange={(e) => patchSetup({ target: e.target.value })}
-                disabled={readOnly}
-                placeholder="+1 (800) XXX-XXXX"
-              />
-            </label>
-            <label className="script-header-field script-header-field-narrow">
-              <span>Max wait between prompts</span>
-              <div className="script-header-timeout">
-                <Input
-                  type="number"
-                  value={Math.round(script.setup.timeoutMs / 1000)}
-                  onChange={(e) => patchSetup({ timeoutMs: Number(e.target.value) * 1000 })}
-                  disabled={readOnly}
-                  min={1}
-                />
-                <span className="wait-suffix">sec</span>
+
+          <div className="mt-3">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => setSetupOpen((open) => !open)}
+              aria-expanded={setupOpen}
+            >
+              {setupOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+              <span className="font-medium text-foreground">Dial settings</span>
+              {!setupOpen && <span className="truncate text-xs">{setupSummary}</span>}
+            </button>
+
+            {setupOpen && (
+              <div className="script-header-meta mt-2">
+                <label className="script-header-field">
+                  <span>Description</span>
+                  <Input
+                    value={script.setup.description}
+                    onChange={(e) => patchSetup({ description: e.target.value })}
+                    disabled={readOnly}
+                    placeholder="What this Workflow does"
+                  />
+                </label>
+                <label className="script-header-field">
+                  <span>Phone to call</span>
+                  <Input
+                    type="tel"
+                    value={script.setup.target}
+                    onChange={(e) => patchSetup({ target: e.target.value })}
+                    disabled={readOnly}
+                    placeholder="+1 (800) XXX-XXXX"
+                  />
+                </label>
+                <label className="script-header-field script-header-field-narrow">
+                  <span>Max wait between prompts</span>
+                  <div className="script-header-timeout">
+                    <Input
+                      type="number"
+                      value={Math.round(script.setup.timeoutMs / 1000)}
+                      onChange={(e) => patchSetup({ timeoutMs: Number(e.target.value) * 1000 })}
+                      disabled={readOnly}
+                      min={1}
+                    />
+                    <span className="wait-suffix">sec</span>
+                  </div>
+                </label>
               </div>
-            </label>
+            )}
           </div>
         </div>
         <div className="script-header-actions">
@@ -178,30 +203,30 @@ export function EditForm({
             </ul>
           </div>
         )}
-        <SectionBlock
-          index="01"
-          title="Steps"
-          description="Build the call one instruction at a time: When the IVR says something, Then Pathline acts."
-          wide
-        >
-          <div className="rule-card-list">
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-base font-bold tracking-tight">Call script</h2>
+            <p className="text-sm text-muted-foreground">
+              Ordered Steps Pathline follows on the call. Edits save when a Step is valid.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
             {visibleRules.map((rule, index) => (
-              readOnly ? (
-                <RuleCard key={rule.id} rule={rule} stepNumber={index + 1} />
-              ) : (
-                <InlineStepRow
-                  key={rule.id}
-                  step={rule}
-                  stepNumber={index + 1}
-                  existingLabels={stepLabels}
-                  onSave={handleSaveStep}
-                  onRemove={() => removeStep(rule, index + 1)}
-                  onMoveUp={() => moveStep(index, index - 1)}
-                  onMoveDown={() => moveStep(index, index + 1)}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < visibleRules.length - 1}
-                />
-              )
+              <InlineStepRow
+                key={rule.id}
+                step={rule}
+                stepNumber={index + 1}
+                existingLabels={stepLabels}
+                onSave={handleSaveStep}
+                onRemove={readOnly ? undefined : () => removeStep(rule, index + 1)}
+                onMoveUp={readOnly ? undefined : () => moveStep(index, index - 1)}
+                onMoveDown={readOnly ? undefined : () => moveStep(index, index + 1)}
+                canMoveUp={!readOnly && index > 0}
+                canMoveDown={!readOnly && index < visibleRules.length - 1}
+                readOnly={readOnly}
+              />
             ))}
           </div>
 
@@ -230,27 +255,29 @@ export function EditForm({
               onCancel={() => setAddingStep(false)}
             />
           )}
-        </SectionBlock>
+        </section>
 
-        <SectionBlock
-          index="02"
-          title="Inputs for Run"
-          description="Values you enter when you Run this Workflow — never stored with the Workflow."
-        >
+        <section className="space-y-2 border-t border-border pt-4">
+          <div>
+            <h2 className="text-base font-bold tracking-tight">Run inputs (from Steps)</h2>
+            <p className="text-sm text-muted-foreground">
+              Values you enter when you Run — never stored with the Workflow.
+            </p>
+          </div>
           {inputVariables.length === 0 ? (
             <p className="field-hint">
-              No Inputs required. Add a Step that submits a value and its Input appears here.
+              None yet. Use {"{{name}}"} in Press keys to add an Input.
             </p>
           ) : (
-            <ul className="results-list">
+            <div className="flex flex-wrap gap-2">
               {inputVariables.map((name) => (
-                <li key={name} className="results-list-item mono">
+                <Badge key={name} variant="outline" className="font-mono">
                   {name}
-                </li>
+                </Badge>
               ))}
-            </ul>
+            </div>
           )}
-        </SectionBlock>
+        </section>
       </div>
     </div>
   );

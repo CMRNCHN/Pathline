@@ -237,6 +237,31 @@ async def test_restricted_cors(database_url: str) -> None:
     assert "access-control-allow-origin" not in denied.headers
 
 
+async def test_development_defaults_allow_tauri_origin(database_url: str) -> None:
+    settings = Settings(
+        app_env="development",
+        database_url=database_url,
+        jwt_secret="test-jwt-secret-with-at-least-32-bytes",
+        session_pepper="test-session-pepper-with-at-least-32-bytes",
+        cors_origins=[],
+        purge_interval_seconds=3600,
+    )
+    assert "tauri://localhost" in settings.cors_origins
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as cors_client:
+            preflight = await cors_client.options(
+                "/v1/token",
+                headers={
+                    "Origin": "tauri://localhost",
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "content-type",
+                },
+            )
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == "tauri://localhost"
+
+
 async def test_token_rate_limit(database_url: str) -> None:
     settings = Settings(
         app_env="test",

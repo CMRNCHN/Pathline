@@ -63,11 +63,31 @@ function httpErrorMessage(res: Response, json: unknown | null, text: string, fal
   return `${fallback}: ${res.status} ${res.statusText || "error"}`;
 }
 
+/** Safari/Tauri report CORS and offline failures as a bare "Load failed". */
+function networkErrorMessage(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message.trim() : "";
+  if (/^(load failed|failed to fetch|networkerror when attempting to fetch resource\.?)$/i.test(message)) {
+    return (
+      `${fallback}: cannot reach ${apiUrl()}. ` +
+      "Start the local API (uvicorn on :8000) and ensure desktop CORS origins include tauri://localhost."
+    );
+  }
+  return message || fallback;
+}
+
+async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    throw new Error(networkErrorMessage(error, "Network request failed"));
+  }
+}
+
 export async function fetchHealth(): Promise<HealthResponse> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 5000);
   try {
-    const res = await fetch(`${apiUrl()}/health`, { signal: controller.signal });
+    const res = await apiFetch(`${apiUrl()}/health`, { signal: controller.signal });
     const { json, text } = await readResponseBody(res);
     if (!res.ok) {
       throw new Error(httpErrorMessage(res, json, text, "Health check failed"));
@@ -85,7 +105,7 @@ export async function mintToken(
   userId: string,
   consent: { accepted: boolean; timestamp: string; terms_version: string }
 ): Promise<TokenResponse> {
-  const res = await fetch(`${apiUrl()}/v1/token`, {
+  const res = await apiFetch(`${apiUrl()}/v1/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -108,7 +128,7 @@ export async function linkConsentSession(
   token: string,
   sessionId: string
 ): Promise<SessionLinkResponse> {
-  const res = await fetch(`${apiUrl()}/v1/consent/session`, {
+  const res = await apiFetch(`${apiUrl()}/v1/consent/session`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -133,7 +153,7 @@ export async function submitEncryptedCallState(
   payloadNonce: string,
   idempotencyKey: string
 ): Promise<CallStateIngestResponse> {
-  const res = await fetch(`${apiUrl()}/v1/callstate`, {
+  const res = await apiFetch(`${apiUrl()}/v1/callstate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -157,7 +177,7 @@ export async function submitEncryptedCallState(
 }
 
 export async function exportCallState(token: string, sessionId: string) {
-  const res = await fetch(`${apiUrl()}/v1/callstate/${sessionId}/export`, {
+  const res = await apiFetch(`${apiUrl()}/v1/callstate/${sessionId}/export`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const { json, text } = await readResponseBody(res);
@@ -171,7 +191,7 @@ export async function exportCallState(token: string, sessionId: string) {
 }
 
 export async function deleteCallState(token: string, sessionId: string): Promise<void> {
-  const res = await fetch(`${apiUrl()}/v1/callstate/${sessionId}`, {
+  const res = await apiFetch(`${apiUrl()}/v1/callstate/${sessionId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -182,7 +202,7 @@ export async function deleteCallState(token: string, sessionId: string): Promise
 }
 
 export async function revokeToken(token: string): Promise<void> {
-  await fetch(`${apiUrl()}/v1/revoke`, {
+  await apiFetch(`${apiUrl()}/v1/revoke`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });

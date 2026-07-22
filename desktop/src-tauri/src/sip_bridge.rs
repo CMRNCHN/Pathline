@@ -162,6 +162,116 @@ fn env_or(keys: &[&str], default: &str) -> String {
     default.to_string()
 }
 
+/// Rewrite the digest `algorithm` token in a WWW-/Proxy-Authenticate header
+/// to the exact casing the locked `rsiprtp` parser accepts.
+///
+/// Asterisk 18 emits `algorithm=md5` (lowercase) and some carriers vary the
+/// case too, but `rsiprtp` 0.4.1 matches the token case-sensitively (`MD5`,
+/// `MD5-sess`, `SHA-256`, `SHA-256-sess`) and rejects anything else as
+/// "unsupported algorithm". RFC 7616 §3.3 defines the token as
+/// case-insensitive, so normalizing it before parsing is spec-compliant.
+/// Unrecognized tokens are left untouched so the parser still surfaces a
+/// genuine "unsupported algorithm" error.
+fn normalize_digest_algorithm(header: &str) -> String {
+    let Some(key_pos) = header.to_ascii_lowercase().find("algorithm=") else {
+        return header.to_string();
+    };
+    let val_start = key_pos + "algorithm=".len();
+    // The algorithm value is an unquoted token ending at the next comma or
+    // whitespace (RFC 7616 §3.3).
+    let val_end = header[val_start..]
+        .find(|c: char| c == ',' || c.is_whitespace())
+        .map(|offset| val_start + offset)
+        .unwrap_or(header.len());
+    let canonical = match header[val_start..val_end].to_ascii_lowercase().as_str() {
+        "md5" => "MD5",
+        "md5-sess" => "MD5-sess",
+        "sha-256" => "SHA-256",
+        "sha-256-sess" => "SHA-256-sess",
+        _ => return header.to_string(),
+    };
+    format!("{}{}{}", &header[..val_start], canonical, &header[val_end..])
+}
+
+/// Discover the real local TCP port of our established TLS socket to `peer`.
+///
+/// `rsiprtp` 0.4.1's `TlsTransport::connect` uses an ephemeral source port but
+/// our Via/Contact previously advertised `PATHLINE_SIP_LOCAL_PORT` (5065).
+/// Asterisk then fails to send `200 OK` with `PJ_EINVALIDOP`. The working lab
+/// verifier (`scripts/lab-sip-traversal.py`) puts `getsockname()` in Via —
+/// match that.
+fn discover_tls_local_port(peer: SocketAddr) -> Option<u16> {
+    let pid = std::process::id().to_string();
+    let needle = format!("-iTCP@{}:{}", peer.ip(), peer.port());
+    // macOS lsof ORs selection options unless `-a` is set — without it we
+    // match Colima's ssh forwarder (local *:5061) and advertise the server
+    // port in Via, which breaks Asterisk 200 OK delivery.
+    let output = std::process::Command::new("lsof")
+        .args(["-nP", "-a", "-p", &pid, &needle, "-sTCP:ESTABLISHED"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let peer_port = peer.port();
+    for line in text.lines() {
+        // Belt-and-suspenders: only parse rows for this PID.
+        let mut cols = line.split_whitespace();
+        let _cmd = cols.next();
+        let Some(row_pid) = cols.next() else {
+            continue;
+        };
+        if row_pid != pid {
+            continue;
+        }
+        let Some(tcp_at) = line.find("TCP ") else {
+            continue;
+        };
+        let rest = &line[tcp_at + 4..];
+        let Some(arrow) = rest.find("->") else {
+            continue;
+        };
+        let local = rest[..arrow].trim();
+        let Some(colon) = local.rfind(':') else {
+            continue;
+        };
+        if let Ok(port) = local[colon + 1..].parse::<u16>() {
+            // Never advertise the peer's listen port as our Via port.
+            if port != peer_port {
+                return Some(port);
+            }
+        }
+    }
+    None
+}
+
+/// Append `;rport` to the first Via header (RFC 3581) so Asterisk applies
+/// symmetric response routing — same as the lab verifier.
+fn with_via_rport(data: Vec<u8>) -> Vec<u8> {
+    let Ok(text) = std::str::from_utf8(&data) else {
+        return data;
+    };
+    let Some(via_rel) = text.find("Via: ") else {
+        return data;
+    };
+    let after = via_rel + 5;
+    let Some(line_end_rel) = text[after..].find("\r\n") else {
+        return data;
+    };
+    let line_end = after + line_end_rel;
+    let via_line = &text[via_rel..line_end];
+    if via_line.contains("rport") {
+        return data;
+    }
+    let mut out = Vec::with_capacity(data.len() + 6);
+    out.extend_from_slice(&data[..line_end]);
+    out.extend_from_slice(b";rport");
+    out.extend_from_slice(&data[line_end..]);
+    out
+}
+
+fn sip_send_bytes(data: impl AsRef<[u8]>) -> Vec<u8> {
+    with_via_rport(data.as_ref().to_vec())
+}
+
 /// Transport event payload. Never carries PCM, transcripts, or secrets
 /// (`docs/desktop-audio-contract.md`, `docs/architecture-boundary.md` rule 3).
 #[derive(Clone, Serialize)]
@@ -326,6 +436,9 @@ async fn run_call(
         .map_err(|_| format!("invalid local IP {}", cfg.local_ip))?;
 
     // --- TLS transport for SIP signaling ---------------------------------
+    // Bind advertisement uses the real TCP source port (see discover below).
+    // Passing port 0 here only labels the transport; rsiprtp still connects
+    // with an ephemeral source port.
     let local_sip_addr: SocketAddr = format!("{}:0", cfg.local_ip)
         .parse()
         .map_err(|_| "invalid local SIP addr".to_string())?;
@@ -340,6 +453,10 @@ async fn run_call(
     tls.connect(server_addr, &cfg.server)
         .await
         .map_err(|e| format!("TLS connect to {server_addr} failed: {e}"))?;
+    // Via/Contact must advertise the real ephemeral source port — advertising
+    // a fake 5065 makes Asterisk fail sending 200 OK (PJ_EINVALIDOP).
+    let via_port = discover_tls_local_port(server_addr).unwrap_or(cfg.local_port);
+    log::info!("SIP TLS local port for Via/Contact: {via_port}");
     let (mut sip_rx, sip_tx) = tls.start();
 
     // --- RTP media socket ------------------------------------------------
@@ -372,7 +489,7 @@ async fn run_call(
     let dest_uri = format!("sip:{}@{}", number, cfg.server);
     let contact = format!(
         "sip:{}@{}:{};transport=tls",
-        cfg.username, cfg.local_ip, cfg.local_port
+        cfg.username, cfg.local_ip, via_port
     );
     let from_tag = generate_tag();
     let sip_call_id = generate_call_id(&cfg.server);
@@ -386,7 +503,7 @@ async fn run_call(
         let mut b = SipRequest::builder()
             .method(Method::Invite)
             .uri(&dest_uri)
-            .via(&cfg.local_ip, cfg.local_port, "TLS", branch)
+            .via(&cfg.local_ip, via_port, "TLS", branch)
             .from(&from_uri, &from_tag)
             .to(&dest_uri)
             .call_id(&sip_call_id)
@@ -407,7 +524,7 @@ async fn run_call(
     let mut invite_branch = generate_branch();
     let invite = build_invite(cseq, &invite_branch, None, None)?;
     sip_tx
-        .send_to(&invite.to_bytes()[..], server_addr)
+        .send_to(&sip_send_bytes(invite.to_bytes())[..], server_addr)
         .await
         .map_err(|e| format!("send INVITE failed: {e}"))?;
     log::info!("SIP INVITE -> {dest_uri} via TLS {server_addr}");
@@ -415,7 +532,7 @@ async fn run_call(
     // --- Await final response (with single re-auth) ----------------------
     let mut authed = false;
     let mut ringing_emitted = false;
-    let (to_tag, answer_sdp) = loop {
+    let (to_tag, answer_sdp, remote_target) = loop {
         let msg = tokio::select! {
             cmd = cmd_rx.recv() => {
                 match cmd {
@@ -424,6 +541,7 @@ async fn run_call(
                             &sip_tx,
                             server_addr,
                             &cfg,
+                            via_port,
                             &dest_uri,
                             &from_uri,
                             &from_tag,
@@ -459,6 +577,7 @@ async fn run_call(
             continue;
         };
         let status = resp.status_code();
+        log::info!("SIP response {status} {}", resp.reason());
         match status {
             100 => {}
             180 | 183 => {
@@ -469,11 +588,16 @@ async fn run_call(
             }
             200 => {
                 let to_tag = resp.to_tag().unwrap_or_default();
-                // 2xx ACK: new branch, same CSeq, method ACK.
+                let ack_uri = resp
+                    .contact_uri()
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|| dest_uri.clone());
+                // 2xx ACK: new branch, same CSeq, method ACK; Request-URI is
+                // the remote Contact (RFC 3261 §13.2.2.4).
                 let ack = SipRequest::builder()
                     .method(Method::Ack)
-                    .uri(&dest_uri)
-                    .via(&cfg.local_ip, cfg.local_port, "TLS", &generate_branch())
+                    .uri(&ack_uri)
+                    .via(&cfg.local_ip, via_port, "TLS", &generate_branch())
                     .from(&from_uri, &from_tag)
                     .to(&dest_uri)
                     .to_tag(&to_tag)
@@ -481,8 +605,10 @@ async fn run_call(
                     .cseq(cseq)
                     .build()
                     .map_err(|e| format!("build ACK failed: {e}"))?;
-                let _ = sip_tx.send_to(&ack.to_bytes()[..], server_addr).await;
-                break (to_tag, resp.body().to_vec());
+                let _ = sip_tx
+                    .send_to(&sip_send_bytes(ack.to_bytes())[..], server_addr)
+                    .await;
+                break (to_tag, resp.body().to_vec(), ack_uri);
             }
             401 | 407 if !authed => {
                 authed = true;
@@ -490,7 +616,7 @@ async fn run_call(
                 let ack = SipRequest::builder()
                     .method(Method::Ack)
                     .uri(&dest_uri)
-                    .via(&cfg.local_ip, cfg.local_port, "TLS", &invite_branch)
+                    .via(&cfg.local_ip, via_port, "TLS", &invite_branch)
                     .from(&from_uri, &from_tag)
                     .to(&dest_uri)
                     .to_tag(&resp.to_tag().unwrap_or_default())
@@ -498,7 +624,9 @@ async fn run_call(
                     .cseq(cseq)
                     .build()
                     .map_err(|e| format!("build auth-ACK failed: {e}"))?;
-                let _ = sip_tx.send_to(&ack.to_bytes()[..], server_addr).await;
+                let _ = sip_tx
+                    .send_to(&sip_send_bytes(ack.to_bytes())[..], server_addr)
+                    .await;
 
                 // Compute digest and resend INVITE.
                 let (header, is_proxy) = if status == 407 {
@@ -508,6 +636,9 @@ async fn run_call(
                 };
                 let header =
                     header.ok_or_else(|| format!("{status} without authenticate header"))?;
+                // Asterisk/carriers may send a lowercase `algorithm` token that
+                // the locked rsiprtp parser rejects; normalize it first.
+                let header = normalize_digest_algorithm(&header);
                 let challenge = DigestChallenge::parse(&header)
                     .map_err(|e| format!("bad auth challenge: {e}"))?;
                 let dr = DigestResponse::from_challenge(
@@ -524,9 +655,18 @@ async fn run_call(
                     build_invite(cseq, &invite_branch, Some(&auth_val), None)?
                 };
                 sip_tx
-                    .send_to(&reinvite.to_bytes()[..], server_addr)
+                    .send_to(&sip_send_bytes(reinvite.to_bytes())[..], server_addr)
                     .await
                     .map_err(|e| format!("send auth INVITE failed: {e}"))?;
+            }
+            // Second 401/407 after we already sent credentials = auth failed.
+            // Must not fall through to `_` or the dial hangs until the client
+            // connect-timeout fires ("Call did not connect within N ms").
+            401 | 407 => {
+                return Err(format!(
+                    "call rejected: {status} authentication failed ({})",
+                    resp.reason()
+                ));
             }
             s if s >= 300 => {
                 return Err(format!("call rejected: {s} {}", resp.reason()));
@@ -554,14 +694,15 @@ async fn run_call(
     let mut recv_buf = vec![0u8; 2048];
     let mut last_media_at = Instant::now();
     let mut last_inbound_seq: Option<u16> = None;
+    let bye_target = remote_target;
 
     loop {
         tokio::select! {
             cmd = cmd_rx.recv() => {
                 match cmd {
                     Some(CallCommand::Hangup) | None => {
-                        send_bye(&sip_tx, server_addr, &cfg, &dest_uri, &from_uri,
-                                 &from_tag, &to_tag, &sip_call_id, cseq + 1).await;
+                        send_bye(&sip_tx, server_addr, &cfg, via_port, &bye_target,
+                                 &from_uri, &from_tag, &to_tag, &sip_call_id, cseq + 1).await;
                         emit_event(&app, "disconnected", None);
                         break;
                     }
@@ -728,6 +869,7 @@ async fn send_bye(
     sip_tx: &TlsSender,
     server_addr: SocketAddr,
     cfg: &SipConfig,
+    via_port: u16,
     dest_uri: &str,
     from_uri: &str,
     from_tag: &str,
@@ -738,7 +880,7 @@ async fn send_bye(
     if let Ok(bye) = SipRequest::builder()
         .method(Method::Bye)
         .uri(dest_uri)
-        .via(&cfg.local_ip, cfg.local_port, "TLS", &generate_branch())
+        .via(&cfg.local_ip, via_port, "TLS", &generate_branch())
         .from(from_uri, from_tag)
         .to(dest_uri)
         .to_tag(to_tag)
@@ -746,7 +888,9 @@ async fn send_bye(
         .cseq(cseq)
         .build()
     {
-        let _ = sip_tx.send_to(&bye.to_bytes()[..], server_addr).await;
+        let _ = sip_tx
+            .send_to(&sip_send_bytes(bye.to_bytes())[..], server_addr)
+            .await;
         log::info!("SIP BYE -> {dest_uri}");
     }
 }
@@ -756,6 +900,7 @@ async fn send_cancel(
     sip_tx: &TlsSender,
     server_addr: SocketAddr,
     cfg: &SipConfig,
+    via_port: u16,
     dest_uri: &str,
     from_uri: &str,
     from_tag: &str,
@@ -766,14 +911,16 @@ async fn send_cancel(
     if let Ok(cancel) = SipRequest::builder()
         .method(Method::Cancel)
         .uri(dest_uri)
-        .via(&cfg.local_ip, cfg.local_port, "TLS", invite_branch)
+        .via(&cfg.local_ip, via_port, "TLS", invite_branch)
         .from(from_uri, from_tag)
         .to(dest_uri)
         .call_id(call_id)
         .cseq(cseq)
         .build()
     {
-        let _ = sip_tx.send_to(&cancel.to_bytes()[..], server_addr).await;
+        let _ = sip_tx
+            .send_to(&sip_send_bytes(cancel.to_bytes())[..], server_addr)
+            .await;
         log::info!("SIP CANCEL -> {dest_uri}");
     }
 }
@@ -942,6 +1089,43 @@ mod tests {
             allow_plain_rtp: true,
             rtp_inactivity_timeout: Duration::from_secs(15),
         }
+    }
+
+    #[test]
+    fn via_rport_is_injected_once() {
+        let raw = b"INVITE sip:1000@127.0.0.1 SIP/2.0\r\n\
+Via: SIP/2.0/TLS 127.0.0.1:5065;branch=z9hG4bKabc\r\n\
+From: <sip:u@127.0.0.1>;tag=t\r\n\r\n";
+        let once = with_via_rport(raw.to_vec());
+        let text = String::from_utf8(once.clone()).unwrap();
+        assert!(text.contains("Via: SIP/2.0/TLS 127.0.0.1:5065;branch=z9hG4bKabc;rport\r\n"));
+        let twice = with_via_rport(once);
+        assert_eq!(twice, text.into_bytes());
+    }
+
+    #[test]
+    fn normalizes_lowercase_algorithm_from_asterisk() {
+        // Real Asterisk 18.10 challenge — note lowercase `algorithm=md5`.
+        let header = r#"Digest realm="asterisk",nonce="1784646658/190ce79745e7259651ca899c2aa6d7ff",opaque="3d9ca03014256634",algorithm=md5,qop="auth""#;
+        let normalized = normalize_digest_algorithm(header);
+        assert!(normalized.contains("algorithm=MD5"));
+        // The locked parser now accepts it end-to-end.
+        let challenge = DigestChallenge::parse(&normalized).expect("challenge parses");
+        assert_eq!(challenge.realm, "asterisk");
+    }
+
+    #[test]
+    fn normalizes_algorithm_variants_and_leaves_others() {
+        assert!(normalize_digest_algorithm("Digest algorithm=sha-256, realm=\"x\"")
+            .contains("algorithm=SHA-256"));
+        assert!(normalize_digest_algorithm("Digest algorithm=MD5-SESS, realm=\"x\"")
+            .contains("algorithm=MD5-sess"));
+        // No algorithm param -> unchanged (parser defaults to MD5).
+        let no_alg = r#"Digest realm="asterisk", nonce="abc""#;
+        assert_eq!(normalize_digest_algorithm(no_alg), no_alg);
+        // Unknown token -> left as-is so the parser can reject it.
+        let unknown = "Digest algorithm=whirlpool, realm=\"x\"";
+        assert_eq!(normalize_digest_algorithm(unknown), unknown);
     }
 
     #[test]
