@@ -19,6 +19,7 @@ import {
 } from "../callstate";
 import type { Path } from "../script/types";
 import { extractOutputRules, extractVariableNames } from "../script/compile";
+import { loadRunSecretsDraft } from "../script/runSecretsDraft";
 import { getActiveScript, mergeScripts } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
 import { recordRun, updateRunUpload } from "../history/runHistory";
@@ -44,9 +45,11 @@ interface ActiveRun {
 
 interface RunPageProps {
   scriptId: string;
+  /** When true, skip page chrome (Path Library detail embed). */
+  embedded?: boolean;
 }
 
-export function RunPage({ scriptId }: RunPageProps) {
+export function RunPage({ scriptId, embedded = false }: RunPageProps) {
   const { bundledScripts, customScripts, activeId, setActiveId, loading: loadingScripts, error: scriptError } =
     useScriptStore();
 
@@ -55,6 +58,16 @@ export function RunPage({ scriptId }: RunPageProps) {
   }, [scriptId, setActiveId]);
 
   const script = getActiveScript(bundledScripts, customScripts, scriptId);
+
+  const flow = (
+    <RunFlow
+      key={`${scriptId}-${activeId}`}
+      loadingScripts={loadingScripts}
+      scriptError={scriptError}
+    />
+  );
+
+  if (embedded) return flow;
 
   return (
     <PageLayout
@@ -68,16 +81,12 @@ export function RunPage({ scriptId }: RunPageProps) {
         </Badge>
       }
     >
-      <RunFlow
-        key={`${scriptId}-${activeId}`}
-        loadingScripts={loadingScripts}
-        scriptError={scriptError}
-      />
+      {flow}
     </PageLayout>
   );
 }
 
-function RunFlow({
+export function RunFlow({
   loadingScripts,
   scriptError,
 }: {
@@ -125,6 +134,18 @@ function RunFlow({
     if (script?.setup.target) setTargetNumber(script.setup.target);
     else setTargetNumber("");
   }, [script?.id, script?.setup.target]);
+
+  useEffect(() => {
+    if (!script) return;
+    const draft = loadRunSecretsDraft(script.id);
+    setVariables((current) => {
+      const next: Record<string, string> = {};
+      for (const name of extractVariableNames(script)) {
+        next[name] = current[name] || draft[name] || "";
+      }
+      return next;
+    });
+  }, [script?.id, variableNames.join("|")]);
 
   useEffect(() => {
     return () => {
@@ -337,7 +358,7 @@ function RunFlow({
       return wrap(
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">No Workflows yet. Create one from Workflows.</p>
+            <p className="text-sm text-muted-foreground">No Paths yet. Create one in Path Library.</p>
           </CardContent>
         </Card>
       );

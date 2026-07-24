@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Privacy-first client-mediated telephony",
   "scripts": {
-    "start": "./scripts/start.sh",
+    "start": "./scripts/lab-desktop.sh",
     "start:app": "open ./Pathline.app",
     "stop": "./scripts/stop.sh",
     "build:app": "./scripts/build-macos-app.sh",

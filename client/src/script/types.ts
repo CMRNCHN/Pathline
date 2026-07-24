@@ -1,22 +1,25 @@
 /**
  * Product vocabulary (UI):
- *   Pathline — product / platform brand
- *   Workflow — the primary user-facing document
- *   Step     — one numbered instruction in a Workflow
- *   When     — the cue and phrase that starts a Step
- *   Then     — the action and value Pathline performs
- *   Input    — a value supplied for a Run
- *   Run      — one execution of a Workflow
+ *   Pathline     — product / platform brand
+ *   Path         — primary call automation document (Path Library)
+ *   Step         — one numbered instruction in a Path
+ *   When         — the cue and phrase that starts a Step
+ *   Then         — the action and value Pathline performs
+ *   Input        — a value supplied for a Run (from Accounts / Input Vault)
+ *   Input Vault  — sealed secret slots on device
+ *   Run          — one execution of a Path
  *
- * "Path", "Rule", and "Script" remain internal compatibility names only.
+ * "Workflow", "Rule", and "Script" remain internal compatibility names only.
  */
 export const PRODUCT_TERMS = {
   brand: "Pathline",
-  workflow: "Workflow",
+  path: "Path",
+  workflow: "Path",
   step: "Step",
   when: "When",
   then: "Then",
   input: "Input",
+  inputVault: "Input Vault",
   run: "Run",
 } as const;
 export const SCRIPT_VERSION = 2 as const;

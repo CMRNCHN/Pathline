@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildStepFromInlineDraft,
   inlineDraftFromStep,
+  normalizeKeysValue,
+  normalizeOutputName,
   validateInlineStepDraft,
 } from "./ruleIntent";
 import { withSyncedRules } from "./compile";
@@ -9,6 +11,15 @@ import type { PathDocument } from "./types";
 import { END_NOW_DETECT, NEXT_UTTERANCE_DETECT } from "../engine/runEngine";
 
 describe("inline Step conversion", () => {
+  it("wraps bare key identifiers and output names", () => {
+    expect(normalizeKeysValue("pin")).toBe("{{pin}}");
+    expect(normalizeKeysValue("pin#")).toBe("{{pin}}#");
+    expect(normalizeKeysValue("1#")).toBe("1#");
+    expect(normalizeKeysValue("{{pin}}#")).toBe("{{pin}}#");
+    expect(normalizeOutputName("{{card_status}}")).toBe("card_status");
+    expect(normalizeOutputName("card status")).toBe("card_status");
+  });
+
   it("round-trips every executable action", () => {
     const drafts = [
       { when: "enter pin", action: "press-keys" as const, value: "{{pin}}#", output: "", waitSeconds: 3 },

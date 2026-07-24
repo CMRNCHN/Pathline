@@ -566,7 +566,11 @@ async fn run_call(
             response = timeout(Duration::from_secs(32), sip_rx.recv()) => match response {
                 Ok(Some(message)) => message,
                 Ok(None) => return Err("SIP connection closed during INVITE".to_string()),
-                Err(_) => return Err("timeout waiting for INVITE response".to_string()),
+                Err(_) => {
+                    return Err(format!(
+                        "timeout waiting for INVITE response (authed={authed})"
+                    ));
+                }
             }
         };
         let parsed = match SipMessage::parse(&msg.data) {
@@ -658,6 +662,8 @@ async fn run_call(
                     .send_to(&sip_send_bytes(reinvite.to_bytes())[..], server_addr)
                     .await
                     .map_err(|e| format!("send auth INVITE failed: {e}"))?;
+                // Do not log digest material — only that the re-INVITE went out.
+                log::info!("SIP auth INVITE sent (cseq={cseq})");
             }
             // Second 401/407 after we already sent credentials = auth failed.
             // Must not fall through to `_` or the dial hangs until the client

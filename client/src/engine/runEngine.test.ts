@@ -124,4 +124,124 @@ describe("runtime action dispatch", () => {
     expect(captured.state.collected.card_status).toBe("your card is active");
     expect(captured.shouldComplete).toBe(true);
   });
+
+  it("completes after one pipe-OR determination, then open end", () => {
+    // Card-status style: mutually exclusive IVR outcomes belong in ONE Step
+    // (pipe-OR), not sibling Steps — open end requires every prior id matched.
+    const path: PathDocument = {
+      id: "card-status-or",
+      version: 2,
+      setup: {
+        name: "Card Status OR",
+        description: "",
+        target: "1000",
+        timeoutMs: 10_000,
+        speechPreferences: { autoListen: true },
+        inputs: [],
+      },
+      steps: [
+        {
+          id: "status",
+          label: "card_status",
+          when: "zip code|you gave me|secret word",
+          then: "",
+          output: "card_status",
+          rule: "Capture value after detect",
+        },
+        {
+          id: "end",
+          label: "end_call",
+          when: "",
+          then: "",
+          output: "",
+          rule: "End call",
+        },
+      ],
+      conversationFlow: [
+        {
+          id: "flow-status",
+          detect: "zip code|you gave me|secret word",
+          action: "extract",
+          triggerLabel: "card_status",
+        },
+        { id: "flow-end", detect: END_NOW_DETECT, action: "end" },
+      ],
+    };
+
+    const hit = processPhrase("please enter your zip code", path, {}, initialRunState(), {
+      automated: true,
+    });
+    expect(hit.state.collected.card_status).toBe("please enter your zip code");
+    expect(hit.shouldComplete).toBe(true);
+  });
+
+  it("blocks open end when sibling determination Steps stay unmatched", () => {
+    const path: PathDocument = {
+      id: "card-status-siblings",
+      version: 2,
+      setup: {
+        name: "Card Status siblings",
+        description: "",
+        target: "1000",
+        timeoutMs: 10_000,
+        speechPreferences: { autoListen: true },
+        inputs: [],
+      },
+      steps: [
+        {
+          id: "active",
+          label: "card_active",
+          when: "zip code",
+          then: "",
+          output: "card_active",
+          rule: "Capture value after detect",
+        },
+        {
+          id: "dead",
+          label: "card_dead",
+          when: "you gave me",
+          then: "",
+          output: "card_dead",
+          rule: "Capture value after detect",
+        },
+        {
+          id: "end",
+          label: "end_call",
+          when: "",
+          then: "",
+          output: "",
+          rule: "End call",
+        },
+      ],
+      conversationFlow: [
+        {
+          id: "flow-active",
+          detect: "zip code",
+          action: "extract",
+          triggerLabel: "card_active",
+        },
+        {
+          id: "flow-dead",
+          detect: "you gave me",
+          action: "extract",
+          triggerLabel: "card_dead",
+        },
+        { id: "flow-end", detect: END_NOW_DETECT, action: "end" },
+      ],
+    };
+
+    const afterActive = processPhrase("enter zip code", path, {}, initialRunState(), {
+      automated: true,
+    });
+    expect(afterActive.state.collected.card_active).toBe("enter zip code");
+    expect(afterActive.shouldComplete).toBe(false);
+
+    // Open end must not fire: sibling determination Step is still unmatched.
+    const afterNoise = processPhrase("thanks for calling", path, {}, afterActive.state, {
+      automated: true,
+    });
+    expect(afterNoise.state.completed).toBe(false);
+    expect(afterNoise.shouldComplete).toBe(false);
+    expect(afterNoise.state.matchedFlowIds).toEqual(["flow-active"]);
+  });
 });

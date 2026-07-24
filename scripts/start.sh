@@ -84,8 +84,13 @@ fi
 info "Installing Python dependencies..."
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
-pip install -q --upgrade pip
-pip install -q -e packages/shared-python -e services/api
+if ! python -c "import pathline_api" >/dev/null 2>&1; then
+  if ! pip install -q --upgrade pip || ! pip install -q -e packages/shared-python -e services/api; then
+    fail "Python deps missing and pip install failed. Fix .venv (recreate with python3 -m venv) then retry."
+  fi
+elif ! pip install -q -e packages/shared-python -e services/api 2>/dev/null; then
+  info "API package already importable; skipping broken pip reinstall"
+fi
 
 # ── Client setup ───────────────────────────────────────────────
 if [[ ! -d "$ROOT/client/node_modules" ]]; then
@@ -128,29 +133,23 @@ wait_for_url "http://127.0.0.1:$CLIENT_PORT" "Client"
 
 # ── Done ───────────────────────────────────────────────────────
 if [[ "$DAEMON" == "1" ]]; then
-  if [[ "$(uname)" == "Darwin" ]]; then
-    open "http://localhost:$CLIENT_PORT" 2>/dev/null || true
-    osascript -e "display notification \"http://localhost:$CLIENT_PORT\" with title \"Pathline is running\" subtitle \"Use Pathline Stop.app or scripts/stop.sh to quit\""
-  fi
+  # Vite on CLIENT_PORT is the Tauri webview host only — do not open a browser.
   exit 0
 fi
 
 echo ""
-echo -e "${GREEN}Pathline is running${NC}"
+echo -e "${GREEN}Pathline API + UI host are running${NC}"
 echo ""
-echo "  App:    http://localhost:$CLIENT_PORT"
-echo "  API:    http://localhost:$API_PORT/health"
+echo "  UI host: http://127.0.0.1:$CLIENT_PORT  (desktop webview — not a browser app)"
+echo "  API:     http://127.0.0.1:$API_PORT/health"
+echo ""
+echo "  Launch the native app:  npm run desktop:dev"
+echo "  Or full lab:            ./scripts/lab-desktop.sh"
 echo ""
 echo "  Logs:   $LOG_DIR/api.log"
 echo "          $LOG_DIR/client.log"
 echo ""
-echo "  Press Ctrl+C to stop both services"
-echo "  Or run: ./scripts/stop.sh"
+echo "  Press Ctrl+C to stop, or: ./scripts/stop.sh"
 echo ""
-
-# Open browser on macOS
-if [[ "$(uname)" == "Darwin" ]]; then
-  open "http://localhost:$CLIENT_PORT" 2>/dev/null || true
-fi
 
 wait

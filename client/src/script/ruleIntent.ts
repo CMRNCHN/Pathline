@@ -28,6 +28,32 @@ export interface InlineStepValidation {
 const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const VARIABLE_REF = /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/g;
 
+/** Strip `{{ }}` / spaces from an output name for storage. */
+export function normalizeOutputName(raw: string): string {
+  return raw.replace(/\{\{|\}\}/g, "").replace(/\s+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+/** Display an output name with `{{name}}` braces. */
+export function formatOutputDisplay(name: string): string {
+  const clean = normalizeOutputName(name);
+  return clean ? `{{${clean}}}` : "";
+}
+
+/**
+ * Auto-wrap bare identifiers in press-keys values as `{{name}}`.
+ * Pure DTMF (`1#*`) is left alone; existing braces are preserved.
+ * `pin#` → `{{pin}}#`. Mixed invalid strings are left unchanged.
+ */
+export function normalizeKeysValue(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  if (/^[0-9#*]+$/.test(trimmed)) return trimmed;
+  if (/\{\{/.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)([0-9#*]*)$/);
+  if (match) return `{{${match[1]}}}${match[2]}`;
+  return trimmed;
+}
+
 function slugify(value: string): string {
   return value
     .toLowerCase()
@@ -169,11 +195,19 @@ export function buildStepFromInlineDraft(
 
   switch (draft.action) {
     case "press-keys":
-      return { ...common, then: draft.value.trim(), rule: "Inject DTMF after detect" };
+      return {
+        ...common,
+        then: normalizeKeysValue(draft.value.trim()),
+        rule: "Inject DTMF after detect",
+      };
     case "speak":
       return { ...common, then: draft.value.trim(), rule: "Inject speech after detect" };
     case "save-response":
-      return { ...common, output: draft.output.trim(), rule: "Capture value after detect" };
+      return {
+        ...common,
+        output: normalizeOutputName(draft.output.trim()),
+        rule: "Capture value after detect",
+      };
     case "keep-listening":
       return { ...common, rule: "Wait for IVR response" };
     case "wait":

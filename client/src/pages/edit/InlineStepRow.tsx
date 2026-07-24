@@ -12,7 +12,10 @@ import {
 import {
   buildStepFromInlineDraft,
   emptyInlineStepDraft,
+  formatOutputDisplay,
   inlineDraftFromStep,
+  normalizeKeysValue,
+  normalizeOutputName,
   type InlineStepAction,
   type InlineStepDraft,
   validateInlineStepDraft,
@@ -21,10 +24,10 @@ import type { Step } from "../../script/types";
 
 const ACTION_OPTIONS: { value: InlineStepAction; label: string }[] = [
   { value: "press-keys", label: "Press keys" },
-  { value: "speak", label: "Speak" },
+  { value: "speak", label: "Speak phrase" },
   { value: "save-response", label: "Save response" },
   { value: "keep-listening", label: "Keep listening" },
-  { value: "wait", label: "Wait" },
+  { value: "wait", label: "Wait (seconds)" },
   { value: "end-call", label: "End call" },
 ];
 
@@ -38,27 +41,39 @@ interface InlineStepRowProps {
   onSave: (step: Step) => void;
   onCancel?: () => void;
   onRemove?: () => void;
+  onDuplicate?: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onMove?: (fromIndex: number, toIndex: number) => void;
+  dragIndex?: number;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
   readOnly?: boolean;
 }
 
-function FieldLabel({
-  htmlFor,
-  children,
-  optional,
-}: {
-  htmlFor: string;
-  children: string;
-  optional?: boolean;
-}) {
+function ColLabel({ htmlFor, children }: { htmlFor?: string; children: string }) {
   return (
-    <label htmlFor={htmlFor} className="text-xs font-medium text-muted-foreground">
+    <label
+      htmlFor={htmlFor}
+      className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+    >
       {children}
-      {optional ? <span className="font-normal"> (optional)</span> : null}
     </label>
+  );
+}
+
+function ReadValue({ children, mono }: { children: string; mono?: boolean }) {
+  if (!children.trim()) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <span
+      className={`inline-flex min-h-9 max-w-full items-center rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-sm text-foreground break-words ${
+        mono ? "font-mono text-xs" : ""
+      }`}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -69,6 +84,62 @@ function draftsEqual(a: InlineStepDraft, b: InlineStepDraft): boolean {
     a.value === b.value &&
     a.output === b.output &&
     a.waitSeconds === b.waitSeconds
+  );
+}
+
+function actionLabel(action: InlineStepAction | ""): string {
+  return ACTION_OPTIONS.find((option) => option.value === action)?.label ?? "";
+}
+
+function payloadColumnLabel(action: InlineStepAction | ""): string {
+  switch (action) {
+    case "save-response":
+      return "Save to output var";
+    case "wait":
+      return "Duration (sec)";
+    case "press-keys":
+    case "speak":
+    case "end-call":
+      return "Payload";
+    case "keep-listening":
+      return "Payload";
+    default:
+      return "Payload";
+  }
+}
+
+function outputDisplay(draft: InlineStepDraft): string {
+  if (draft.action === "press-keys" || draft.action === "speak") return draft.value;
+  if (draft.action === "save-response") return formatOutputDisplay(draft.output);
+  if (draft.action === "wait") return String(draft.waitSeconds);
+  return "";
+}
+
+function StepChrome({
+  stepNumber,
+  action,
+  controls,
+}: {
+  stepNumber: number;
+  action: InlineStepAction | "";
+  controls?: React.ReactNode;
+}) {
+  const label = actionLabel(action);
+  return (
+    <div className="mb-3 flex items-center gap-2.5">
+      <span className="step-index-badge" aria-hidden>
+        {String(stepNumber).padStart(2, "0")}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="text-sm font-bold tracking-wide uppercase">Step {stepNumber}</span>
+          {label ? (
+            <span className="text-xs text-muted-foreground">· {label}</span>
+          ) : null}
+        </div>
+      </div>
+      {controls}
+    </div>
   );
 }
 
@@ -145,186 +216,173 @@ export function InlineStepRow({
   const valueId = `step-${stepNumber}-value`;
   const outputId = `step-${stepNumber}-output`;
   const waitId = `step-${stepNumber}-wait`;
+  const payloadLabel = payloadColumnLabel(draft.action);
+  const payloadHtmlFor =
+    draft.action === "save-response" ? outputId : draft.action === "wait" ? waitId : valueId;
 
-  return (
-    <div
-      className={`rounded-lg border px-4 py-3 ${
-        !validation.valid && isDirty
-          ? "border-destructive/40 bg-destructive/5"
-          : "border-border bg-card/40"
-      }`}
-    >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="font-mono text-xs font-bold uppercase tracking-widest text-primary">
-          Step {stepNumber}
-        </span>
-        {!readOnly && !isNew && (
-          <div className="flex shrink-0 items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onMoveUp}
-              disabled={!canMoveUp}
-              aria-label={`Move Step ${stepNumber} up`}
-            >
-              <ChevronUp />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onMoveDown}
-              disabled={!canMoveDown}
-              aria-label={`Move Step ${stepNumber} down`}
-            >
-              <ChevronDown />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onRemove}
-              aria-label={`Remove Step ${stepNumber}`}
-            >
-              <Trash2 />
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(10rem,0.9fr)_minmax(0,1fr)]">
-        <div className="space-y-1.5">
-          <FieldLabel htmlFor={phraseId} optional={phraseOptional}>
-            Listen for
-          </FieldLabel>
+  const fields = (
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div className="space-y-1.5">
+        <ColLabel htmlFor={readOnly ? undefined : phraseId}>When heard</ColLabel>
+        {readOnly ? (
+          <ReadValue>{draft.when || (phraseOptional ? "Any next reply" : "")}</ReadValue>
+        ) : (
           <Input
             id={phraseId}
             value={draft.when}
             onChange={(event) => patchDraft({ when: event.target.value })}
-            placeholder={
-              draft.action === "save-response"
-                ? "Leave blank for next reply"
-                : draft.action === "end-call"
-                  ? "Leave blank to hang up after prior Steps"
-                  : draft.action === "wait"
-                    ? "Optional cue phrase"
-                    : "IVR phrase"
-            }
-            disabled={readOnly}
+            placeholder={phraseOptional ? "Optional phrase" : "IVR phrase"}
             aria-invalid={Boolean(
               validation.errors[0]?.includes("phrase") || validation.errors[0]?.includes("listen")
             )}
           />
-          {phraseOptional && !readOnly && (
-            <p className="text-xs text-muted-foreground">
-              {draft.action === "save-response"
-                ? "Blank saves the next reply after earlier Steps finish."
-                : draft.action === "end-call"
-                  ? "Blank hangs up after earlier Steps finish."
-                  : "Optional cue while waiting."}
-            </p>
-          )}
-        </div>
+        )}
+      </div>
 
-        <div className="space-y-1.5">
-          <FieldLabel htmlFor={actionId}>Then</FieldLabel>
-          {readOnly ? (
-            <Input
-              id={actionId}
-              value={ACTION_OPTIONS.find((option) => option.value === draft.action)?.label ?? draft.action}
-              disabled
-            />
-          ) : (
-            <Select
-              value={draft.action || undefined}
-              onValueChange={(value) => {
-                if (value) handleActionChange(value as InlineStepAction);
-              }}
-            >
-              <SelectTrigger id={actionId} className="w-full" aria-invalid={!draft.action}>
-                <SelectValue placeholder="Choose action" />
-              </SelectTrigger>
-              <SelectContent>
-                {ACTION_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
+      <div className="space-y-1.5">
+        <ColLabel htmlFor={readOnly ? undefined : actionId}>Action</ColLabel>
+        {readOnly ? (
+          <ReadValue>{actionLabel(draft.action)}</ReadValue>
+        ) : (
+          <Select
+            value={draft.action || undefined}
+            onValueChange={(value) => {
+              if (value) handleActionChange(value as InlineStepAction);
+            }}
+          >
+            <SelectTrigger id={actionId} className="w-full" aria-invalid={!draft.action}>
+              <SelectValue placeholder="Choose action" />
+            </SelectTrigger>
+            <SelectContent>
+              {ACTION_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
-        <div className="space-y-1.5">
-          {(draft.action === "press-keys" || draft.action === "speak") && (
-            <>
-              <FieldLabel htmlFor={valueId}>
-                {draft.action === "press-keys" ? "Keys" : "Say"}
-              </FieldLabel>
+      <div className="space-y-1.5">
+        <ColLabel htmlFor={readOnly ? undefined : payloadHtmlFor}>{payloadLabel}</ColLabel>
+        {readOnly ? (
+          <ReadValue mono={draft.action === "press-keys" || draft.action === "save-response"}>
+            {outputDisplay(draft) ||
+              (draft.action === "end-call" || draft.action === "keep-listening" ? "—" : "")}
+          </ReadValue>
+        ) : (
+          <>
+            {draft.action === "press-keys" && (
               <Input
                 id={valueId}
-                className={draft.action === "press-keys" ? "font-mono" : undefined}
+                className="font-mono"
                 value={draft.value}
                 onChange={(event) => patchDraft({ value: event.target.value })}
-                placeholder={draft.action === "press-keys" ? "1 or {{account_pin}}#" : "Yes"}
-                disabled={readOnly}
+                onBlur={() => patchDraft({ value: normalizeKeysValue(draft.value) })}
+                placeholder="{{account_number}}"
               />
-            </>
-          )}
-
-          {draft.action === "save-response" && (
-            <>
-              <FieldLabel htmlFor={outputId}>Save as</FieldLabel>
+            )}
+            {draft.action === "speak" && (
+              <Input
+                id={valueId}
+                value={draft.value}
+                onChange={(event) => patchDraft({ value: event.target.value })}
+                placeholder="Yes"
+              />
+            )}
+            {draft.action === "save-response" && (
               <Input
                 id={outputId}
-                className="font-mono"
+                className="font-mono text-primary"
                 value={draft.output}
-                onChange={(event) => patchDraft({ output: event.target.value.replace(/\s+/g, "_") })}
-                placeholder="card_status"
-                disabled={readOnly}
+                onChange={(event) =>
+                  patchDraft({ output: normalizeOutputName(event.target.value) })
+                }
+                placeholder="claim_status"
               />
-            </>
-          )}
-
-          {draft.action === "wait" && (
-            <>
-              <FieldLabel htmlFor={waitId}>Seconds</FieldLabel>
-              {readOnly ? (
-                <Input id={waitId} value={String(draft.waitSeconds)} disabled />
-              ) : (
-                <Select
-                  value={String(draft.waitSeconds)}
-                  onValueChange={(value) => {
-                    if (value) patchDraft({ waitSeconds: Number(value) });
-                  }}
-                >
-                  <SelectTrigger id={waitId} className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {waitOptions.map((seconds) => (
-                      <SelectItem key={seconds} value={String(seconds)}>
-                        {seconds}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </>
-          )}
-
-          {(draft.action === "keep-listening" || draft.action === "end-call" || !draft.action) && (
-            <p className="pt-6 text-xs text-muted-foreground">
-              {draft.action === "end-call"
-                ? "No value needed."
-                : draft.action === "keep-listening"
-                  ? "Continues listening for this phrase."
-                  : "Choose an action."}
-            </p>
-          )}
-        </div>
+            )}
+            {draft.action === "wait" && (
+              <Select
+                value={String(draft.waitSeconds)}
+                onValueChange={(value) => {
+                  if (value) patchDraft({ waitSeconds: Number(value) });
+                }}
+              >
+                <SelectTrigger id={waitId} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {waitOptions.map((seconds) => (
+                    <SelectItem key={seconds} value={String(seconds)}>
+                      {seconds}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {(draft.action === "keep-listening" ||
+              draft.action === "end-call" ||
+              !draft.action) && (
+              <Input
+                id={valueId}
+                disabled
+                placeholder={draft.action === "end-call" ? "—" : "Value or {{var}}"}
+                value=""
+              />
+            )}
+          </>
+        )}
       </div>
+    </div>
+  );
+
+  const controls =
+    !readOnly && !isNew ? (
+      <div className="flex shrink-0 items-center gap-0.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onMoveUp}
+          disabled={!canMoveUp}
+          aria-label={`Move Step ${stepNumber} up`}
+        >
+          <ChevronUp />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onMoveDown}
+          disabled={!canMoveDown}
+          aria-label={`Move Step ${stepNumber} down`}
+        >
+          <ChevronDown />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onRemove}
+          disabled={!onRemove}
+          aria-label={`Remove Step ${stepNumber}`}
+        >
+          <Trash2 />
+        </Button>
+      </div>
+    ) : null;
+
+  return (
+    <div
+      className={`step-card rounded-xl border px-4 py-3.5 ${
+        !validation.valid && isDirty && !readOnly
+          ? "border-destructive/40 bg-destructive/5"
+          : "border-border bg-card"
+      }`}
+    >
+      <StepChrome stepNumber={stepNumber} action={draft.action} controls={controls} />
+      {fields}
 
       {!readOnly && validation.errors.length > 0 && isDirty && (
         <p className="mt-3 text-sm text-destructive" role="alert">

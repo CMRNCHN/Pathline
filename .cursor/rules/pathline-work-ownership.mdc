@@ -1,0 +1,34 @@
+---
+description: Exclusive work lanes for Pathline multi-agent and Figma vs code separation; Figma free limits.
+alwaysApply: true
+---
+
+# Pathline work ownership
+
+## Orchestration
+
+- Multi-step or multi-surface work starts with **`pathline-orchestrator`** (see `.cursor/skills/pathline-orchestration/SKILL.md`).
+- One agent per exclusive path set per wave. If ownership is unclear, stop and re-assign — do not dual-edit.
+
+## Exclusive lanes (do not cross)
+
+| Work | Owner agent | Forbidden for that agent |
+|------|-------------|--------------------------|
+| Coordination | pathline-orchestrator | Product UI / Figma node writes |
+| Figma | pathline-figma-design | `client/`, `desktop/`, `services/` |
+| Shell/nav | five-surface-nav-shell | Path/Accounts/Vault page bodies |
+| Path Library | five-surface-path-library | Accounts/Vault persistence |
+| Accounts+Vault | five-surface-accounts-vault | Shell nav rewrite |
+| Dashboard/System | five-surface-dashboard-system | Path EditForm / Run engine |
+| UX upgrade brief | pathline-ux-upgrade | Figma MCP |
+
+## Stack / IA locks
+
+- React + Radix + shadcn + Tailwind + Tauri only.
+- Five surfaces; Edit/Run panels inside Path Library; secrets never in Path JSON.
+
+## Figma free / Starter
+
+- Prefer **one** Figma file with pages.
+- Skip Code Connect, Dev Mode redlines, and published team libraries unless the user confirms a paid plan.
+- Handoff via screenshots / `get_design_context` + component-name annotations.

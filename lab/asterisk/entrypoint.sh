@@ -5,6 +5,8 @@ MARKER="# Pathline lab block"
 EXT="/etc/asterisk/extensions.conf"
 PJSIP="/etc/asterisk/pjsip.conf"
 
+/bin/sh /lab/sounds-link.sh || true
+
 if ! grep -qF "$MARKER" "$EXT" 2>/dev/null; then
   {
     echo ""

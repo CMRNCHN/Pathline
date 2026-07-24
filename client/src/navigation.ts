@@ -1,35 +1,23 @@
 export type AppView =
   | { category: "dashboard" }
-  | { category: "workflows" }
-  | { category: "runs" }
-  | { category: "templates" }
-  | { category: "system" }
+  | { category: "paths"; pathId?: string; panel?: "edit" | "run" }
+  | { category: "accounts"; accountId?: string }
   | { category: "vault" }
-  | { category: "settings" }
-  | { category: "edit"; scriptId: string }
-  | { category: "run"; scriptId: string };
+  | { category: "system" };
 
 /** Labels for the shell breadcrumb strip. */
 export function viewLabel(view: AppView): string {
   switch (view.category) {
     case "dashboard":
       return "Dashboard";
-    case "workflows":
-      return "Workflows";
-    case "runs":
-      return "Runs";
-    case "templates":
-      return "Templates";
+    case "paths":
+      return view.pathId ? "Path Library" : "Path Library";
+    case "accounts":
+      return "Accounts";
+    case "vault":
+      return "Input Vault";
     case "system":
       return "System";
-    case "vault":
-      return "Vault";
-    case "settings":
-      return "Settings";
-    case "edit":
-      return "Edit Workflow";
-    case "run":
-      return "Run";
   }
 }
 

@@ -67,7 +67,50 @@ export function generateSessionId(): string {
   return crypto.randomUUID();
 }
 
+const VAULT_DEVICE_KEY = "pathline_vault_device_key";
+
 export function clearLocalKeys(): void {
   sessionStorage.removeItem(CALLSTATE_KEY);
   sessionStorage.removeItem(LEGACY_STATUS_KEY);
+  localStorage.removeItem(VAULT_DEVICE_KEY);
+}
+
+async function getOrCreateVaultDeviceKey(): Promise<CryptoKey> {
+  const stored = localStorage.getItem(VAULT_DEVICE_KEY);
+  if (stored) {
+    const raw = fromBase64(stored);
+    return crypto.subtle.importKey("raw", raw as BufferSource, { name: "AES-GCM" }, false, [
+      "encrypt",
+      "decrypt",
+    ]);
+  }
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
+    "encrypt",
+    "decrypt",
+  ]);
+  const raw = await crypto.subtle.exportKey("raw", key);
+  localStorage.setItem(VAULT_DEVICE_KEY, toBase64(raw));
+  return key;
+}
+
+/** Seal a plaintext Input Vault secret for local device storage. */
+export async function sealVaultSecret(plaintext: string): Promise<{ ciphertext: string; nonce: string }> {
+  const key = await getOrCreateVaultDeviceKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(plaintext);
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+  return { ciphertext: toBase64(ciphertext), nonce: toBase64(iv.buffer) };
+}
+
+/** Unseal an Input Vault secret. Returns null if the device key cannot decrypt. */
+export async function unsealVaultSecret(ciphertext: string, nonce: string): Promise<string | null> {
+  try {
+    const key = await getOrCreateVaultDeviceKey();
+    const iv = fromBase64(nonce);
+    const data = fromBase64(ciphertext);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, data as BufferSource);
+    return new TextDecoder().decode(plain);
+  } catch {
+    return null;
+  }
 }

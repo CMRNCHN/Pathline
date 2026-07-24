@@ -1,15 +1,21 @@
-import { KeyRound, Shield } from "lucide-react";
+import { Shield } from "lucide-react";
+import { clearLocalKeys } from "@/crypto";
+import { clearVaultEntries } from "@/persistence/vaultStore";
 import { PageLayout } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { clearLocalKeys } from "@/crypto";
+import { VaultList, useVaultEntries } from "./vault/VaultList";
 
 export function VaultPage() {
+  const { entries, refresh } = useVaultEntries();
+
   return (
     <PageLayout
-      title="Vault"
-      subtitle="Local encryption material for callstate — never uploaded in plaintext."
+      title="Input Vault"
+      subtitle="Sealed secret slots on this device. Accounts bind field names to these keys."
     >
+      <VaultList entries={entries} onRefresh={refresh} />
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -17,25 +23,36 @@ export function VaultPage() {
               <Shield className="size-4" />
             </div>
             <div>
-              <CardTitle>Device keys</CardTitle>
+              <CardTitle>Device crypto</CardTitle>
               <CardDescription>
-                Pathline seals callstate with keys kept on this device. Clear them if you want
-                a fresh local crypto identity (existing encrypted blobs will no longer decrypt).
+                Clearing keys makes existing sealed vault values and callstate unreadable on this
+                device.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
             onClick={() => {
-              if (!confirm("Clear local encryption keys on this device?")) return;
+              if (!confirm("Clear device encryption keys?")) return;
               clearLocalKeys();
+              alert("Device keys cleared.");
             }}
           >
-            <KeyRound className="size-4" />
             Clear encryption keys
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              if (!confirm("Delete all Input Vault entries?")) return;
+              clearVaultEntries();
+              refresh();
+            }}
+          >
+            Clear all vault entries
           </Button>
         </CardContent>
       </Card>

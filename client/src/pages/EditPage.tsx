@@ -33,7 +33,7 @@ export function EditPage({ scriptId, onNavigate }: EditPageProps) {
   if (!activeScript || activeScript.id !== scriptId) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-        Loading Workflow…
+        Loading Path…
       </div>
     );
   }
@@ -43,7 +43,7 @@ export function EditPage({ scriptId, onNavigate }: EditPageProps) {
   const handleDelete = () => {
     if (!confirm(`Delete "${scriptDisplayName(activeScript)}"? This cannot be undone.`)) return;
     removeCustom(scriptId);
-    onNavigate({ category: "workflows" });
+    onNavigate({ category: "paths" });
   };
 
   return (
@@ -54,11 +54,11 @@ export function EditPage({ scriptId, onNavigate }: EditPageProps) {
         onPatch={(patch) => updateCustom(scriptId, patch)}
         onDuplicate={() => {
           const copy = duplicateToCustom(activeScript);
-          onNavigate({ category: "edit", scriptId: copy.id });
+          onNavigate({ category: "paths", pathId: copy.id, panel: "edit" });
         }}
         onExport={() => exportPathJson(activeScript)}
         onDelete={readOnly ? undefined : handleDelete}
-        onTest={() => onNavigate({ category: "run", scriptId })}
+        onTest={() => onNavigate({ category: "paths", pathId: scriptId, panel: "run" })}
       />
     </div>
   );

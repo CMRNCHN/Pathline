@@ -19,10 +19,10 @@ local STT, phrase matching, keypad injection, and the on-device audit ledger. Th
 FastAPI service (`services/api`) remains thin: identity plus encrypted artifact
 storage only.
 
-The same React UI may run in a browser for authoring and manual fallback, but a
-browser is **not** the telephony or automation endpoint. Never move call audio,
-transcripts, phone numbers, secrets, or orchestration into the server to make the
-browser automate calls.
+The React UI in `client/` is embedded in the desktop webview. Do not treat a
+standalone browser as a supported app surface for day-to-day work. Never move
+call audio, transcripts, phone numbers, secrets, or orchestration into the
+server to make a browser automate calls.
 
 `frontend-ui/`, external-softphone flows, and `services/deferred/*` are not part
 of the shipping path. The SIP `lab/` (Asterisk/Docker) is development-only test
@@ -31,13 +31,17 @@ infrastructure. `client-native/` is docs only.
 ### Services (v1)
 | Service | Dir | Dev command | URL |
 |---------|-----|-------------|-----|
-| API (FastAPI/uvicorn) | `services/api` | `source .venv/bin/activate && uvicorn pathline_api.main:app --reload --port 8000` | http://localhost:8000 (`/health`, `/docs`) |
-| Desktop app (Tauri/Rust + embedded React) | `desktop` + `client` | `npm run desktop:dev` | Native Pathline window |
-| Browser authoring/manual fallback | `client` | `cd client && npm run dev` | http://localhost:3000 |
+| Desktop app (primary) | `desktop` + `client` | `npm start` → `./scripts/lab-desktop.sh` | Native Pathline window |
+| Desktop only (API already up) | `desktop` + `client` | `npm run desktop:dev` | Native Pathline window |
+| API (FastAPI/uvicorn) | `services/api` | started by desktop/lab scripts | http://127.0.0.1:8000 (`/health`, `/docs`) |
+| Vite UI host (webview only) | `client` | started by desktop/lab scripts | http://127.0.0.1:3000 (do not open in a browser) |
 
-For normal desktop development, run `npm run desktop:dev`; it starts/reuses the
-thin API and launches the Tauri window. For a live lab call, run
-`./scripts/lab-desktop.sh` to start Asterisk, API, UI, and desktop together.
+`npm start` launches the lab desktop stack (Asterisk when needed, API, Vite
+webview host, Tauri). Prefer that over opening the Vite URL in Safari/Chrome.
+`npm run desktop:dev` is the lighter path when the API sidecar is already up.
+`./scripts/start.sh` is an internal sidecar helper (API + Vite host) used by lab;
+it must not open a browser. `Ctrl+C` / `./scripts/stop.sh` stops background
+services. Logs: `.logs/api.log`, `.logs/client.log`.
 
 ### Current live-call blockers
 Do not describe the desktop loop as live-E2E complete until all of these land:
@@ -47,10 +51,29 @@ Do not describe the desktop loop as live-E2E complete until all of these land:
   fails closed unless `PATHLINE_SIP_PROFILE=lab` on loopback.
 - Apple Developer ID signing + notarization of a self-contained release DMG.
 
-`./scripts/start.sh` (aka `npm start`) starts API + browser UI only. It is useful
-for authoring/manual fallback, but it does not start the production automation
-endpoint. `Ctrl+C` (or `./scripts/stop.sh`) stops background services. Logs:
-`.logs/api.log`, `.logs/client.log`.
+### Client IA (five surfaces)
+Operator UI is exactly five top-level surfaces — no Workflows / Edit / Run /
+Settings / Templates / Runs nav items:
+
+| Surface | Job |
+|---------|-----|
+| Dashboard | Status, quick actions, recent activity |
+| Path Library | Paths list + detail; EditForm + Run embedded |
+| Accounts | Profiles; fields → Path Inputs; ready Paths |
+| Input Vault | Sealed secrets; Accounts bind `vaultKey` |
+| System | Runtime health + former Settings |
+
+Skill order for UI: `frontend-ui-architect` → `frontend-structure-redesign` →
+`.cursor/skills/five-surface-ia`. Agents: `five-surface-nav-shell`,
+`five-surface-path-library`, `five-surface-accounts-vault`,
+`five-surface-dashboard-system`. Vocabulary: **Path**, **Input Vault** (not
+Workflow as the primary document name). Never write secrets into Path JSON.
+
+**Multi-agent delivery:** start with `pathline-orchestrator` (skill
+`pathline-orchestration`). Figma via `pathline-figma-design` + skill
+`pathline-figma-mcp` (Figma **free/Starter**: one file, no Code Connect/Dev Mode
+dependency). UX polish via `pathline-ux-upgrade`. Rule:
+`.cursor/rules/pathline-work-ownership.mdc`.
 
 ### Non-obvious caveats
 - **Python venv package is required**: creating `.venv` needs the OS `python3.12-venv` package
@@ -85,10 +108,9 @@ endpoint. `Ctrl+C` (or `./scripts/stop.sh`) stops background services. Logs:
   rebuilds when the on-disk schema predates owner-bound columns (consent/token
   mint fails with a vague WebKit “expected pattern” error until the API restarts
   against a current schema).
-- Automated calls require the desktop-native SIP transport. A plain browser run
-  is **manual fallback only** — paste IVR phrases and follow the on-screen keypad
-  guide. The desktop app must fail closed when native SIP or local STT is
-  unavailable; it must not silently substitute browser speech or a simulated
-  call for a production Run.
+- Automated calls require the desktop-native SIP transport. Do not launch or
+  demo the product in a standalone browser. The desktop app must fail closed
+  when native SIP or local STT is unavailable; it must not silently substitute
+  browser speech or a simulated call for a production Run.
 - Lab dialing requires `PATHLINE_SIP_PROFILE=lab` on loopback (`lab-desktop.sh`
   sets this). Plain RTP is lab-only.
