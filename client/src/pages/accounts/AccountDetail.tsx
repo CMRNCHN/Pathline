@@ -98,7 +98,7 @@ export function AccountDetail({ account, onChange, onDeleted, onNavigate }: Acco
         </div>
         {fieldEntries.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Add fields that match Path Inputs (e.g. account_pin). Secrets bind to Input Vault keys.
+            Add fields that match Path Inputs (e.g. account_pin). Secrets bind to sealed keys.
           </p>
         ) : (
           fieldEntries.map(([name, field]) => (

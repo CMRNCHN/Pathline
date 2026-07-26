@@ -26,8 +26,8 @@ export function CryptoSection() {
           </Badge>
         </div>
         <p className="text-muted-foreground">
-          Secrets, targets, and audio stay on this device. Input Vault seals values with a
-          device key.
+          Secrets, targets, and audio stay on this device. Sealed secrets use a
+          device key (managed under Accounts).
         </p>
         <Button
           type="button"

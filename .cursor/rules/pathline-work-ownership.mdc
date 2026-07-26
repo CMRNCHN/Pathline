@@ -16,16 +16,16 @@ alwaysApply: true
 |------|-------------|--------------------------|
 | Coordination | pathline-orchestrator | Product UI / Figma node writes |
 | Figma | pathline-figma-design | `client/`, `desktop/`, `services/` |
-| Shell/nav | five-surface-nav-shell | Path/Accounts/Vault page bodies |
+| Shell/nav | five-surface-nav-shell | Path/Accounts page bodies |
 | Path Library | five-surface-path-library | Accounts/Vault persistence |
-| Accounts+Vault | five-surface-accounts-vault | Shell nav rewrite |
+| Accounts (+ sealed secrets UI) | five-surface-accounts-vault | Shell nav rewrite |
 | Dashboard/System | five-surface-dashboard-system | Path EditForm / Run engine |
 | UX upgrade brief | pathline-ux-upgrade | Figma MCP |
 
 ## Stack / IA locks
 
 - React + Radix + shadcn + Tailwind + Tauri only.
-- Five surfaces; Edit/Run panels inside Path Library; secrets never in Path JSON.
+- Four surfaces (Dashboard, Path Library, Accounts, System); sealed secrets under Accounts; Edit/Run panels inside Path Library; secrets never in Path JSON.
 
 ## Figma free / Starter
 

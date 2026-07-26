@@ -1,4 +1,4 @@
-import { GitBranch, Plus, Users } from "lucide-react";
+import { GitBranch, Plus, Users, KeyRound } from "lucide-react";
 import type { AppView } from "@/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,15 @@ export function QuickActionsCard({ onNavigate, onNewPath, onNewAccount }: QuickA
           <Plus className="size-4" />
           New Path
         </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          className="justify-start"
+          onClick={() => onNavigate({ category: "paths" })}
+        >
+          <GitBranch className="size-4" />
+          Dial Path…
+        </Button>
         <Button type="button" variant="secondary" className="justify-start" onClick={onNewAccount}>
           <Users className="size-4" />
           New Account
@@ -29,19 +38,10 @@ export function QuickActionsCard({ onNavigate, onNewPath, onNewAccount }: QuickA
           type="button"
           variant="outline"
           className="justify-start"
-          onClick={() => onNavigate({ category: "paths" })}
+          onClick={() => onNavigate({ category: "accounts", panel: "secrets" })}
         >
-          <GitBranch className="size-4" />
-          Path Library
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="justify-start"
-          onClick={() => onNavigate({ category: "accounts" })}
-        >
-          <Users className="size-4" />
-          Accounts
+          <KeyRound className="size-4" />
+          Sealed secrets
         </Button>
       </CardContent>
     </Card>

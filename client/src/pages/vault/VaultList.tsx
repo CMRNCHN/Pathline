@@ -5,6 +5,8 @@ import {
   type InputVaultEntry,
   upsertVaultEntry,
 } from "@/persistence/vaultStore";
+import { listAccounts } from "@/persistence/accountsStore";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +32,7 @@ export function VaultEntryDialog({ open, onClose, initial, onSaved }: VaultEntry
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">
-          {initial ? "Update secret" : "Add Input Vault secret"}
+          {initial ? "Update secret" : "Add sealed secret"}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -102,27 +104,42 @@ export function VaultEntryRow({
   onEdit: () => void;
   onDeleted: () => void;
 }) {
+  const accounts = listAccounts();
+  const boundCount = accounts.filter((acc) =>
+    Object.values(acc.fields).some((f) => f.kind === "secret" && f.vaultKey === entry.key)
+  ).length;
+
   return (
-    <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{entry.label}</p>
-        <p className="truncate font-mono text-xs text-muted-foreground">{entry.key}</p>
+    <div className="flex items-center justify-between gap-3 rounded-lg border p-3 bg-card/40">
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="text-amber-500 text-base">⬡</span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-mono font-medium text-amber-500">{entry.key}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {entry.label} · {boundCount > 0 ? `${boundCount} bound profile${boundCount > 1 ? "s" : ""}` : "Unused"}
+          </p>
+        </div>
       </div>
-      <Button type="button" size="sm" variant="outline" onClick={onEdit}>
-        Rotate
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={() => {
-          if (!confirm(`Delete vault entry "${entry.label}"?`)) return;
-          deleteVaultEntry(entry.key);
-          onDeleted();
-        }}
-      >
-        Delete
-      </Button>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="text-xs">
+          Sealed
+        </Badge>
+        <Button type="button" size="sm" variant="outline" onClick={onEdit}>
+          Rotate
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            if (!confirm(`Delete vault entry "${entry.label}"?`)) return;
+            deleteVaultEntry(entry.key);
+            onDeleted();
+          }}
+        >
+          Remove
+        </Button>
+      </div>
     </div>
   );
 }

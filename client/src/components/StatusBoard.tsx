@@ -103,7 +103,7 @@ function buildTiles(status: RuntimeStatus): Tile[] {
     {
       id: "vault",
       icon: Shield,
-      label: "Vault",
+      label: "Sealed secrets",
       value: status.vault === "ready" ? "Key active" : "Idle until run",
       state: status.vault === "ready" ? "ok" : "idle",
       delay: 180,

@@ -2,8 +2,10 @@ import {
   GitBranch,
   Home,
   Monitor,
-  Shield,
   Users,
+  Radio,
+  Moon,
+  Sun,
 } from "lucide-react";
 import type { AppView } from "@/navigation";
 import { isPrimaryNav } from "@/navigation";
@@ -13,6 +15,7 @@ import { useEffect, useState } from "react";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -22,7 +25,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { Radio } from "lucide-react";
 
 interface AppSidebarProps {
   view: AppView;
@@ -33,13 +35,33 @@ const NAV: { category: AppView["category"]; label: string; icon: typeof Home }[]
   { category: "dashboard", label: "Dashboard", icon: Home },
   { category: "paths", label: "Path Library", icon: GitBranch },
   { category: "accounts", label: "Accounts", icon: Users },
-  { category: "vault", label: "Input Vault", icon: Shield },
   { category: "system", label: "System", icon: Monitor },
 ];
+
+function useThemeToggle() {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document === "undefined") return "light";
+    const saved = window.localStorage.getItem("pathline-theme");
+    if (saved === "dark" || saved === "light") return saved;
+    return document.documentElement.classList.contains("dark") ? "dark" : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem("pathline-theme", theme);
+  }, [theme]);
+
+  return {
+    theme,
+    toggle: () => setTheme((t) => (t === "light" ? "dark" : "light")),
+  };
+}
 
 export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
   const [apiOk, setApiOk] = useState(false);
   const desktop = isTauriApp();
+  const { theme, toggle } = useThemeToggle();
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +95,7 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Pathline</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {desktop ? "Desktop" : "Local"} · Five surfaces
+                  {desktop ? "Desktop" : "Local"}
                 </span>
               </div>
             </SidebarMenuButton>
@@ -99,7 +121,6 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
                       if (category === "dashboard") onNavigate({ category: "dashboard" });
                       else if (category === "paths") onNavigate({ category: "paths" });
                       else if (category === "accounts") onNavigate({ category: "accounts" });
-                      else if (category === "vault") onNavigate({ category: "vault" });
                       else onNavigate({ category: "system" });
                     }}
                     tooltip={label}
@@ -113,6 +134,17 @@ export function AppSidebar({ view, onNavigate }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton type="button" onClick={toggle} tooltip="Toggle theme">
+              {theme === "light" ? <Moon /> : <Sun />}
+              <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }

@@ -51,23 +51,26 @@ Do not describe the desktop loop as live-E2E complete until all of these land:
   fails closed unless `PATHLINE_SIP_PROFILE=lab` on loopback.
 - Apple Developer ID signing + notarization of a self-contained release DMG.
 
-### Client IA (five surfaces)
-Operator UI is exactly five top-level surfaces — no Workflows / Edit / Run /
-Settings / Templates / Runs nav items:
+### Client IA (four surfaces)
+Operator UI is exactly four top-level surfaces — no Workflows / Edit / Run /
+Settings / Templates / Runs / Vault nav items:
 
 | Surface | Job |
 |---------|-----|
-| Dashboard | Status, quick actions, recent activity |
+| Dashboard | Path status, quick actions, recent activity |
 | Path Library | Paths list + detail; EditForm + Run embedded |
-| Accounts | Profiles; fields → Path Inputs; ready Paths |
-| Input Vault | Sealed secrets; Accounts bind `vaultKey` |
+| Accounts | Profiles + sealed secrets panel; fields bind `vaultKey` |
 | System | Runtime health + former Settings |
+
+Sealed secrets still live in `vaultStore` (device crypto). Manage them under
+**Accounts → Sealed secrets** — not a separate nav surface. Never write secrets
+into Path JSON.
 
 Skill order for UI: `frontend-ui-architect` → `frontend-structure-redesign` →
 `.cursor/skills/five-surface-ia`. Agents: `five-surface-nav-shell`,
 `five-surface-path-library`, `five-surface-accounts-vault`,
-`five-surface-dashboard-system`. Vocabulary: **Path**, **Input Vault** (not
-Workflow as the primary document name). Never write secrets into Path JSON.
+`five-surface-dashboard-system`. Vocabulary: **Path**, sealed secrets via
+Accounts (not Workflow as the primary document name).
 
 **Multi-agent delivery:** start with `pathline-orchestrator` (skill
 `pathline-orchestration`). Figma via `pathline-figma-design` + skill

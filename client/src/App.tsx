@@ -4,7 +4,6 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { PathsPage } from "./pages/PathsPage";
 import { AccountsPage } from "./pages/AccountsPage";
 import { SystemPage } from "./pages/SystemPage";
-import { VaultPage } from "./pages/VaultPage";
 import { useScriptStore } from "./store/ScriptStore";
 import { getActiveScript } from "./script/selectors";
 import type { AppView } from "./navigation";
@@ -48,10 +47,12 @@ export default function App() {
       )}
 
       {view.category === "accounts" && (
-        <AccountsPage accountId={view.accountId} onNavigate={navigate} />
+        <AccountsPage
+          accountId={view.accountId}
+          panel={view.panel}
+          onNavigate={navigate}
+        />
       )}
-
-      {view.category === "vault" && <VaultPage />}
 
       {view.category === "system" && <SystemPage />}
     </Shell>

@@ -5,8 +5,8 @@
  *   Step         — one numbered instruction in a Path
  *   When         — the cue and phrase that starts a Step
  *   Then         — the action and value Pathline performs
- *   Input        — a value supplied for a Run (from Accounts / Input Vault)
- *   Input Vault  — sealed secret slots on device
+ *   Input        — a value supplied for a Run (from Accounts / sealed secrets)
+ *   Sealed secret — device-encrypted slot (vaultStore; UI under Accounts)
  *   Run          — one execution of a Path
  *
  * "Workflow", "Rule", and "Script" remain internal compatibility names only.
@@ -19,7 +19,7 @@ export const PRODUCT_TERMS = {
   when: "When",
   then: "Then",
   input: "Input",
-  inputVault: "Input Vault",
+  inputVault: "Sealed secrets",
   run: "Run",
 } as const;
 export const SCRIPT_VERSION = 2 as const;

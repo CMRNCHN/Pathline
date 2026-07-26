@@ -5,13 +5,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-canvas: #e8e8ea;
-  --color-ink: #0a0a0b;
-  --color-surface: #1c1c1c;
+  --color-canvas: #e6e6e8;
+  --color-ink: #1c1c1e;
+  --color-surface: #343438;
   --color-muted: #5c5c62;
-  --color-accent: #5c5c9a;
-  --font-sans: "DM Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --color-accent: #1c1c1e;
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 :root {
@@ -23,17 +23,17 @@
   --surface-elevated: #242424;
   /* Legacy text tokens — do not use shadcn --muted/--accent for copy color */
   --ink-muted: color-mix(in srgb, var(--ink) 8%, #94949c);
-  --brand: #5c5c9a;
-  --brand-hover: #4a4a82;
-  --brand-pop: #6e6ea8;
-  --brand-deep: #3a3a5c;
-  --brand-soft: #5c5c9a18;
-  --brand-glow: #5c5c9a30;
+  --brand: #1c1c1e;
+  --brand-hover: #000000;
+  --brand-pop: #3a3a40;
+  --brand-deep: #111111;
+  --brand-soft: #1c1c1e14;
+  --brand-glow: #1c1c1e22;
   --brand-wash: #0a0a0b06;
   --text: var(--foreground);
   /* shadcn surface tokens (bg-muted, bg-accent) */
-  --muted: oklch(0.97 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: #d8d8dc;
+  --accent: #d2d2d6;
   --accent-hover: var(--brand-hover);
   --accent-pop: var(--brand-pop);
   --accent-deep: var(--brand-deep);
@@ -41,58 +41,58 @@
   --accent-glow: var(--brand-glow);
   --accent-wash: var(--brand-wash);
   --muted-light: var(--ink-muted);
-  --border: oklch(0.922 0 0);
+  --border: #c8c8ce;
   --border-strong: color-mix(in srgb, var(--ink) 16%, transparent);
-  --card: oklch(1 0 0);
+  --card: #f4f4f5;
   --card-muted: color-mix(in srgb, var(--ink) var(--ink-tint), #ececee);
   --card-raised: color-mix(in srgb, var(--ink) 8%, #f5f5f7);
-  --success: #059669;
+  --success: #2f6b4f;
   --success-soft: color-mix(in srgb, var(--ink) var(--ink-tint), #d1fae5);
-  --warning: #d97706;
-  --danger: #dc2626;
+  --warning: #8a6418;
+  --danger: #a33b32;
   --danger-soft: color-mix(in srgb, var(--ink) var(--ink-tint), #fef2f2);
-  --radius: 0.75rem;
-  --radius-sm: 8px;
-  --shadow-sm: 0 1px 2px #0a0a0b0c, 0 1px 3px #0a0a0b10;
-  --shadow-md: 0 4px 16px #0a0a0b12, 0 2px 6px #0a0a0b0c;
-  --shadow-lg: 0 12px 40px #0a0a0b1a, 0 4px 12px #0a0a0b0e;
-  --font: "DM Sans", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
-  /* Day base + night accents */
-  --background: color-mix(in srgb, #0a0a0b 6%, #f2f2f4);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(0.995 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(0.995 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #5c5c9a;
-  --primary-foreground: #f8f8fc;
-  --secondary: color-mix(in srgb, #0a0a0b 8%, #ececee);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted-foreground: oklch(0.42 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --input: oklch(0.882 0 0);
-  --ring: oklch(0.55 0 0);
+  --radius: 0.5rem;
+  --radius-sm: 6px;
+  --shadow-sm: 0 1px 2px #1c1c1e0c, 0 1px 3px #1c1c1e10;
+  --shadow-md: 0 4px 16px #1c1c1e12, 0 2px 6px #1c1c1e0c;
+  --shadow-lg: 0 12px 40px #1c1c1e1a, 0 4px 12px #1c1c1e0e;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* Clean mid-gray light canvas */
+  --background: #e6e6e8;
+  --foreground: #1c1c1e;
+  --card: #f4f4f5;
+  --card-foreground: #1c1c1e;
+  --popover: #f4f4f5;
+  --popover-foreground: #1c1c1e;
+  --primary: #1c1c1e;
+  --primary-foreground: #f4f4f5;
+  --secondary: #dcdce0;
+  --secondary-foreground: #1c1c1e;
+  --muted-foreground: #5c5c62;
+  --accent-foreground: #1c1c1e;
+  --destructive: #a33b32;
+  --input: #c8c8ce;
+  --ring: #1c1c1e;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  /* Night ink borrowed into day chrome */
-  --sidebar: #121214;
-  --sidebar-foreground: #f4f4f5;
-  --sidebar-primary: #7a7ab8;
-  --sidebar-primary-foreground: #f8f8fc;
-  --sidebar-accent: #1e1e22;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #ffffff14;
-  --sidebar-ring: #7a7ab8;
-  /* Invert panel: dark island on day canvas */
+  /* Light sidebar to match Make */
+  --sidebar: #ececee;
+  --sidebar-foreground: #1c1c1e;
+  --sidebar-primary: #1c1c1e;
+  --sidebar-primary-foreground: #f4f4f5;
+  --sidebar-accent: #dcdce0;
+  --sidebar-accent-foreground: #1c1c1e;
+  --sidebar-border: #c8c8ce;
+  --sidebar-ring: #1c1c1e;
+  /* Invert panel */
   --contrast: #161618;
   --contrast-foreground: #f4f4f5;
   --contrast-muted: #a1a1aa;
-  --header: color-mix(in srgb, #0a0a0b 4%, #fafafa);
+  --header: #ececee;
 }
 
 * {
@@ -2827,55 +2827,56 @@ button {
 }
 
 .dark {
-  /* Night base + day accents */
-  --background: color-mix(in srgb, #f4f4f5 4%, #121214);
-  --foreground: oklch(0.97 0 0);
+  /* Lifted slate dark — not near-black cyberpunk */
+  --background: #2a2a2e;
+  --foreground: #ececee;
   --canvas: var(--background);
   --canvas-dot: oklch(1 0 0 / 6%);
-  --ink: oklch(0.97 0 0);
-  --ink-muted: oklch(0.72 0 0);
+  --ink: #ececee;
+  --ink-muted: #a8a8b0;
   --muted-light: var(--ink-muted);
   --text: var(--foreground);
-  --border: oklch(1 0 0 / 12%);
-  --border-strong: oklch(1 0 0 / 20%);
-  --card: #1a1a1e;
-  --card-muted: #242428;
-  --card-raised: #222226;
-  --card-foreground: oklch(0.97 0 0);
-  --popover: #1a1a1e;
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: #8a8ac4;
-  --primary-foreground: #f8f8fc;
-  --secondary: #242428;
-  --secondary-foreground: oklch(0.97 0 0);
-  --muted: #242428;
-  --muted-foreground: oklch(0.72 0 0);
-  --accent: #242428;
-  --accent-foreground: oklch(0.97 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.62 0 0);
+  --border: #4a4a52;
+  --border-strong: #5a5a62;
+  --card: #343438;
+  --card-muted: #3a3a40;
+  --card-raised: #3c3c42;
+  --card-foreground: #ececee;
+  --popover: #343438;
+  --popover-foreground: #ececee;
+  --primary: #ececee;
+  --primary-foreground: #2a2a2e;
+  --secondary: #3c3c42;
+  --secondary-foreground: #ececee;
+  --muted: #3a3a40;
+  --muted-foreground: #a8a8b0;
+  --accent: #404046;
+  --accent-foreground: #ececee;
+  --destructive: #d08882;
+  --input: #4a4a52;
+  --ring: #ececee;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: #0c0c0e;
-  --sidebar-foreground: #f4f4f5;
-  --sidebar-primary: #8a8ac4;
-  --sidebar-primary-foreground: #f8f8fc;
-  --sidebar-accent: #1c1c20;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #ffffff12;
-  --sidebar-ring: #8a8ac4;
-  --brand: #8a8ac4;
-  --brand-soft: #8a8ac428;
+  --sidebar: #303034;
+  --sidebar-foreground: #ececee;
+  --sidebar-primary: #ececee;
+  --sidebar-primary-foreground: #2a2a2e;
+  --sidebar-accent: #3c3c42;
+  --sidebar-accent-foreground: #ececee;
+  --sidebar-border: #4a4a52;
+  --sidebar-ring: #ececee;
+  --brand: #ececee;
+  --brand-soft: #ececee18;
   --accent-soft: var(--brand-soft);
-  /* Day light borrowed into night as accent islands */
+  --success: #7aab90;
+  --warning: #c4a06a;
   --contrast: #eef0f3;
   --contrast-foreground: #161618;
   --contrast-muted: #5c5c66;
-  --header: color-mix(in srgb, #f4f4f5 7%, #161618);
+  --header: #303034;
 }
 
 @layer base {

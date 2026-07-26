@@ -1,8 +1,7 @@
 export type AppView =
   | { category: "dashboard" }
   | { category: "paths"; pathId?: string; panel?: "edit" | "run" }
-  | { category: "accounts"; accountId?: string }
-  | { category: "vault" }
+  | { category: "accounts"; accountId?: string; panel?: "profile" | "secrets" }
   | { category: "system" };
 
 /** Labels for the shell breadcrumb strip. */
@@ -11,11 +10,9 @@ export function viewLabel(view: AppView): string {
     case "dashboard":
       return "Dashboard";
     case "paths":
-      return view.pathId ? "Path Library" : "Path Library";
+      return "Path Library";
     case "accounts":
       return "Accounts";
-    case "vault":
-      return "Input Vault";
     case "system":
       return "System";
   }
