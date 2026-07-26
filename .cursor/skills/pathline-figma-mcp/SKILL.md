@@ -39,20 +39,6 @@ Assume **Figma Starter (free)** unless the user says otherwise.
 
 **Do not** block the product on paid Figma features. Design for handoff that works with MCP + existing `client/src/components/ui`.
 
-### Budget check (orchestrator must pass before a Figma wave)
-
-```
-[ ] Using existing Pathline Desktop file OR this is the single allowed create_new_file
-[ ] No second Figma/FigJam file
-[ ] No Code Connect / Dev Mode / publish library
-[ ] One editor (agent or human), not both
-[ ] Wave adds pages/frames in-file only
-```
-
-If any box fails → **do not run** the Figma wave; do a **code UX wave** instead or wait.
-
-**Maximize free-plan value:** one file, local components, Shell + Path Library first, simple prototypes, MCP screenshots for handoff — skip paid-only features rather than upgrading mid-project.
-
 ## Locked product constraints (every prompt)
 
 - Desktop ~1280×800
