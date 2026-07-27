@@ -87,7 +87,7 @@ function openEndAfter(doc: PathDocument, step: FlowStep): FlowStep | undefined {
   return undefined;
 }
 
-function withMatched(prev: RunState, stepId: string): string[] {
+function withMatched(prev: Pick<RunState, "matchedFlowIds">, stepId: string): string[] {
   const existing = prev.matchedFlowIds ?? [];
   return existing.includes(stepId) ? existing : [...existing, stepId];
 }
