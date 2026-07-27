@@ -1,4 +1,5 @@
 import { Monitor } from "lucide-react";
+import { useEffect, useState } from "react";
 import { DataManagementSection } from "./system/DataManagementSection";
 import { CryptoSection } from "./system/CryptoSection";
 import { PageLayout } from "@/components/ui/PageHeader";
@@ -9,6 +10,13 @@ import { isAutomatedTransport, isTauriApp } from "@/transport/createAppTransport
 import { detectSttCapability, isSipBridgePresent } from "@/stt";
 import { useScriptStore } from "@/store/ScriptStore";
 import { listVaultEntries } from "@/persistence/vaultStore";
+
+type SipDiag = {
+  ready: boolean;
+  media: string;
+  signaling: string;
+  reason?: string;
+};
 
 export function SystemPage() {
   const { bundledScripts, customScripts, loading, error } = useScriptStore();
@@ -24,6 +32,32 @@ export function SystemPage() {
   const sip = isSipBridgePresent();
   const stt = detectSttCapability();
   const sealedCount = listVaultEntries().length;
+  const [sipDiag, setSipDiag] = useState<SipDiag | null>(null);
+
+  useEffect(() => {
+    if (!sip || typeof window === "undefined") {
+      setSipDiag(null);
+      return;
+    }
+    const bridge = window.__pathlineSipBridge ?? window.__promptpathSipBridge;
+    if (!bridge?.readiness) {
+      setSipDiag(null);
+      return;
+    }
+    let cancelled = false;
+    void bridge.readiness().then((r) => {
+      if (cancelled) return;
+      setSipDiag({
+        ready: r.ready,
+        media: r.media,
+        signaling: r.signaling,
+        reason: r.reason,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sip, runtime.lastChecked]);
 
   const speechReady = stt.localWhisperAvailable || stt.webSpeechAvailable;
   const speechStatus = stt.localWhisperAvailable
@@ -37,16 +71,36 @@ export function SystemPage() {
       ? "Browser speech (manual fallback)"
       : "No speech engine available";
 
+  const phoneOk = sipDiag
+    ? sipDiag.ready
+    : Boolean(sip || (!desktop && !automated));
+  const phoneStatus = sipDiag
+    ? sipDiag.ready
+      ? sipDiag.media === "rtp-lab-only"
+        ? "Lab RTP"
+        : "Ready"
+      : "Blocked"
+    : sip || automated
+      ? "Ready"
+      : desktop
+        ? "Unavailable"
+        : "Manual only";
+  const phoneDetail = sipDiag
+    ? sipDiag.ready
+      ? `${sipDiag.signaling} · media ${sipDiag.media}`
+      : sipDiag.reason ?? "SIP readiness failed"
+    : sip
+      ? "Native SIP bridge is present"
+      : desktop
+        ? "Desktop SIP bridge not detected"
+        : "Browser cannot automate calls";
+
   const rows = [
     {
       label: "Phone line",
-      status: sip || automated ? "Ready" : desktop ? "Unavailable" : "Manual only",
-      detail: sip
-        ? "Native SIP bridge is present"
-        : desktop
-          ? "Desktop SIP bridge not detected"
-          : "Browser cannot automate calls",
-      ok: Boolean(sip || (!desktop && !automated)),
+      status: phoneStatus,
+      detail: phoneDetail,
+      ok: phoneOk,
     },
     {
       label: "Speech recognition",

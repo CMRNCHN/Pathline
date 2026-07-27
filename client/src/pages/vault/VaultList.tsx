@@ -112,17 +112,19 @@ export function VaultEntryRow({
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border p-3 bg-card/40">
       <div className="flex items-center gap-3 min-w-0">
-        <span className="text-amber-500 text-base">⬡</span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-mono font-medium text-amber-500">{entry.key}</p>
+          <p className="truncate text-sm font-mono font-medium">{entry.key}</p>
           <p className="truncate text-xs text-muted-foreground">
-            {entry.label} · {boundCount > 0 ? `${boundCount} bound profile${boundCount > 1 ? "s" : ""}` : "Unused"}
+            {entry.label} ·{" "}
+            {boundCount > 0
+              ? `${boundCount} bound profile${boundCount > 1 ? "s" : ""}`
+              : "Unused"}
           </p>
         </div>
       </div>
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="text-xs">
-          Sealed
+          Sealed secret
         </Badge>
         <Button type="button" size="sm" variant="outline" onClick={onEdit}>
           Rotate
@@ -164,7 +166,7 @@ export function VaultList({
             setOpen(true);
           }}
         >
-          Add secret
+          Add sealed secret
         </Button>
       </div>
       {open && (
@@ -177,7 +179,8 @@ export function VaultList({
       )}
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No secrets yet. Add sealed values Accounts can bind as Inputs.
+          No sealed secrets yet. Add values here, then bind them on Account fields —
+          never stored in Path JSON.
         </p>
       ) : (
         entries.map((entry) => (

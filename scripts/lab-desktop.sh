@@ -32,5 +32,10 @@ fi
 
 # 3. Desktop app owns the call (foreground). Ctrl+C returns here.
 export PATHLINE_SIP_PROFILE=lab
+
+# 3b. Static + optional live preflight so a half-started stack fails loud.
+info "Running lab preflight (scripts/lab-verify-flow.sh) ..."
+SKIP_LAB_PREFLIGHT="${SKIP_LAB_PREFLIGHT:-0}" "$ROOT/scripts/lab-verify-flow.sh"
+
 info "Launching desktop app (npm run desktop:dev) ..."
 exec npm run desktop:dev

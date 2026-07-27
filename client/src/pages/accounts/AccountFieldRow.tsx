@@ -68,13 +68,13 @@ export function AccountFieldRow({
             onChangeField({ kind: "secret", vaultKey: key });
           }}
         >
-          <SelectTrigger aria-label="Input Vault key">
-            <SelectValue placeholder="Vault key…" />
+          <SelectTrigger aria-label="Sealed secret key">
+            <SelectValue placeholder="Sealed secret…" />
           </SelectTrigger>
           <SelectContent>
             {vaultEntries.length === 0 ? (
               <SelectItem value="__empty" disabled>
-                No vault entries
+                No sealed secrets yet
               </SelectItem>
             ) : (
               vaultEntries.map((entry) => (

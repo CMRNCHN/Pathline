@@ -171,8 +171,8 @@ export function EditForm({
                   className="script-header-name"
                   value={script.setup.name}
                   onChange={(e) => patchSetup({ name: e.target.value })}
-                  placeholder="Untitled Workflow"
-                  aria-label="Workflow name"
+                  placeholder="Untitled Path"
+                  aria-label="Path name"
                 />
               )}
             </div>
@@ -239,7 +239,7 @@ export function EditForm({
                         variant="ghost"
                         size="icon-sm"
                         onClick={onDelete}
-                        aria-label="Delete Workflow"
+                        aria-label="Delete Path"
                       >
                         <Trash2 />
                       </Button>
@@ -261,7 +261,7 @@ export function EditForm({
                 value={script.setup.description}
                 onChange={(e) => patchSetup({ description: e.target.value })}
                 placeholder="Description"
-                aria-label="Workflow description"
+                aria-label="Path description"
               />
             )}
           </div>
@@ -380,7 +380,7 @@ export function EditForm({
               <div className="editor-rail-head">
                 <h2 className="text-sm font-bold tracking-tight">Secrets</h2>
                 <p className="text-xs text-muted-foreground">
-                  Runtime values only — not saved with the Workflow.
+                  Runtime values only — not saved with the Path.
                 </p>
               </div>
               {inputVariables.length === 0 ? (

@@ -26,19 +26,23 @@ export function PathListItem({ path, selected, onSelect }: PathListItemProps) {
       type="button"
       onClick={onSelect}
       className={cn(
-        "flex w-full flex-col gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors",
+        "flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left transition-colors",
         selected ? "border-primary bg-primary/5" : "hover:bg-muted/60"
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="min-w-0 truncate text-sm font-medium">{scriptDisplayName(path)}</span>
-        <Badge variant={readinessVariant(readiness)} className="shrink-0 text-[10px]">
-          {READINESS_LABEL[readiness]}
-        </Badge>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 truncate text-sm font-medium">{scriptDisplayName(path)}</span>
+          <Badge variant={readinessVariant(readiness)} className="shrink-0 text-[10px]">
+            {READINESS_LABEL[readiness]}
+          </Badge>
+        </div>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {path.setup.target
+            ? `${path.setup.target} · ${steps} step${steps === 1 ? "" : "s"}`
+            : path.setup.description || `${steps} step${steps === 1 ? "" : "s"}`}
+        </p>
       </div>
-      <p className="line-clamp-2 text-xs text-muted-foreground">
-        {path.setup.description || path.setup.target || `${steps} step${steps === 1 ? "" : "s"}`}
-      </p>
     </button>
   );
 }

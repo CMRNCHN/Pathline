@@ -1,10 +1,12 @@
-import { Activity, Hash, Mic, RefreshCw, Server, Shield, Sparkles } from "lucide-react";
+import { Activity, Mic, RefreshCw, Server, Shield, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { RuntimeStatus } from "../hooks/useRuntimeStatus";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { detectSttCapability, isSipBridgePresent } from "@/stt";
+import { isTauriApp } from "@/transport/createAppTransport";
 
 interface StatusBoardProps {
   status: RuntimeStatus;
@@ -57,6 +59,18 @@ function buildTiles(status: RuntimeStatus): Tile[] {
           ? "ok"
           : "warn";
 
+  const sip = isSipBridgePresent();
+  const stt = detectSttCapability();
+  const desktop = isTauriApp();
+  const phoneState: TileState = sip ? "ok" : desktop ? "err" : "warn";
+  const speechState: TileState = stt.localWhisperAvailable
+    ? "ok"
+    : stt.webSpeechAvailable
+      ? "warn"
+      : desktop
+        ? "err"
+        : "idle";
+
   return [
     {
       id: "api",
@@ -74,7 +88,7 @@ function buildTiles(status: RuntimeStatus): Tile[] {
     {
       id: "templates",
       icon: Sparkles,
-      label: "Workflows",
+      label: "Paths",
       value:
         status.templates === "loading"
           ? "Loading…"
@@ -85,19 +99,23 @@ function buildTiles(status: RuntimeStatus): Tile[] {
       delay: 60,
     },
     {
-      id: "dtmf",
-      icon: Hash,
-      label: "Keypad",
-      value: "Active",
-      state: "ok",
+      id: "phone",
+      icon: Activity,
+      label: "Phone",
+      value: sip ? "Bridge ready" : desktop ? "No SIP" : "Manual",
+      state: phoneState,
       delay: 120,
     },
     {
-      id: "voice",
+      id: "speech",
       icon: Mic,
-      label: "Voice",
-      value: "Planned",
-      state: "idle",
+      label: "Speech",
+      value: stt.localWhisperAvailable
+        ? "Whisper"
+        : stt.webSpeechAvailable
+          ? "Browser"
+          : "Unavailable",
+      state: speechState,
       delay: 150,
     },
     {

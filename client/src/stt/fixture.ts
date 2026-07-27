@@ -114,8 +114,8 @@ export async function runPipelineFixture(): Promise<FixtureResult> {
   const scripted = [
     "please press 1 for account", // -> main_menu, DTMF "1"
     "now enter your pin followed by pound", // -> pin_entry, DTMF "1234#"
-    "the code 1234", // -> read_status, capture account_balance
-    "thank you and goodbye", // -> end_call, completes the run
+    "the code 1234", // -> read_status, capture; open end completes (no goodbye cue)
+    "thank you and goodbye", // extra utterance after completed — ignored
   ];
 
   let next = 0;

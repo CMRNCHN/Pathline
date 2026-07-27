@@ -47,9 +47,15 @@ services. Logs: `.logs/api.log`, `.logs/client.log`.
 Do not describe the desktop loop as live-E2E complete until all of these land:
 - One recorded macOS/Tauri/Asterisk dial → RTP → local STT → keypad → encrypted
   callstate acceptance run (operator-recorded; see `docs/production-acceptance.md`).
-- Production SIP trunk with SRTP — locked `rsiprtp 0.4.1` has no SRTP; dialing
-  fails closed unless `PATHLINE_SIP_PROFILE=lab` on loopback.
-- Apple Developer ID signing + notarization of a self-contained release DMG.
+- Production SIP trunk with SRTP — Pathline has not wired SDES-SRTP on locked
+  `rsiprtp 0.4.1` yet; dialing fails closed unless `PATHLINE_SIP_PROFILE=lab` on
+  loopback. Smallest path: `docs/srtp-production-path.md`.
+- Apple Developer ID signing + notarization of a self-contained release DMG
+  (`scripts/build-release-dmg.sh` + `scripts/notarize-macos.sh`; operator runs
+  notarization with Apple credentials).
+
+`frontend-ui/` (including Figma Make exports) is **not** the shipping UI — use
+`client/` inside the Tauri desktop app.
 
 ### Client IA (four surfaces)
 Operator UI is exactly four top-level surfaces — no Workflows / Edit / Run /

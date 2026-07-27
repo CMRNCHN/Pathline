@@ -123,6 +123,8 @@ describe("runtime action dispatch", () => {
     });
     expect(captured.state.collected.card_status).toBe("your card is active");
     expect(captured.shouldComplete).toBe(true);
+    expect(captured.state.completed).toBe(true);
+    expect(captured.state.matchedFlowIds).toContain("flow-end");
   });
 
   it("completes after one pipe-OR determination, then open end", () => {
@@ -173,6 +175,8 @@ describe("runtime action dispatch", () => {
     });
     expect(hit.state.collected.card_status).toBe("please enter your zip code");
     expect(hit.shouldComplete).toBe(true);
+    expect(hit.state.completed).toBe(true);
+    expect(hit.state.matchedFlowIds).toContain("flow-end");
   });
 
   it("blocks open end when sibling determination Steps stay unmatched", () => {

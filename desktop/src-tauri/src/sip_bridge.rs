@@ -97,8 +97,9 @@ struct SipConfig {
     /// relaxed for the lab profile — never in production.
     verify_tls: bool,
     /// Plain RTP is intentionally available only for the loopback Asterisk
-    /// acceptance lab. The locked stack does not currently implement SRTP, so
-    /// production dialing must fail closed instead of silently downgrading.
+    /// acceptance lab. Pathline has not wired SDES-SRTP yet (see
+    /// `docs/srtp-production-path.md`); production dialing must fail closed
+    /// instead of silently downgrading to cleartext media.
     allow_plain_rtp: bool,
     rtp_inactivity_timeout: Duration,
 }
@@ -132,8 +133,9 @@ impl SipConfig {
         );
         if !allow_plain_rtp {
             return Err(
-                "Production SIP is unavailable: rsiprtp 0.4.1 has no SRTP transport. \
-                 Plain RTP is permitted only with PATHLINE_SIP_PROFILE=lab on loopback."
+                "Production SIP is unavailable: Pathline has not wired SDES-SRTP on rsiprtp 0.4.1 yet \
+                 (see docs/srtp-production-path.md). Plain RTP is permitted only with \
+                 PATHLINE_SIP_PROFILE=lab on loopback."
                     .to_string(),
             );
         }
@@ -1082,6 +1084,9 @@ pub fn init_script() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn lab_cfg() -> SipConfig {
         SipConfig {
@@ -1095,6 +1100,48 @@ mod tests {
             allow_plain_rtp: true,
             rtp_inactivity_timeout: Duration::from_secs(15),
         }
+    }
+
+    #[test]
+    fn from_env_allows_lab_plain_rtp_on_loopback() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        // SAFETY: test-only env mutation under ENV_LOCK.
+        unsafe {
+            std::env::set_var("PATHLINE_SIP_PROFILE", "lab");
+            std::env::set_var("PATHLINE_SIP_SERVER", "127.0.0.1");
+            std::env::remove_var("PATHLINE_SIP_VERIFY_TLS");
+        }
+        let cfg = SipConfig::from_env().expect("lab loopback should allow plain RTP");
+        assert!(cfg.allow_plain_rtp);
+        assert!(!cfg.verify_tls);
+    }
+
+    #[test]
+    fn from_env_fails_closed_without_lab_profile() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe {
+            std::env::remove_var("PATHLINE_SIP_PROFILE");
+            std::env::set_var("PATHLINE_SIP_SERVER", "127.0.0.1");
+        }
+        let err = match SipConfig::from_env() {
+            Ok(_) => panic!("non-lab must fail closed"),
+            Err(e) => e,
+        };
+        assert!(err.contains("SDES-SRTP") || err.contains("Plain RTP"));
+    }
+
+    #[test]
+    fn from_env_fails_closed_for_non_loopback_even_with_lab() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe {
+            std::env::set_var("PATHLINE_SIP_PROFILE", "lab");
+            std::env::set_var("PATHLINE_SIP_SERVER", "sip.example.com");
+        }
+        let err = match SipConfig::from_env() {
+            Ok(_) => panic!("non-loopback must fail closed"),
+            Err(e) => e,
+        };
+        assert!(err.contains("loopback") || err.contains("Plain RTP"));
     }
 
     #[test]

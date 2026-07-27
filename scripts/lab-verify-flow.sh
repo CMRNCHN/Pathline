@@ -90,6 +90,13 @@ ok "bundled Whisper tiny.en model checksum verified"
 # 2. Privacy: DTMF audit is a non-reversible hash + count, never plaintext.
 assert_contains "$BRIDGE_RS" "short_hash" "bridge logs DTMF as a hash (short_hash), not plaintext"
 
+# 2b. Fail-closed production gate: plain RTP only for lab + loopback.
+assert_contains "$BRIDGE_RS" "PATHLINE_SIP_PROFILE" "bridge reads PATHLINE_SIP_PROFILE"
+assert_contains "$BRIDGE_RS" "allow_plain_rtp" "bridge gates plain RTP via allow_plain_rtp"
+assert_contains "$BRIDGE_RS" "srtp-required" "sip_status reports srtp-required when gated"
+assert_contains "$BRIDGE_RS" "Production SIP is unavailable" "bridge fails closed without lab plain-RTP"
+assert_contains "$ROOT/scripts/lab-desktop.sh" "PATHLINE_SIP_PROFILE=lab" "lab-desktop sets SIP profile=lab"
+
 # 3. Lab Path is desktop-automation-ready: target=1000 + autoListen=true.
 [[ -f "$LAB_PATH_JSON" ]] || fail "missing lab Path: $LAB_PATH_JSON"
 python3 - "$LAB_PATH_JSON" <<'PY' || fail "lab Path is not desktop-automation-ready (need target=1000 + autoListen=true)"

@@ -78,16 +78,33 @@ function findMatchingFlowStep(
   return undefined;
 }
 
-function nextStepIsOpenEnd(doc: PathDocument, step: FlowStep): boolean {
+/** When the Step after `step` is open end, return it so callers can complete without another utterance. */
+function openEndAfter(doc: PathDocument, step: FlowStep): FlowStep | undefined {
   const index = doc.conversationFlow.findIndex((item) => item.id === step.id);
-  if (index < 0) return false;
+  if (index < 0) return undefined;
   const next = doc.conversationFlow[index + 1];
-  return next?.action === "end" && next.detect === END_NOW_DETECT;
+  if (next?.action === "end" && next.detect === END_NOW_DETECT) return next;
+  return undefined;
 }
 
 function withMatched(prev: RunState, stepId: string): string[] {
   const existing = prev.matchedFlowIds ?? [];
   return existing.includes(stepId) ? existing : [...existing, stepId];
+}
+
+/** Mark open-end as matched and complete — disconnect finalizer keys off state.completed. */
+function completeViaOpenEnd(
+  matchedFlowIds: string[],
+  openEnd: FlowStep | undefined
+): Pick<RunState, "matchedFlowIds" | "completed"> & { shouldComplete: boolean } {
+  if (!openEnd) {
+    return { matchedFlowIds, completed: false, shouldComplete: false };
+  }
+  return {
+    matchedFlowIds: withMatched({ matchedFlowIds }, openEnd.id),
+    completed: true,
+    shouldComplete: true,
+  };
 }
 
 /** Authority for Path execution — step state, phrase matching, and next action. */
@@ -134,14 +151,16 @@ export function processPhrase(
 
   switch (step.action) {
     case "pass": {
+      const viaEnd = completeViaOpenEnd(matchedFlowIds, openEndAfter(doc, step));
       return {
         state: {
           ...base,
-          matchedFlowIds,
+          matchedFlowIds: viaEnd.matchedFlowIds,
+          completed: viaEnd.completed,
           log: [...prev.log, logEntry(`Pass: "${step.detect}"`, "pass")],
         },
         matched: true,
-        shouldComplete: nextStepIsOpenEnd(doc, step),
+        shouldComplete: viaEnd.shouldComplete,
       };
     }
 
@@ -161,13 +180,18 @@ export function processPhrase(
           "trigger"
         ),
       ];
-      const shouldComplete = nextStepIsOpenEnd(doc, step);
+      const viaEnd = completeViaOpenEnd(matchedFlowIds, openEndAfter(doc, step));
 
       if (automated && resolved) {
         return {
-          state: { ...base, matchedFlowIds, log },
+          state: {
+            ...base,
+            matchedFlowIds: viaEnd.matchedFlowIds,
+            completed: viaEnd.completed,
+            log,
+          },
           matched: true,
-          shouldComplete,
+          shouldComplete: viaEnd.shouldComplete,
           ...(isSpeech
             ? { speechAction: { step: stepName, text: resolved } }
             : { dtmfAction: { step: stepName, sequence: resolved } }),
@@ -188,12 +212,13 @@ export function processPhrase(
 
       const state: RunState = {
         ...base,
-        matchedFlowIds,
+        matchedFlowIds: viaEnd.matchedFlowIds,
+        completed: viaEnd.completed,
         log,
         pendingDtmf: resolved,
         pendingTrigger: step.detect,
       };
-      return { state, matched: true, shouldComplete };
+      return { state, matched: true, shouldComplete: viaEnd.shouldComplete };
     }
 
     case "extract": {
@@ -214,15 +239,19 @@ export function processPhrase(
         ),
       ];
       const matched = Boolean(value && field);
+      const viaEnd = matched
+        ? completeViaOpenEnd(matchedFlowIds, openEndAfter(doc, step))
+        : { matchedFlowIds: base.matchedFlowIds, completed: false, shouldComplete: false };
       return {
         state: {
           ...base,
           collected,
           log,
-          matchedFlowIds: matched ? matchedFlowIds : base.matchedFlowIds,
+          matchedFlowIds: viaEnd.matchedFlowIds,
+          completed: viaEnd.completed,
         },
         matched,
-        shouldComplete: matched && nextStepIsOpenEnd(doc, step),
+        shouldComplete: viaEnd.shouldComplete,
       };
     }
 
