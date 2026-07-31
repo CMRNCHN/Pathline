@@ -29,16 +29,20 @@ await build({
   logLevel: "error",
 });
 
-const { runPipelineFixture, runSelectionFixture } = await import(pathToFileURL(outfile).href);
+const { runPipelineFixture, runPrepFixture, runSelectionFixture } = await import(pathToFileURL(outfile).href);
+
+const prep = runPrepFixture();
+console.log("=== Prep fixture (waits, timeouts, DTMF w, structured detect) ===");
+console.log(JSON.stringify(prep, null, 2));
 
 const pipeline = await runPipelineFixture();
-console.log("=== Pipeline fixture (PCM -> AudioSession -> STT -> processPhrase -> DTMF) ===");
+console.log("\n=== Pipeline fixture (PCM -> AudioSession -> STT -> processPhrase -> DTMF) ===");
 console.log(JSON.stringify(pipeline, null, 2));
 
 const selection = runSelectionFixture();
 console.log("\n=== Selection fixture (engine choice + Web Speech guard) ===");
 console.log(JSON.stringify(selection, null, 2));
 
-const ok = pipeline.ok && selection.ok;
+const ok = prep.ok && pipeline.ok && selection.ok;
 console.log(ok ? "\nSTT fixtures: PASS" : "\nSTT fixtures: FAIL");
 process.exit(ok ? 0 : 1);

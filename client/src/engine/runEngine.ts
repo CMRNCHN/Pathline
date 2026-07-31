@@ -1,5 +1,6 @@
 import type { FlowStep, PathDocument, RunLogEntry, RunState } from "../script/types";
 import { extractOutputRules, findIvrRule, resolveReference } from "../script/compile";
+import { evaluateDetect } from "./when/evaluateDetect";
 
 export type { RunState, RunLogEntry };
 
@@ -7,6 +8,9 @@ export type { RunState, RunLogEntry };
 export const NEXT_UTTERANCE_DETECT = "__next_utterance__";
 /** Open end: hang up once prior Steps finish (no goodbye cue). */
 export const END_NOW_DETECT = "__end_now__";
+/** Wait step token emitted by script sync for "wait N seconds" Steps. */
+export const WAIT_DETECT_RE = /^__wait_(\d+(?:\.\d+)?)__$/;
+const DEFAULT_STEP_TIMEOUT_MS = 30_000;
 
 export interface ProcessPhraseOptions {
   /** When true, DTMF actions are returned for transport injection instead of pending UI state. */
@@ -24,6 +28,10 @@ export interface ProcessPhraseResult {
   speechAction?: {
     step: string;
     text: string;
+  };
+  timedOutStep?: {
+    step: string;
+    timeoutMs: number;
   };
 }
 
@@ -43,13 +51,27 @@ function logEntry(message: string, kind: RunLogEntry["kind"]): RunLogEntry {
 
 function matches(text: string, phrase: string): boolean {
   if (!phrase.trim()) return false;
-  if (phrase === NEXT_UTTERANCE_DETECT || phrase === END_NOW_DETECT) return false;
+  if (
+    phrase === NEXT_UTTERANCE_DETECT ||
+    phrase === END_NOW_DETECT ||
+    isWaitDetect(phrase)
+  ) {
+    return false;
+  }
   const hay = text.toLowerCase().replace(/\s+/g, " ").trim();
-  return phrase
-    .split("|")
-    .map((p) => p.trim().toLowerCase())
-    .filter(Boolean)
-    .some((needle) => hay.includes(needle));
+  return evaluateDetect(hay, phrase);
+}
+
+export function isWaitDetect(detect: string): boolean {
+  return WAIT_DETECT_RE.test(detect.trim());
+}
+
+export function waitMsFromDetect(detect: string): number | null {
+  const match = detect.trim().match(WAIT_DETECT_RE);
+  if (!match) return null;
+  const seconds = Number.parseFloat(match[1]);
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  return Math.round(seconds * 1000);
 }
 
 function priorsDone(flow: FlowStep[], index: number, matchedIds: Set<string>): boolean {
@@ -67,6 +89,11 @@ function findMatchingFlowStep(
     const step = flow[index];
     if (matchedIds.has(step.id)) continue;
 
+    if (isWaitDetect(step.detect)) {
+      if (phrase === step.detect && priorsDone(flow, index, matchedIds)) return step;
+      continue;
+    }
+
     if (step.detect === NEXT_UTTERANCE_DETECT || step.detect === END_NOW_DETECT) {
       if (priorsDone(flow, index, matchedIds)) return step;
       continue;
@@ -76,6 +103,95 @@ function findMatchingFlowStep(
   }
 
   return undefined;
+}
+
+export function getPendingFlowStep(
+  doc: PathDocument,
+  prev: Pick<RunState, "matchedFlowIds" | "completed">
+): FlowStep | undefined {
+  if (prev.completed) return undefined;
+  const matchedIds = new Set(prev.matchedFlowIds ?? []);
+  return doc.conversationFlow.find((step, index) => {
+    if (matchedIds.has(step.id)) return false;
+    return priorsDone(doc.conversationFlow, index, matchedIds);
+  });
+}
+
+function stepLabel(doc: PathDocument, step: FlowStep): string {
+  if (step.triggerLabel) return step.triggerLabel;
+  const index = doc.conversationFlow.findIndex((item) => item.id === step.id);
+  return index >= 0 ? `#${index + 1} ${step.detect}` : step.detect;
+}
+
+export function stepTimeoutMs(doc: PathDocument, step: FlowStep): number {
+  const fromRule =
+    step.triggerLabel != null
+      ? doc.steps.find((item) => item.label === step.triggerLabel)?.timeoutMs
+      : undefined;
+  const raw = step.timeoutMs ?? fromRule ?? doc.setup.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+  return Math.max(1_000, raw);
+}
+
+export function completeWaitStep(
+  doc: PathDocument,
+  prev: RunState,
+  stepId?: string
+): ProcessPhraseResult {
+  if (prev.completed) return { state: prev, matched: false, shouldComplete: false };
+  const pending = getPendingFlowStep(doc, prev);
+  const step =
+    stepId != null
+      ? doc.conversationFlow.find((item) => item.id === stepId && item.id === pending?.id)
+      : pending;
+  const waitMs = step ? waitMsFromDetect(step.detect) : null;
+  if (!step || waitMs == null) {
+    return { state: prev, matched: false, shouldComplete: false };
+  }
+
+  const matchedFlowIds = withMatched(prev, step.id);
+  const viaEnd = completeViaOpenEnd(matchedFlowIds, openEndAfter(doc, step));
+  const seconds = waitMs / 1000;
+  return {
+    state: {
+      ...prev,
+      pendingDtmf: undefined,
+      pendingTrigger: undefined,
+      matchedFlowIds: viaEnd.matchedFlowIds,
+      completed: viaEnd.completed,
+      log: [...prev.log, logEntry(`Waited ${seconds} second(s)`, "pass")],
+    },
+    matched: true,
+    shouldComplete: viaEnd.shouldComplete,
+  };
+}
+
+export function timeoutPendingStep(
+  doc: PathDocument,
+  prev: RunState,
+  stepId?: string
+): ProcessPhraseResult {
+  if (prev.completed) return { state: prev, matched: false, shouldComplete: false };
+  const pending = getPendingFlowStep(doc, prev);
+  const step =
+    stepId != null
+      ? doc.conversationFlow.find((item) => item.id === stepId && item.id === pending?.id)
+      : pending;
+  if (!step) return { state: prev, matched: false, shouldComplete: false };
+
+  const timeoutMs = stepTimeoutMs(doc, step);
+  const label = stepLabel(doc, step);
+  const message = `Timed out waiting for Step "${label}" after ${timeoutMs} ms`;
+  return {
+    state: {
+      ...prev,
+      pendingDtmf: undefined,
+      pendingTrigger: undefined,
+      log: [...prev.log, logEntry(message, "unknown")],
+    },
+    matched: false,
+    shouldComplete: false,
+    timedOutStep: { step: label, timeoutMs },
+  };
 }
 
 /** When the Step after `step` is open end, return it so callers can complete without another utterance. */
@@ -121,7 +237,9 @@ export function processPhrase(
 
   const phrase = text.trim();
   if (!phrase) return { state: prev, matched: false, shouldComplete: false };
-  if (phrase === prev.lastPhrase) return { state: prev, matched: false, shouldComplete: false };
+  if (phrase === prev.lastPhrase && !isWaitDetect(phrase)) {
+    return { state: prev, matched: false, shouldComplete: false };
+  }
 
   const matchedIds = new Set(prev.matchedFlowIds ?? []);
   const step = findMatchingFlowStep(doc, phrase, matchedIds);
@@ -152,12 +270,19 @@ export function processPhrase(
   switch (step.action) {
     case "pass": {
       const viaEnd = completeViaOpenEnd(matchedFlowIds, openEndAfter(doc, step));
+      const waitMs = waitMsFromDetect(step.detect);
       return {
         state: {
           ...base,
           matchedFlowIds: viaEnd.matchedFlowIds,
           completed: viaEnd.completed,
-          log: [...prev.log, logEntry(`Pass: "${step.detect}"`, "pass")],
+          log: [
+            ...prev.log,
+            logEntry(
+              waitMs == null ? `Pass: "${step.detect}"` : `Waited ${waitMs / 1000} second(s)`,
+              "pass"
+            ),
+          ],
         },
         matched: true,
         shouldComplete: viaEnd.shouldComplete,

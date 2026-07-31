@@ -26,6 +26,7 @@ rewrite_contact=yes
 identify_by=username
 ; SIP INFO for the Python lab verifier; RFC 4733 still works for the desktop bridge.
 dtmf_mode=info
+${LAB_SIP_MEDIA_ENCRYPTION_BLOCK}
 
 [${LAB_SIP_USER}]
 type=aor

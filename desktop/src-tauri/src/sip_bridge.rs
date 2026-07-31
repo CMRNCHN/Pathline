@@ -55,6 +55,8 @@ const DEFAULT_TELEPHONE_EVENT_PT: u8 = 101;
 const SAMPLES_PER_FRAME: u32 = 160;
 /// Delivered PCM sample rate (see `client/src/transport/audioFormat.ts`).
 const OUTPUT_SAMPLE_RATE: u32 = 16000;
+/// ivr-tester-compatible `w` pause inside DTMF strings.
+const DTMF_WAIT_PAUSE_MS: u64 = 500;
 
 /// Commands sent from the Tauri command handlers to the live call task.
 enum CallCommand {
@@ -133,9 +135,10 @@ impl SipConfig {
         );
         if !allow_plain_rtp {
             return Err(
-                "Production SIP is unavailable: Pathline has not wired SDES-SRTP on rsiprtp 0.4.1 yet \
-                 (see docs/srtp-production-path.md). Plain RTP is permitted only with \
-                 PATHLINE_SIP_PROFILE=lab on loopback."
+                "Production SIP requires SDES-SRTP media. Pathline currently offers plain RTP only \
+                 for the loopback Asterisk lab; keep PATHLINE_SIP_PROFILE=lab on loopback or finish \
+                 the SDES-SRTP bridge spike before configuring a real trunk \
+                 (see docs/srtp-production-path.md)."
                     .to_string(),
             );
         }
@@ -946,6 +949,11 @@ async fn send_dtmf(
 ) -> Result<(), String> {
     let packets = (duration_ms / 20).max(3);
     for c in digits.chars() {
+        if c == 'w' || c == 'W' {
+            sleep(Duration::from_millis(DTMF_WAIT_PAUSE_MS)).await;
+            *ts = ts.wrapping_add(((DTMF_WAIT_PAUSE_MS / 20) as u32) * SAMPLES_PER_FRAME);
+            continue;
+        }
         let Some(digit) = DtmfDigit::from_char(c) else {
             continue;
         };

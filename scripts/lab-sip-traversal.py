@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Place an authenticated SIP/TLS call through the complete lab IVR.
 
-Optionally records inbound RTP (PCMU) to a WAV + DTMF timeline JSON for
+Optionally records inbound RTP (PCMU) to an encrypted capture bundle for
 future STT/fixture reuse when PATHLINE_LAB_RECORD=1 (or --record).
 
 This verifier intentionally uses SIP INFO for deterministic keypad timing. The
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import os
 import re
@@ -19,9 +20,11 @@ import secrets
 import socket
 import ssl
 import struct
+import subprocess
 import sys
 import threading
 import time
+import tarfile
 import wave
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -92,21 +95,22 @@ class CallRecorder:
 
         self.out_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        wav_path = self.out_dir / f"lab-call-{stamp}.wav"
-        json_path = self.out_dir / f"lab-call-{stamp}.json"
+        bundle_path = self.out_dir / f"lab-call-{stamp}.tar.enc"
+        manifest_path = self.out_dir / f"lab-call-{stamp}.manifest.json"
 
         pcm = b"".join(self.pcm_chunks)
-        with wave.open(str(wav_path), "wb") as wf:
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
             wf.setframerate(self.sample_rate)
             wf.writeframes(pcm)
 
         duration_s = len(pcm) / (2 * self.sample_rate) if pcm else 0.0
-        payload = {
+        private_payload = {
             **meta,
             "recorded_at": datetime.now(timezone.utc).isoformat(),
-            "wav": wav_path.name,
+            "wav": f"lab-call-{stamp}.wav",
             "sample_rate": self.sample_rate,
             "channels": 1,
             "encoding": "pcm_s16le",
@@ -117,8 +121,56 @@ class CallRecorder:
             "dtmf_sequence": "".join(e["digits"] for e in self.dtmf_events),
             "purpose": "lab live-call capture for STT/DTMF fixture reuse",
         }
-        json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        return wav_path, json_path
+        metadata = json.dumps(private_payload, indent=2).encode("utf-8") + b"\n"
+
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tf:
+            wav_bytes = wav_buffer.getvalue()
+            wav_info = tarfile.TarInfo(private_payload["wav"])
+            wav_info.size = len(wav_bytes)
+            tf.addfile(wav_info, io.BytesIO(wav_bytes))
+            meta_info = tarfile.TarInfo(f"lab-call-{stamp}.json")
+            meta_info.size = len(metadata)
+            tf.addfile(meta_info, io.BytesIO(metadata))
+
+        passphrase = os.environ.get("PATHLINE_LAB_RECORD_KEY") or secrets.token_urlsafe(32)
+        if "PATHLINE_LAB_RECORD_KEY" not in os.environ:
+            print(
+                "warning: PATHLINE_LAB_RECORD_KEY not set; generated a one-time key, "
+                "so this capture is not recoverable after this shell exits.",
+                file=sys.stderr,
+            )
+        subprocess.run(
+            [
+                "openssl",
+                "enc",
+                "-aes-256-cbc",
+                "-pbkdf2",
+                "-salt",
+                "-out",
+                str(bundle_path),
+                "-pass",
+                f"pass:{passphrase}",
+            ],
+            input=tar_buffer.getvalue(),
+            check=True,
+        )
+
+        public_manifest = {
+            "recorded_at": private_payload["recorded_at"],
+            "bundle": bundle_path.name,
+            "cipher": "openssl enc -aes-256-cbc -pbkdf2 -salt",
+            "duration_seconds": private_payload["duration_seconds"],
+            "rtp_packets": self.rtp_packets,
+            "audio_sha256": hashlib.sha256(wav_buffer.getvalue()).hexdigest(),
+            "dtmf_event_count": len(self.dtmf_events),
+            "dtmf_sequence_hash": hashlib.sha256(
+                private_payload["dtmf_sequence"].encode()
+            ).hexdigest()[:16],
+            "purpose": private_payload["purpose"],
+        }
+        manifest_path.write_text(json.dumps(public_manifest, indent=2) + "\n", encoding="utf-8")
+        return bundle_path, manifest_path
 
     def _capture_loop(self, rtp_sock: socket.socket) -> None:
         rtp_sock.settimeout(0.25)
@@ -279,7 +331,7 @@ def main() -> int:
         "--record",
         action="store_true",
         default=os.environ.get("PATHLINE_LAB_RECORD", "").lower() in {"1", "true", "yes"},
-        help="Write inbound RTP WAV + DTMF JSON under lab/recordings/",
+        help="Write encrypted inbound RTP + DTMF bundle under lab/recordings/",
     )
     parser.add_argument(
         "--out-dir",
@@ -414,7 +466,7 @@ def main() -> int:
         print("SIP/TLS traversal passed: 1000 -> menus -> remote BYE")
 
         if recorder:
-            wav_path, json_path = recorder.stop_and_write(
+            bundle_path, manifest_path = recorder.stop_and_write(
                 {
                     "call_id": call_id,
                     "target": "1000",
@@ -425,11 +477,11 @@ def main() -> int:
                     "rtp_advertise": f"{rtp_ip}:{rtp_port}",
                 }
             )
-            print(f"Recording saved: {wav_path}")
-            print(f"Metadata saved:  {json_path}")
-            if wav_path.stat().st_size < 1000:
+            print(f"Encrypted recording bundle saved: {bundle_path}")
+            print(f"Manifest saved:                   {manifest_path}")
+            if bundle_path.stat().st_size < 1000:
                 print(
-                    "warning: WAV is very small — Asterisk may not have sent much RTP "
+                    "warning: encrypted bundle is very small — Asterisk may not have sent much RTP "
                     "(missing sound prompts often yield short SayPhonetic clips).",
                     file=sys.stderr,
                 )

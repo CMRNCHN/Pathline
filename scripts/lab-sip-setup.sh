@@ -23,6 +23,7 @@ set +a
 
 LAB_SIP_USER="${LAB_SIP_USER:-pathline-lab}"
 LAB_SIP_TLS_PORT="${LAB_SIP_TLS_PORT:-5061}"
+LAB_SIP_MEDIA_ENCRYPTION="${LAB_SIP_MEDIA_ENCRYPTION:-none}"
 
 ensure_env_var() {
   local key="$1"
@@ -70,12 +71,37 @@ fi
 
 TEMPLATE="$ROOT/lab/asterisk/pjsip.lab.conf.template"
 OUTPUT="$GENERATED/pjsip.lab.conf"
+case "$LAB_SIP_MEDIA_ENCRYPTION" in
+  none|"")
+    LAB_SIP_MEDIA_ENCRYPTION_BLOCK="; media_encryption unset: plain RTP is lab/loopback only"
+    ;;
+  sdes)
+    # SRTP spike scaffolding only. Pathline's native bridge still offers RTP/AVP,
+    # so this option is for validating Asterisk-side config with an SRTP-capable
+    # test endpoint until rsiprtp SDES offer/answer is wired in the bridge.
+    LAB_SIP_MEDIA_ENCRYPTION_BLOCK=$'media_encryption=sdes\nmedia_encryption_optimistic=no'
+    ;;
+  *)
+    echo "Unsupported LAB_SIP_MEDIA_ENCRYPTION=${LAB_SIP_MEDIA_ENCRYPTION} (use none or sdes)" >&2
+    exit 2
+    ;;
+esac
+export LAB_SIP_USER LAB_SIP_PASSWORD LAB_SIP_TLS_PORT LAB_SIP_MEDIA_ENCRYPTION_BLOCK
 
-sed \
-  -e "s/\${LAB_SIP_USER}/${LAB_SIP_USER}/g" \
-  -e "s/\${LAB_SIP_PASSWORD}/${LAB_SIP_PASSWORD}/g" \
-  -e "s/\${LAB_SIP_TLS_PORT}/${LAB_SIP_TLS_PORT}/g" \
-  "$TEMPLATE" > "$OUTPUT"
+python3 - "$TEMPLATE" "$OUTPUT" <<'PY'
+import os
+import sys
+template, output = sys.argv[1], sys.argv[2]
+text = open(template, encoding="utf-8").read()
+for key in (
+    "LAB_SIP_USER",
+    "LAB_SIP_PASSWORD",
+    "LAB_SIP_TLS_PORT",
+    "LAB_SIP_MEDIA_ENCRYPTION_BLOCK",
+):
+    text = text.replace("${" + key + "}", os.environ[key])
+open(output, "w", encoding="utf-8").write(text)
+PY
 
 cat > "$CREDS_FILE" <<EOF
 # Lab softphone — local dev only. Do not commit.
@@ -84,8 +110,9 @@ LAB_SIP_PASSWORD=${LAB_SIP_PASSWORD}
 LAB_SIP_TLS_PORT=${LAB_SIP_TLS_PORT}
 LAB_SIP_TRANSPORT=tls
 LAB_SIP_SERVER=127.0.0.1
+LAB_SIP_MEDIA_ENCRYPTION=${LAB_SIP_MEDIA_ENCRYPTION}
 EOF
 chmod 600 "$CREDS_FILE"
 
-echo "Lab SIP ready: TLS ${LAB_SIP_TLS_PORT}, user ${LAB_SIP_USER}"
+echo "Lab SIP ready: TLS ${LAB_SIP_TLS_PORT}, user ${LAB_SIP_USER}, media ${LAB_SIP_MEDIA_ENCRYPTION}"
 echo "Credentials: ${CREDS_FILE}"

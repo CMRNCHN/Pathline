@@ -1,13 +1,18 @@
 import type { PathDocument, RunState } from "../script/types";
 import type { CallTransport, TransportEvent } from "../transport";
 import { EventLedger, exportLedgerDigest, type CallEvent } from "../callstate";
-import { hashDtmfSequence, sendDtmfSequence } from "../dtmf";
+import { countDtmfDigits, hashDtmfSequence, sendDtmfSequence } from "../dtmf";
 import {
   END_NOW_DETECT,
+  completeWaitStep,
+  getPendingFlowStep,
   hashCollected,
   initialRunState,
   NEXT_UTTERANCE_DETECT,
   processPhrase,
+  stepTimeoutMs,
+  timeoutPendingStep,
+  waitMsFromDetect,
   type ProcessPhraseResult,
 } from "./runEngine";
 
@@ -70,6 +75,8 @@ export class RunSession {
   private sawError = false;
   private sawDisconnected = false;
   private dialTimeoutMs: number | null = null;
+  private stepTimer: number | undefined;
+  private stepTimerFlowId: string | undefined;
 
   constructor(private readonly options: RunSessionOptions) {
     this.state = initialRunState();
@@ -124,7 +131,8 @@ export class RunSession {
       this.options.path.steps.some((step) => step.rule === "Inject speech after detect") &&
       !transport.speak
     ) {
-      const reason = "This Workflow contains speech Steps, but the native transport cannot speak.";
+      const reason =
+        "This Path contains Speak Steps, but the native SIP bridge cannot inject speech yet. Use the simulator for this Path or replace Speak Steps with DTMF before dialing.";
       await this.terminate("failed", reason, false);
       throw new Error(reason);
     }
@@ -186,11 +194,18 @@ export class RunSession {
   async processPhrase(text: string): Promise<ProcessPhraseResult> {
     const { path, variables, transport } = this.options;
     const automated = transport !== null;
+    const activeTimerFlowId = this.stepTimerFlowId;
 
     const result = processPhrase(text, path, variables, this.state, { automated });
     this.state = result.state;
 
     if (result.matched) {
+      if (
+        activeTimerFlowId &&
+        (this.state.matchedFlowIds ?? []).includes(activeTimerFlowId)
+      ) {
+        this.clearStepTimer();
+      }
       await this.ledger.append({
         type: "PHRASE_MATCHED",
         metadata: { phraseLength: text.trim().length },
@@ -230,7 +245,7 @@ export class RunSession {
       const hash = await hashDtmfSequence(sequence);
       await this.ledger.append({
         type: "DTMF_SENT",
-        metadata: { step, digits: sequence.length, hash },
+        metadata: { step, digits: countDtmfDigits(sequence), hash },
       });
       await this.ledger.append({ type: "STEP_COMPLETED", metadata: { step } });
     }
@@ -238,7 +253,8 @@ export class RunSession {
     if (result.speechAction && transport) {
       const { step, text } = result.speechAction;
       if (!transport.speak) {
-        const message = "This transport cannot execute speech Steps.";
+        const message =
+          "This transport cannot execute Speak Steps. Use the simulator or remove speechAction/Speak Steps before dialing.";
         this.scheduleTerminalFailure(message);
         throw new Error(message);
       }
@@ -264,6 +280,8 @@ export class RunSession {
           void this.terminate("completed", undefined, true);
         }, 0);
       }
+    } else {
+      this.scheduleNextStepTimer();
     }
 
     return result;
@@ -279,6 +297,7 @@ export class RunSession {
   }
 
   dispose(): void {
+    this.clearStepTimer();
     this.unsubscribeTransport?.();
     this.lifecycleHandlers.clear();
   }
@@ -292,6 +311,74 @@ export class RunSession {
     globalThis.setTimeout(() => {
       void this.terminate("failed", message, true);
     }, 0);
+  }
+
+  private clearStepTimer(): void {
+    if (this.stepTimer != null) {
+      window.clearTimeout(this.stepTimer);
+      this.stepTimer = undefined;
+      this.stepTimerFlowId = undefined;
+    }
+  }
+
+  private scheduleNextStepTimer(): void {
+    if (!this.options.transport || this.terminalPromise || this.state.completed) {
+      this.clearStepTimer();
+      return;
+    }
+    const pending = getPendingFlowStep(this.options.path, this.state);
+    if (!pending) {
+      this.clearStepTimer();
+      return;
+    }
+    if (this.stepTimerFlowId === pending.id) return;
+
+    this.clearStepTimer();
+    const waitMs = waitMsFromDetect(pending.detect);
+    if (waitMs != null) {
+      this.stepTimerFlowId = pending.id;
+      this.stepTimer = window.setTimeout(() => {
+        this.stepTimer = undefined;
+        this.stepTimerFlowId = undefined;
+        void this.completeWait(pending.id);
+      }, waitMs);
+      return;
+    }
+
+    const timeoutMs = stepTimeoutMs(this.options.path, pending);
+    this.stepTimerFlowId = pending.id;
+    this.stepTimer = window.setTimeout(() => {
+      this.stepTimer = undefined;
+      this.stepTimerFlowId = undefined;
+      void this.failTimedOutStep(pending.id);
+    }, timeoutMs);
+  }
+
+  private async completeWait(stepId: string): Promise<void> {
+    if (this.terminalPromise) return;
+    const result = completeWaitStep(this.options.path, this.state, stepId);
+    if (!result.matched) {
+      this.scheduleNextStepTimer();
+      return;
+    }
+    this.state = result.state;
+    await this.ledger.append({ type: "STEP_COMPLETED", metadata: { step: "wait" } });
+    if (result.shouldComplete) {
+      await this.terminate("completed", undefined, true);
+      return;
+    }
+    this.scheduleNextStepTimer();
+  }
+
+  private async failTimedOutStep(stepId: string): Promise<void> {
+    if (this.terminalPromise) return;
+    const result = timeoutPendingStep(this.options.path, this.state, stepId);
+    this.state = result.state;
+    const message =
+      result.timedOutStep != null
+        ? `Timed out waiting for Step "${result.timedOutStep.step}" after ${result.timedOutStep.timeoutMs} ms`
+        : "Timed out waiting for the next Path Step";
+    await this.terminate("failed", message, true);
   }
 
   private async handleTransportEvent(event: TransportEvent): Promise<void> {
@@ -309,6 +396,7 @@ export class RunSession {
       }
       this.setLifecycle({ phase: "active" });
       this.dialResolve?.();
+      this.scheduleNextStepTimer();
       return;
     }
 
@@ -346,6 +434,7 @@ export class RunSession {
     hangup: boolean
   ): Promise<void> {
     if (this.terminalPromise) return this.terminalPromise;
+    this.clearStepTimer();
 
     this.terminalPromise = (async () => {
       await this.beforeFinalize?.();

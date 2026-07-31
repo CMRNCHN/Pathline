@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { PathDocument } from "../script/types";
 import {
   END_NOW_DETECT,
+  completeWaitStep,
+  getPendingFlowStep,
   initialRunState,
   NEXT_UTTERANCE_DETECT,
   processPhrase,
+  stepTimeoutMs,
+  timeoutPendingStep,
+  waitMsFromDetect,
 } from "./runEngine";
 
 const document: PathDocument = {
@@ -247,5 +252,100 @@ describe("runtime action dispatch", () => {
     expect(afterNoise.state.completed).toBe(false);
     expect(afterNoise.shouldComplete).toBe(false);
     expect(afterNoise.state.matchedFlowIds).toEqual(["flow-active"]);
+  });
+
+  it("completes synced wait steps only after priors are done", () => {
+    const path: PathDocument = {
+      id: "wait-flow",
+      version: 2,
+      setup: {
+        name: "Wait flow",
+        description: "",
+        target: "1000",
+        timeoutMs: 10_000,
+        speechPreferences: { autoListen: true },
+        inputs: [],
+      },
+      steps: [
+        {
+          id: "menu",
+          label: "menu",
+          when: "main menu",
+          then: "1",
+          output: "",
+          rule: "Inject DTMF after detect",
+        },
+        {
+          id: "wait",
+          label: "wait_2s",
+          when: "",
+          then: "",
+          output: "",
+          rule: "Wait for IVR response",
+          waitSeconds: 2,
+        },
+      ],
+      conversationFlow: [
+        { id: "flow-menu", detect: "main menu", action: "trigger", triggerLabel: "menu" },
+        { id: "flow-wait", detect: "__wait_2__", action: "pass" },
+      ],
+    };
+
+    expect(waitMsFromDetect("__wait_2__")).toBe(2_000);
+    expect(completeWaitStep(path, initialRunState(), "flow-wait").matched).toBe(false);
+
+    const afterMenu = processPhrase("main menu", path, {}, initialRunState(), {
+      automated: true,
+    });
+    expect(getPendingFlowStep(path, afterMenu.state)?.id).toBe("flow-wait");
+
+    const waited = completeWaitStep(path, afterMenu.state, "flow-wait");
+    expect(waited.matched).toBe(true);
+    expect(waited.state.matchedFlowIds).toEqual(["flow-menu", "flow-wait"]);
+    expect(waited.state.log.at(-1)?.message).toContain("Waited 2");
+  });
+
+  it("surfaces per-step timeout outcomes", () => {
+    const path: PathDocument = {
+      id: "timeout-flow",
+      version: 2,
+      setup: {
+        name: "Timeout flow",
+        description: "",
+        target: "1000",
+        timeoutMs: 30_000,
+        speechPreferences: { autoListen: true },
+        inputs: [],
+      },
+      steps: [
+        {
+          id: "pin",
+          label: "pin_entry",
+          when: "enter pin",
+          then: "1234#",
+          output: "",
+          rule: "Inject DTMF after detect",
+          timeoutMs: 4_000,
+        },
+      ],
+      conversationFlow: [
+        {
+          id: "flow-pin",
+          detect: "enter pin",
+          action: "trigger",
+          triggerLabel: "pin_entry",
+          timeoutMs: 4_000,
+        },
+      ],
+    };
+
+    const pending = getPendingFlowStep(path, initialRunState());
+    expect(pending?.id).toBe("flow-pin");
+    expect(stepTimeoutMs(path, pending!)).toBe(4_000);
+
+    const timedOut = timeoutPendingStep(path, initialRunState(), "flow-pin");
+    expect(timedOut.timedOutStep).toEqual({ step: "pin_entry", timeoutMs: 4_000 });
+    expect(timedOut.state.log.at(-1)?.message).toContain("Timed out waiting");
+    expect(timedOut.state.completed).toBe(false);
   });
 });

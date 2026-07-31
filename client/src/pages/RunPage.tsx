@@ -19,7 +19,8 @@ import {
 } from "../callstate";
 import type { Path } from "../script/types";
 import { extractOutputRules, extractVariableNames } from "../script/compile";
-import { loadRunSecretsDraft } from "../script/runSecretsDraft";
+import { listAccounts, type Account } from "@/persistence/accountsStore";
+import { resolveRunVariablesFromAccount } from "@/script/resolveRunVariables";
 import { getActiveScript, mergeScripts } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
 import { recordRun, updateRunUpload } from "../history/runHistory";
@@ -112,6 +113,8 @@ export function RunFlow({
 
   const [targetNumber, setTargetNumber] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>({});
+  const [accountId, setAccountId] = useState<string>("");
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [runSession, setRunSession] = useState<RunSession | null>(null);
 
   const createRunSession = useRunSessionFactory();
@@ -136,16 +139,18 @@ export function RunFlow({
   }, [script?.id, script?.setup.target]);
 
   useEffect(() => {
-    if (!script) return;
-    const draft = loadRunSecretsDraft(script.id);
-    setVariables((current) => {
-      const next: Record<string, string> = {};
-      for (const name of extractVariableNames(script)) {
-        next[name] = current[name] || draft[name] || "";
-      }
-      return next;
-    });
-  }, [script?.id, variableNames.join("|")]);
+    setAccounts(listAccounts());
+  }, [step]);
+
+  useEffect(() => {
+    if (!script || !accountId) {
+      setVariables({});
+      return;
+    }
+    void resolveRunVariablesFromAccount(accountId, extractVariableNames(script)).then(
+      ({ variables: resolved }) => setVariables(resolved)
+    );
+  }, [script?.id, accountId]);
 
   useEffect(() => {
     return () => {
@@ -153,7 +158,9 @@ export function RunFlow({
     };
   }, [runSession]);
 
-  const missingVariables = variableNames.filter((name) => !variables[name]?.trim());
+  const missingVariables = accountId
+    ? variableNames.filter((name) => !variables[name]?.trim())
+    : variableNames;
 
   const handleConsent = async () => {
     setLoading(true);
@@ -370,11 +377,11 @@ export function RunFlow({
         scripts={scripts}
         activeId={activeId}
         onActiveIdChange={setActiveId}
+        accounts={accounts}
+        accountId={accountId}
+        onAccountIdChange={setAccountId}
         variableNames={variableNames}
         variables={variables}
-        onVariableChange={(name, value) =>
-          setVariables((prev) => ({ ...prev, [name]: value }))
-        }
         outputFields={outputFields}
         targetNumber={targetNumber}
         onTargetNumberChange={setTargetNumber}

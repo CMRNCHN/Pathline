@@ -41,15 +41,15 @@ export function formatOutputDisplay(name: string): string {
 
 /**
  * Auto-wrap bare identifiers in press-keys values as `{{name}}`.
- * Pure DTMF (`1#*`) is left alone; existing braces are preserved.
+ * Pure DTMF (`1#*w`) is left alone; existing braces are preserved.
  * `pin#` → `{{pin}}#`. Mixed invalid strings are left unchanged.
  */
 export function normalizeKeysValue(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return trimmed;
-  if (/^[0-9#*]+$/.test(trimmed)) return trimmed;
+  if (/^[0-9#*wW]+$/.test(trimmed)) return trimmed;
   if (/\{\{/.test(trimmed)) return trimmed;
-  const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)([0-9#*]*)$/);
+  const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)([0-9#*wW]*)$/);
   if (match) return `{{${match[1]}}}${match[2]}`;
   return trimmed;
 }
@@ -145,8 +145,8 @@ export function validateInlineStepDraft(draft: InlineStepDraft): InlineStepValid
     const valueWithoutRefs = draft.value.replace(VARIABLE_REF, "");
     if (!draft.value.trim()) {
       errors.push("Enter the keys to press.");
-    } else if (!/^[0-9#*]*$/.test(valueWithoutRefs) || draft.value.includes("{{{")) {
-      errors.push("Keys can contain digits, #, *, and Input references such as {{pin}}.");
+    } else if (!/^[0-9#*wW]*$/.test(valueWithoutRefs) || draft.value.includes("{{{")) {
+      errors.push("Keys can contain digits, #, *, w pauses, and Input references such as {{pin}}.");
     }
   }
 

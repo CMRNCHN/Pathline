@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import type { Path } from "@/script/types";
+import type { Account } from "@/persistence/accountsStore";
 import { scriptDisplayName } from "@/script/storage";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +20,11 @@ interface RunConfigureStepProps {
   scripts: Path[];
   activeId: string;
   onActiveIdChange: (id: string) => void;
+  accounts: Account[];
+  accountId: string;
+  onAccountIdChange: (id: string) => void;
   variableNames: string[];
   variables: Record<string, string>;
-  onVariableChange: (name: string, value: string) => void;
   outputFields: string[];
   targetNumber: string;
   onTargetNumberChange: (value: string) => void;
@@ -36,9 +39,11 @@ export function RunConfigureStep({
   scripts,
   activeId,
   onActiveIdChange,
+  accounts,
+  accountId,
+  onAccountIdChange,
   variableNames,
   variables,
-  onVariableChange,
   outputFields,
   targetNumber,
   onTargetNumberChange,
@@ -55,7 +60,10 @@ export function RunConfigureStep({
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={onSubmit}>
-          <p className="text-sm text-muted-foreground">Inputs stay on your device.</p>
+          <p className="text-sm text-muted-foreground">
+            Inputs are resolved from a local Account profile. Secrets are unsealed from the
+            device vault — never typed or stored in Path JSON.
+          </p>
 
           <div className="space-y-2">
             <label htmlFor="script" className="text-sm font-medium">
@@ -81,23 +89,41 @@ export function RunConfigureStep({
             )}
           </div>
 
-          {variableNames.length > 0 && (
+          <div className="space-y-2">
+            <label htmlFor="account" className="text-sm font-medium">
+              Account
+            </label>
+            <Select
+              value={accountId || undefined}
+              onValueChange={(id) => id && onAccountIdChange(id)}
+            >
+              <SelectTrigger id="account" className="w-full">
+                <SelectValue placeholder="Select an Account" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {account.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {accounts.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Create an Account under Accounts and bind sealed secrets first.
+              </p>
+            )}
+          </div>
+
+          {variableNames.length > 0 && accountId && (
             <div className="space-y-3">
-              <h3 className="text-sm font-medium">Inputs</h3>
+              <h3 className="text-sm font-medium">Resolved inputs</h3>
               {variableNames.map((name) => (
-                <div key={name} className="space-y-2">
-                  <label htmlFor={`var-${name}`} className="text-sm font-medium">
-                    {name}
-                  </label>
-                  <Input
-                    id={`var-${name}`}
-                    type="password"
-                    value={variables[name] ?? ""}
-                    onChange={(e) => onVariableChange(name, e.target.value)}
-                    placeholder={name}
-                    autoComplete="off"
-                    required
-                  />
+                <div key={name} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-mono">{name}</span>
+                  <Badge variant={variables[name] ? "secondary" : "destructive"}>
+                    {variables[name] ? "Vault / profile ready" : "Missing"}
+                  </Badge>
                 </div>
               ))}
             </div>
@@ -135,7 +161,7 @@ export function RunConfigureStep({
           <Button
             type="submit"
             className="w-full"
-            disabled={loading || missingVariables.length > 0}
+            disabled={loading || !accountId || missingVariables.length > 0}
           >
             {loading ? "Starting…" : "Run"}
           </Button>

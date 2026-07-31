@@ -47,6 +47,7 @@ function normalizeStep(raw: LegacyStep): Step {
     rule: raw.rule ?? "Inject DTMF after detect",
     output: raw.output ?? "",
     waitSeconds: raw.waitSeconds,
+    timeoutMs: raw.timeoutMs,
   };
 }
 
@@ -61,6 +62,7 @@ function normalizeFlowStep(raw: LegacyFlowStep): FlowStep {
     detect: raw.detect ?? "",
     action: raw.action ?? "pass",
     triggerLabel: raw.triggerLabel ?? raw.extractLabel ?? raw.extractField,
+    timeoutMs: raw.timeoutMs,
   };
 }
 

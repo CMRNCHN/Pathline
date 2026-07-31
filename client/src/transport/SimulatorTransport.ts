@@ -49,6 +49,10 @@ export class SimulatorTransport implements CallTransport {
     this.emit({ type: "dtmf_sent", detail: digits });
   }
 
+  async speak(text: string): Promise<void> {
+    await sleep(Math.min(Math.max(text.length * 20, 200), 2_000));
+  }
+
   async hangup(): Promise<void> {
     this.connected = false;
     this.emit({ type: "disconnected" });

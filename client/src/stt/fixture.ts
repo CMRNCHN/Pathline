@@ -13,6 +13,13 @@
  */
 import { normalizeScript } from "../script/compile";
 import { RunSession } from "../engine/runSession";
+import {
+  completeWaitStep,
+  initialRunState,
+  processPhrase,
+  timeoutPendingStep,
+} from "../engine/runEngine";
+import { countDtmfDigits, splitDtmfSequence } from "../dtmf";
 import { AudioSession } from "../transport/AudioSession";
 import { PREFERRED_STT_SAMPLE_RATE } from "../transport/audioFormat";
 import type {
@@ -94,6 +101,66 @@ export interface FixtureResult {
   completed: boolean;
   transcriptLeakInLedger: boolean;
   checks: Record<string, boolean>;
+}
+
+export interface PrepFixtureResult {
+  ok: boolean;
+  checks: Record<string, boolean>;
+}
+
+export function runPrepFixture(): PrepFixtureResult {
+  const structuredDetect = JSON.stringify({
+    and: ["account", { or: ["balance", { regex: "status ready", flags: "i" }] }],
+  });
+  const path = normalizeScript({
+    id: "prep-fixture",
+    version: 2,
+    setup: {
+      name: "Prep fixture",
+      target: "1000",
+      timeoutMs: 30_000,
+      speechPreferences: { autoListen: true },
+      runtimeVariables: ["pin"],
+    },
+    ivrRules: [
+      {
+        id: "rule-wait",
+        label: "wait_1s",
+        trigger: "",
+        response: "",
+        rule: "Wait for IVR response",
+        output: "",
+        waitSeconds: 1,
+      },
+      {
+        id: "rule-pin",
+        label: "pin_entry",
+        trigger: structuredDetect,
+        response: "{{pin}}w#",
+        rule: "Inject DTMF after detect",
+        output: "",
+        timeoutMs: 2_000,
+      },
+    ],
+    conversationFlow: [],
+  });
+
+  const waited = completeWaitStep(path, initialRunState());
+  const matched = processPhrase("your account status ready", path, { pin: "1234" }, waited.state, {
+    automated: true,
+  });
+  const timedOut = timeoutPendingStep(path, waited.state);
+  const sequence = matched.dtmfAction?.sequence ?? "";
+
+  const checks = {
+    waitStepCompletes: waited.matched && waited.state.matchedFlowIds?.length === 1,
+    structuredDetectMatches: matched.matched && matched.dtmfAction?.sequence === "1234w#",
+    dtmfPausePreserved: splitDtmfSequence(sequence).includes("w"),
+    dtmfDigitCountIgnoresPause: countDtmfDigits(sequence) === 5,
+    timeoutHasClearOutcome: timedOut.timedOutStep?.timeoutMs === 2_000,
+  };
+
+  return { ok: Object.values(checks).every(Boolean), checks };
 }
 
 export async function runPipelineFixture(): Promise<FixtureResult> {

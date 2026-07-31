@@ -55,6 +55,7 @@ export function syncConversationFlowFromRules(
         detect,
         action,
         triggerLabel: action === "trigger" || action === "extract" ? step.label : undefined,
+        timeoutMs: step.timeoutMs,
       };
     });
 }

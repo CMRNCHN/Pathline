@@ -18,14 +18,14 @@ no softphone, no manual paste.
 The desktop bridge carries the call audio itself and feeds it to local STT —
 you do **not** register a softphone or paste phrases in the primary flow.
 
-> **Current status:** SIP/RTP, native Whisper, final STT flushing, lifecycle
-> outcomes, phrase matching, and keypad injection are implemented and locally
-> tested. `lab-verify-flow.sh` validates the loaded dialplan and completes an
-> authenticated SIP/TLS IVR traversal to remote BYE. Production dialing fails
-> closed without SRTP unless `PATHLINE_SIP_PROFILE=lab` on loopback. The
-> remaining operator gate is one recorded interactive Tauri GUI run through
-> real Asterisk media plus encrypted API submission — see
-> `docs/production-acceptance.md`.
+> **Current status:** SIP/RTP, native Whisper, wait Steps, per-Step timeout
+> failure, lifecycle outcomes, phrase matching, and keypad injection are
+> implemented and locally tested. `lab-verify-flow.sh` validates the loaded
+> dialplan and completes an authenticated SIP/TLS IVR traversal to remote BYE.
+> Production dialing fails closed without SDES-SRTP unless
+> `PATHLINE_SIP_PROFILE=lab` on loopback. The remaining operator gate is one
+> recorded interactive Tauri GUI run through real Asterisk media plus encrypted
+> API submission — see `docs/production-acceptance.md`.
 
 ## Prerequisites
 
@@ -92,6 +92,7 @@ The Path supplies only the dial `target` (`1000`); everything else is env:
 | `LAB_SIP_USER` / `PATHLINE_SIP_USER` | `credentials.env` (default `pathline-lab`) | SIP auth user |
 | `LAB_SIP_PASSWORD` / `PATHLINE_SIP_PASSWORD` | `credentials.env` / `.env` | SIP auth password |
 | `PATHLINE_SIP_VERIFY_TLS` | unset for loopback | Verify server cert; defaults off for the self-signed localhost lab only |
+| `LAB_SIP_MEDIA_ENCRYPTION` | `none` | Lab Asterisk media mode. `sdes` renders SRTP-required PJSIP config for spike testing with an SRTP-capable endpoint; Pathline desktop cannot complete that call yet. |
 
 `PATHLINE_SIP_*` overrides `LAB_SIP_*` when both are set. For the localhost lab
 the self-signed cert is trusted automatically (loopback); never relax TLS
@@ -126,6 +127,27 @@ Fast, non-interactive preflight + phrase-matching smoke test:
 This fails fast with a clear message if the API (`http://127.0.0.1:8000/health`)
 or the lab Asterisk SIP/TLS port (`5061`) is not up, then replays the IVR
 prompts through the flow navigator to confirm phrase → DTMF mapping.
+
+Headless prep runner (no GUI, no paid trunk):
+
+```bash
+npm run lab:headless
+```
+
+This runs the client fixture for wait Steps, per-Step timeout reporting, DTMF
+`w` pauses, structured detect JSON, local STT selection, and transcript-free
+ledger output, then runs the static lab assertions with live preflight skipped.
+It does not prove the interactive Tauri window path; that remains the GUI
+acceptance gate above.
+
+## Optional encrypted lab capture
+
+`PATHLINE_LAB_RECORD=1 ./scripts/lab-verify-flow.sh` asks the Python traversal
+to capture inbound lab RTP for fixture reuse. Captures are written as
+`lab-call-*.tar.enc` encrypted bundles plus `*.manifest.json` files containing
+only hashes/counts. Set `PATHLINE_LAB_RECORD_KEY` if the bundle must be
+recoverable later; without it, the script generates a one-time key and leaves no
+plaintext WAV/JSON recording on disk.
 
 ## Legacy fallback: softphone + manual paste (browser)
 

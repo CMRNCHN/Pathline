@@ -33,6 +33,10 @@ export interface PathSetup {
   timeoutMs: number;
   speechPreferences: {
     autoListen: boolean;
+    /** Milliseconds of silence after a phrase match before executing Then (default 800). */
+    silenceAfterPromptMs?: number;
+    /** Retention for encrypted local audio artifacts (default 1 hour). */
+    recordingRetentionMs?: number;
   };
   /** Input names referenced by respond Steps — derived from Steps on sync. */
   inputs: string[];
@@ -68,6 +72,8 @@ export interface Step {
   output: string;
   /** Pause duration for wait Steps (seconds). */
   waitSeconds?: number;
+  /** Step-specific maximum wait for this prompt/action before the Run fails. */
+  timeoutMs?: number;
 }
 
 export interface FlowStep {
@@ -76,6 +82,8 @@ export interface FlowStep {
   action: FlowAction;
   /** Step label — Trigger fires response; Extract stores detected speech to step.output. */
   triggerLabel?: string;
+  /** Step-specific maximum wait for this prompt/action before the Run fails. */
+  timeoutMs?: number;
 }
 
 export interface PathDocument {

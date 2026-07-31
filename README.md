@@ -121,6 +121,7 @@ design exploration only. **Not** the shipping app. Day-to-day product UI is
 | Doc | Purpose |
 |-----|---------|
 | [docs/threat-model.md](./docs/threat-model.md) | Adversaries, objectives, control mapping |
+| [docs/ivr-tester-integration.md](./docs/ivr-tester-integration.md) | Phrase matching ported from ivr-tester |
 | [docs/roadmap.md](./docs/roadmap.md) | v1 / v2 / v3 phases |
 | [docs/srtp-production-path.md](./docs/srtp-production-path.md) | Smallest path to production SRTP |
 | [client-native/README.md](./client-native/README.md) | Native app integration contract |

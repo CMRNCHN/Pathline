@@ -14,6 +14,7 @@
     "desktop:notarize": "./scripts/notarize-macos.sh",
     "desktop:deps:linux": "./scripts/install-linux-tauri-deps.sh",
     "lab:verify": "./scripts/lab-verify-flow.sh",
+    "lab:headless": "npm run lab:headless --prefix client && SKIP_LAB_PREFLIGHT=1 ./scripts/lab-verify-flow.sh",
     "ci:verify": "./scripts/ci-verify.sh",
     "install": "./scripts/install.sh",
     "install:mac": "./scripts/install-macos.sh",

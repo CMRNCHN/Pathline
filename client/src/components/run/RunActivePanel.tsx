@@ -13,6 +13,12 @@ import { recordRun } from "@/history/runHistory";
 import { isSpeechRecognitionAvailable } from "@/localStt";
 import { createSttEngine } from "@/stt";
 import { AudioSession } from "@/transport/AudioSession";
+import { PhraseIngressGate } from "@/engine/phraseIngressGate";
+import {
+  appendEncryptedRecordingChunk,
+  deleteRecordingsForSession,
+  purgeExpiredRecordings,
+} from "@/recording/encryptedRecordingStore";
 import type { RunState } from "@/script/runEngine";
 import type { Path } from "@/script/types";
 import { scriptDisplayName } from "@/script/storage";
@@ -92,25 +98,42 @@ export function RunActivePanel({
   useEffect(() => runSession.onLifecycle(setLifecycle), [runSession]);
 
   useEffect(() => {
+    purgeExpiredRecordings();
+    return () => {
+      deleteRecordingsForSession(sessionId);
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
     if (!autoListen || run.completed) return;
 
     setListenError(null);
 
-    // Picks on-device Whisper when available; never Web Speech for a
-    // bridge-backed automated run (returns engine: null with a reason instead).
+    const silenceAfterPromptMs =
+      script.setup.speechPreferences.silenceAfterPromptMs ?? 800;
+    const recordingRetentionMs =
+      script.setup.speechPreferences.recordingRetentionMs ?? 60 * 60 * 1000;
+
+    const phraseGate = new PhraseIngressGate(
+      {
+        silenceAfterPromptMs,
+        path: script,
+        matchedFlowIds: () => runSession.getState().matchedFlowIds ?? [],
+      },
+      applyPhraseNow
+    );
+
     const { engine, unavailableReason } = createSttEngine({ automated });
     if (!engine) {
       setAutoListen(false);
       setListenError(unavailableReason ?? "Listening unavailable — paste phrases manually.");
-      return;
+      return () => phraseGate.dispose();
     }
 
-    // Bridge-backed runs: feed transport onAudio PCM into the engine.
-    // Web Speech (browser dev) captures its own mic, so it starts standalone.
     let phraseQueue = Promise.resolve();
     const handlePhrase = (phrase: string) => {
       phraseQueue = phraseQueue
-        .then(() => applyPhraseNow(phrase))
+        .then(() => phraseGate.onPhrase(phrase))
         .catch((error: unknown) => {
           setListenError(error instanceof Error ? error.message : "Phrase processing failed");
         });
@@ -119,7 +142,15 @@ export function RunActivePanel({
     engine.start(handlePhrase, (msg) => setListenError(msg));
     const detach =
       audioSession && engine.source !== "web_speech"
-        ? audioSession.attach((pcm, sampleRate) => engine.pushAudio(pcm, sampleRate))
+        ? audioSession.attach((pcm, sampleRate) => {
+            engine.pushAudio(pcm, sampleRate);
+            void appendEncryptedRecordingChunk(
+              sessionId,
+              pcm,
+              sampleRate,
+              recordingRetentionMs
+            );
+          })
         : () => {};
     let finalized = false;
     const flushAndStop = async () => {
@@ -140,12 +171,23 @@ export function RunActivePanel({
 
     return () => {
       runSession.setBeforeFinalize(undefined);
+      phraseGate.dispose();
       if (!finalized) {
         detach();
         engine.stop();
       }
     };
-  }, [autoListen, run.completed, applyPhraseNow, automated, audioSession, runSession, syncFromSession]);
+  }, [
+    autoListen,
+    run.completed,
+    applyPhraseNow,
+    automated,
+    audioSession,
+    runSession,
+    syncFromSession,
+    script,
+    sessionId,
+  ]);
 
   useEffect(() => {
     syncFromSession();

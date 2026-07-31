@@ -14,7 +14,7 @@ describe("inline Step conversion", () => {
   it("wraps bare key identifiers and output names", () => {
     expect(normalizeKeysValue("pin")).toBe("{{pin}}");
     expect(normalizeKeysValue("pin#")).toBe("{{pin}}#");
-    expect(normalizeKeysValue("1#")).toBe("1#");
+    expect(normalizeKeysValue("1#w2")).toBe("1#w2");
     expect(normalizeKeysValue("{{pin}}#")).toBe("{{pin}}#");
     expect(normalizeOutputName("{{card_status}}")).toBe("card_status");
     expect(normalizeOutputName("card status")).toBe("card_status");
@@ -47,6 +47,15 @@ describe("inline Step conversion", () => {
         waitSeconds: 3,
       }).valid
     ).toBe(false);
+    expect(
+      validateInlineStepDraft({
+        when: "pin",
+        action: "press-keys",
+        value: "12w#",
+        output: "",
+        waitSeconds: 3,
+      }).valid
+    ).toBe(true);
     expect(
       validateInlineStepDraft({
         when: "balance",
