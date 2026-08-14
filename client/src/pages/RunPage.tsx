@@ -19,6 +19,8 @@ import {
 } from "../callstate";
 import type { Path } from "../script/types";
 import { extractOutputRules, extractVariableNames } from "../script/compile";
+import { listAccounts, type Account } from "@/persistence/accountsStore";
+import { resolveRunVariablesFromAccount } from "@/script/resolveRunVariables";
 import { getActiveScript, mergeScripts } from "../script/selectors";
 import { scriptDisplayName } from "../script/storage";
 import { recordRun, updateRunUpload } from "../history/runHistory";
@@ -44,9 +46,11 @@ interface ActiveRun {
 
 interface RunPageProps {
   scriptId: string;
+  /** When true, skip page chrome (Path Library detail embed). */
+  embedded?: boolean;
 }
 
-export function RunPage({ scriptId }: RunPageProps) {
+export function RunPage({ scriptId, embedded = false }: RunPageProps) {
   const { bundledScripts, customScripts, activeId, setActiveId, loading: loadingScripts, error: scriptError } =
     useScriptStore();
 
@@ -55,6 +59,16 @@ export function RunPage({ scriptId }: RunPageProps) {
   }, [scriptId, setActiveId]);
 
   const script = getActiveScript(bundledScripts, customScripts, scriptId);
+
+  const flow = (
+    <RunFlow
+      key={`${scriptId}-${activeId}`}
+      loadingScripts={loadingScripts}
+      scriptError={scriptError}
+    />
+  );
+
+  if (embedded) return flow;
 
   return (
     <PageLayout
@@ -68,16 +82,12 @@ export function RunPage({ scriptId }: RunPageProps) {
         </Badge>
       }
     >
-      <RunFlow
-        key={`${scriptId}-${activeId}`}
-        loadingScripts={loadingScripts}
-        scriptError={scriptError}
-      />
+      {flow}
     </PageLayout>
   );
 }
 
-function RunFlow({
+export function RunFlow({
   loadingScripts,
   scriptError,
 }: {
@@ -103,6 +113,8 @@ function RunFlow({
 
   const [targetNumber, setTargetNumber] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>({});
+  const [accountId, setAccountId] = useState<string>("");
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [runSession, setRunSession] = useState<RunSession | null>(null);
 
   const createRunSession = useRunSessionFactory();
@@ -127,12 +139,28 @@ function RunFlow({
   }, [script?.id, script?.setup.target]);
 
   useEffect(() => {
+    setAccounts(listAccounts());
+  }, [step]);
+
+  useEffect(() => {
+    if (!script || !accountId) {
+      setVariables({});
+      return;
+    }
+    void resolveRunVariablesFromAccount(accountId, extractVariableNames(script)).then(
+      ({ variables: resolved }) => setVariables(resolved)
+    );
+  }, [script?.id, accountId]);
+
+  useEffect(() => {
     return () => {
       void runSession?.hangup();
     };
   }, [runSession]);
 
-  const missingVariables = variableNames.filter((name) => !variables[name]?.trim());
+  const missingVariables = accountId
+    ? variableNames.filter((name) => !variables[name]?.trim())
+    : variableNames;
 
   const handleConsent = async () => {
     setLoading(true);
@@ -337,7 +365,7 @@ function RunFlow({
       return wrap(
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">No Workflows yet. Create one from Workflows.</p>
+            <p className="text-sm text-muted-foreground">No Paths yet. Create one in Path Library.</p>
           </CardContent>
         </Card>
       );
@@ -349,11 +377,11 @@ function RunFlow({
         scripts={scripts}
         activeId={activeId}
         onActiveIdChange={setActiveId}
+        accounts={accounts}
+        accountId={accountId}
+        onAccountIdChange={setAccountId}
         variableNames={variableNames}
         variables={variables}
-        onVariableChange={(name, value) =>
-          setVariables((prev) => ({ ...prev, [name]: value }))
-        }
         outputFields={outputFields}
         targetNumber={targetNumber}
         onTargetNumberChange={setTargetNumber}

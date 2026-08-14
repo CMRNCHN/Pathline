@@ -10,6 +10,16 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 DEVELOPMENT_JWT_SECRET = "dev-secret-change-me"
 DEVELOPMENT_SESSION_PEPPER = "dev-pepper-change-me"
 
+# Tauri webviews are cross-origin to the local uvicorn sidecar. Without these,
+# Safari/WKWebView reports a useless "Load failed" on consent/token mint.
+DEVELOPMENT_CORS_ORIGINS = [
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+    "tauri://localhost",
+    "https://tauri.localhost",
+    "http://tauri.localhost",
+]
+
 
 class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
@@ -68,6 +78,8 @@ class Settings(BaseSettings):
                 raise ValueError(f"{name} must be positive")
 
         if self.app_env != "production":
+            if not self.cors_origins:
+                self.cors_origins = list(DEVELOPMENT_CORS_ORIGINS)
             return self
 
         if not self.database_url.startswith(("postgresql+asyncpg://", "postgres+asyncpg://")):

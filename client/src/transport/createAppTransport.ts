@@ -38,8 +38,9 @@ export function isTauriApp(): boolean {
 
 /**
  * Returns a CallTransport for automated runs, or null for manual browser fallback.
- * - Tauri desktop: native SIP only; a missing bridge fails closed.
+ * - Tauri desktop: native SIP is the default and only automated transport.
  * - Browser dev: simulator only with the explicit VITE_SIMULATE_TRANSPORT=true flag.
+ * - Twilio/server-mediated paths belong in ivr-tester (exception), not Pathline.
  */
 export function createAppTransport(): CallTransport | null {
   if (isTauriApp()) {

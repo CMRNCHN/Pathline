@@ -1,11 +1,22 @@
-import { Monitor, Radio, Shield } from "lucide-react";
-import { StatusBoard } from "@/components/StatusBoard";
+import { Monitor } from "lucide-react";
+import { useEffect, useState } from "react";
+import { DataManagementSection } from "./system/DataManagementSection";
+import { CryptoSection } from "./system/CryptoSection";
 import { PageLayout } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
 import { isAutomatedTransport, isTauriApp } from "@/transport/createAppTransport";
+import { detectSttCapability, isSipBridgePresent } from "@/stt";
 import { useScriptStore } from "@/store/ScriptStore";
+import { listVaultEntries } from "@/persistence/vaultStore";
+
+type SipDiag = {
+  ready: boolean;
+  media: string;
+  signaling: string;
+  reason?: string;
+};
 
 export function SystemPage() {
   const { bundledScripts, customScripts, loading, error } = useScriptStore();
@@ -18,77 +29,160 @@ export function SystemPage() {
 
   const desktop = isTauriApp();
   const automated = isAutomatedTransport();
+  const sip = isSipBridgePresent();
+  const stt = detectSttCapability();
+  const sealedCount = listVaultEntries().length;
+  const [sipDiag, setSipDiag] = useState<SipDiag | null>(null);
+
+  useEffect(() => {
+    if (!sip || typeof window === "undefined") {
+      setSipDiag(null);
+      return;
+    }
+    const bridge = window.__pathlineSipBridge ?? window.__promptpathSipBridge;
+    if (!bridge?.readiness) {
+      setSipDiag(null);
+      return;
+    }
+    let cancelled = false;
+    void bridge.readiness().then((r) => {
+      if (cancelled) return;
+      setSipDiag({
+        ready: r.ready,
+        media: r.media,
+        signaling: r.signaling,
+        reason: r.reason,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sip, runtime.lastChecked]);
+
+  const speechReady = stt.localWhisperAvailable || stt.webSpeechAvailable;
+  const speechStatus = stt.localWhisperAvailable
+    ? "Ready"
+    : stt.webSpeechAvailable
+      ? "Browser only"
+      : "Unavailable";
+  const speechDetail = stt.localWhisperAvailable
+    ? "Local Whisper on this device"
+    : stt.webSpeechAvailable
+      ? "Browser speech (manual fallback)"
+      : "No speech engine available";
+
+  const phoneOk = sipDiag
+    ? sipDiag.ready
+    : Boolean(sip || (!desktop && !automated));
+  const phoneStatus = sipDiag
+    ? sipDiag.ready
+      ? sipDiag.media === "rtp-lab-only"
+        ? "Lab RTP"
+        : "Ready"
+      : "Blocked"
+    : sip || automated
+      ? "Ready"
+      : desktop
+        ? "Unavailable"
+        : "Manual only";
+  const phoneDetail = sipDiag
+    ? sipDiag.ready
+      ? `${sipDiag.signaling} · media ${sipDiag.media}`
+      : sipDiag.reason ?? "SIP readiness failed"
+    : sip
+      ? "Native SIP bridge is present"
+      : desktop
+        ? "Desktop SIP bridge not detected"
+        : "Browser cannot automate calls";
+
+  const rows = [
+    {
+      label: "Phone line",
+      status: phoneStatus,
+      detail: phoneDetail,
+      ok: phoneOk,
+    },
+    {
+      label: "Speech recognition",
+      status: speechStatus,
+      detail: speechDetail,
+      ok: speechReady,
+    },
+    {
+      label: "App services",
+      status: runtime.api === "online" ? "Online" : runtime.api === "checking" ? "Checking…" : "Offline",
+      detail: "Local API for consent and encrypted callstate",
+      ok: runtime.api === "online",
+    },
+    {
+      label: "Sealed secrets",
+      status: `${sealedCount} stored`,
+      detail: "Managed under Accounts — never written into Paths",
+      ok: true,
+    },
+  ];
+
+  const allGood = rows.every((r) => r.ok) && runtime.api === "online";
 
   return (
     <PageLayout
       title="System"
-      subtitle="Operate Pathline — health of the local client, API sidecar, and call stack."
+      subtitle="Plain-language health for the phone stack and on-device engines."
+      wide
     >
-      <StatusBoard status={runtime} />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Monitor className="size-4" />
               </div>
-              <CardTitle>Runtime</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Row label="Shell" value={desktop ? "Tauri desktop" : "Browser"} />
-            <Row
-              label="Call transport"
-              value={automated ? "Automated (SIP / simulator)" : "Manual browser"}
-            />
-            <Row label="API proxy" value="/api → :8000" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Shield className="size-4" />
+              <div>
+                <CardTitle className="text-base">Everything you need to dial</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Shell: {desktop ? "Tauri desktop" : "Browser"} · Transport:{" "}
+                  {automated ? "Automated" : "Manual"}
+                </p>
               </div>
-              <CardTitle>Privacy boundary</CardTitle>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p className="text-muted-foreground">
-              Secrets, targets, and audio stay on this device. The API only receives consent
-              tokens and encrypted callstate blobs.
-            </p>
-            <Badge variant="secondary">Client-mediated</Badge>
-          </CardContent>
-        </Card>
+            <Badge variant={allGood ? "default" : "secondary"}>
+              {allGood ? "All good" : "Check details"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className="flex flex-wrap items-center gap-2 rounded-md border bg-background/60 px-2.5 py-2"
+            >
+              <span
+                className={`inline-block size-1.5 rounded-full ${row.ok ? "bg-emerald-600" : "bg-destructive"}`}
+              />
+              <span className="text-sm font-medium">{row.label}</span>
+              <Badge variant={row.ok ? "secondary" : "destructive"}>{row.status}</Badge>
+              <span className="text-xs text-muted-foreground">{row.detail}</span>
+            </div>
+          ))}
+          <div className="pt-2">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+              onClick={() => runtime.refresh()}
+            >
+              Refresh status
+              {runtime.lastChecked
+                ? ` · checked ${runtime.lastChecked.toLocaleTimeString()}`
+                : ""}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card className="md:col-span-2">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Radio className="size-4" />
-              </div>
-              <CardTitle>How to troubleshoot</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm text-muted-foreground">
-            <p>1. Confirm API shows Online on the Runtime board.</p>
-            <p>2. For live calls, use the desktop app (SIP bridge lands in a later wave).</p>
-            <p>3. Failed Runs appear under Runs — open one to inspect captured fields.</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <CryptoSection />
+        <DataManagementSection />
       </div>
     </PageLayout>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b py-2 last:border-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
-    </div>
   );
 }

@@ -40,14 +40,15 @@ async def purge_once(app: FastAPI) -> None:
 
 
 async def purge_expired(app: FastAPI) -> None:
+    """Periodic purge loop. First purge is awaited in lifespan before serving."""
     while True:
+        await asyncio.sleep(app.state.settings.purge_interval_seconds)
         try:
             await purge_once(app)
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("purge_failed")
-        await asyncio.sleep(app.state.settings.purge_interval_seconds)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -58,6 +59,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(application: FastAPI):
         await initialize_database(engine, app_settings)
         application.state.last_purge_success = None
+        # Complete an initial purge before yield so GET /ready is true on startup
+        # (background task alone raced clients / CI and returned 503).
+        await purge_once(application)
         purge_task = asyncio.create_task(purge_expired(application), name="pathline-retention-purge")
         logger.info("api_started", mode="v1-thin", environment=app_settings.app_env)
         try:

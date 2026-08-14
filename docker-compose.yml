@@ -39,6 +39,8 @@ services:
       - ./lab/asterisk/generated/pjsip.lab.conf:/lab/pjsip.lab.conf:ro
       - ./lab/asterisk/generated/tls:/etc/asterisk/keys:ro
       - ./lab/asterisk/entrypoint.sh:/lab/entrypoint.sh:ro
+      - ./lab/recordings:/lab/recordings
+      - ./lab/asterisk/sounds-link.sh:/lab/sounds-link.sh:ro
     entrypoint: ["/bin/sh", "/lab/entrypoint.sh"]
     environment:
       PUID: "1000"

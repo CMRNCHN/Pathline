@@ -44,6 +44,9 @@ postgres_data/
 # Lab SIP generated artifacts (TLS keys, rendered config, credentials)
 lab/asterisk/generated/
 
+# Lab live-call recordings (WAV + DTMF timeline JSON)
+lab/recordings/
+
 # Icon build intermediates (keep shipped icns + linux png)
 assets/icon/generated/*
 !assets/icon/generated/Pathline.icns

@@ -89,6 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch pinned Whisper model
+        run: bash desktop/src-tauri/resources/models/fetch-model.sh
       - name: Static lab + desktop assertions
         run: SKIP_LAB_PREFLIGHT=1 bash scripts/lab-verify-flow.sh
       - name: Script syntax
@@ -96,3 +98,5 @@ jobs:
           bash -n scripts/lab-verify-flow.sh
           bash -n scripts/lab-desktop.sh
           bash -n scripts/ci-verify.sh
+          bash -n scripts/build-release-dmg.sh
+          bash -n scripts/notarize-macos.sh

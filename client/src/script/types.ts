@@ -1,22 +1,25 @@
 /**
  * Product vocabulary (UI):
- *   Pathline — product / platform brand
- *   Workflow — the primary user-facing document
- *   Step     — one numbered instruction in a Workflow
- *   When     — the cue and phrase that starts a Step
- *   Then     — the action and value Pathline performs
- *   Input    — a value supplied for a Run
- *   Run      — one execution of a Workflow
+ *   Pathline     — product / platform brand
+ *   Path         — primary call automation document (Path Library)
+ *   Step         — one numbered instruction in a Path
+ *   When         — the cue and phrase that starts a Step
+ *   Then         — the action and value Pathline performs
+ *   Input        — a value supplied for a Run (from Accounts / sealed secrets)
+ *   Sealed secret — device-encrypted slot (vaultStore; UI under Accounts)
+ *   Run          — one execution of a Path
  *
- * "Path", "Rule", and "Script" remain internal compatibility names only.
+ * "Workflow", "Rule", and "Script" remain internal compatibility names only.
  */
 export const PRODUCT_TERMS = {
   brand: "Pathline",
-  workflow: "Workflow",
+  path: "Path",
+  workflow: "Path",
   step: "Step",
   when: "When",
   then: "Then",
   input: "Input",
+  inputVault: "Sealed secrets",
   run: "Run",
 } as const;
 export const SCRIPT_VERSION = 2 as const;
@@ -30,6 +33,10 @@ export interface PathSetup {
   timeoutMs: number;
   speechPreferences: {
     autoListen: boolean;
+    /** Milliseconds of silence after a phrase match before executing Then (default 800). */
+    silenceAfterPromptMs?: number;
+    /** Retention for encrypted local audio artifacts (default 1 hour). */
+    recordingRetentionMs?: number;
   };
   /** Input names referenced by respond Steps — derived from Steps on sync. */
   inputs: string[];
@@ -65,6 +72,8 @@ export interface Step {
   output: string;
   /** Pause duration for wait Steps (seconds). */
   waitSeconds?: number;
+  /** Step-specific maximum wait for this prompt/action before the Run fails. */
+  timeoutMs?: number;
 }
 
 export interface FlowStep {
@@ -73,6 +82,8 @@ export interface FlowStep {
   action: FlowAction;
   /** Step label — Trigger fires response; Extract stores detected speech to step.output. */
   triggerLabel?: string;
+  /** Step-specific maximum wait for this prompt/action before the Run fails. */
+  timeoutMs?: number;
 }
 
 export interface PathDocument {
@@ -114,6 +125,8 @@ export interface RunState {
   lastPhrase?: string;
   pendingDtmf?: string;
   pendingTrigger?: string;
+  /** Flow step ids already completed this Run — gates open capture / open end. */
+  matchedFlowIds?: string[];
   completed: boolean;
 }
 

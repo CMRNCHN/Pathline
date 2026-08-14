@@ -7,7 +7,8 @@ API. Use this checklist after CI is green.
 
 - [x] Client type-check + production build
 - [x] Vitest coverage for inline Step conversion and speech/DTMF dispatch
-- [x] STT fixture (PCM → phrase match → DTMF, no transcript in ledger)
+- [x] Headless client fixture (wait Steps, Step timeout outcomes, structured
+  detect JSON, DTMF `w` pauses, PCM → phrase match → DTMF, no transcript in ledger)
 - [x] FastAPI authorization, retention, revocation, CORS, bounds, rate limits
 - [x] Alembic migration to head
 - [x] Rust SIP/Whisper unit tests with checksummed bundled model
@@ -19,6 +20,10 @@ Automated (CI / operator host with Docker Asterisk):
 
 1. [x] `bash scripts/lab-verify-flow.sh` — loaded dialplan + authenticated
    SIP/TLS IVR traversal to remote BYE
+2. [x] `npm run lab:headless` — no-GUI prep runner for engine/DTMF/STT/static
+   lab assertions
+3. [x] Optional lab capture writes encrypted bundles only; no plaintext WAV/JSON
+   artifacts should remain under `lab/recordings`
 
 Interactive desktop (operator GUI):
 
@@ -34,7 +39,7 @@ Interactive desktop (operator GUI):
 
 | Gate | Status | Why |
 |------|--------|-----|
-| Production SIP trunk with SRTP | Blocked | Locked `rsiprtp 0.4.1` has no SRTP; production dialing fails closed unless `PATHLINE_SIP_PROFILE=lab` on loopback |
+| Production SIP trunk with SRTP | Blocked | Pathline's bridge has not wired SDES-SRTP offer/answer or encrypted media yet; production dialing fails closed unless `PATHLINE_SIP_PROFILE=lab` on loopback |
 | Apple Developer ID signing + notarization | Blocked | Requires Apple Developer credentials not present in the repo |
 | Clean-machine signed install / updater / rollback | Blocked | Depends on signed release artifacts |
 | Carrier DTMF / NAT interoperability proof | Blocked | Requires a selected production trunk and credentials |

@@ -25,6 +25,10 @@ dialogs), RTP/SRTP media, DTMF (RFC 4733 telephone-event), G.711/G.722/Opus code
 buffer. It maps directly onto the `NativeSipBridge` methods and gives us full ownership of the audio
 buffer needed for `onAudio(pcm, sampleRate)`.
 
+**SRTP note (2026-07):** the crate advertises SDES-SRTP; Pathline’s bridge has not wired it
+yet and fails closed for non-lab profiles. See `docs/srtp-production-path.md` for the
+smallest path to production fail-open *only* with SRTP.
+
 If `rsiprtp` proves inadequate during the bridge build, the **only** sanctioned fallback is the
 sibling pure-Rust combination `rsipstack` (SIP signaling, incl. TLS) + `rtp-engine` (RTP/RTCP,
 SRTP, G.711/Opus, DTMF RFC 2833, `cpal` device + resampling), or `wavekat-sip` (a voice-pipeline

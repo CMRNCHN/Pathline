@@ -72,7 +72,14 @@ export function initializeRunHistory(): Promise<void> {
   initializePromise = (async () => {
     const secure = window.__pathlineSecureHistory;
     if (secure) {
-      const stored = JSON.parse(await secure.load()) as RunRecord[];
+      let stored: RunRecord[] = [];
+      try {
+        const raw = await secure.load();
+        stored = JSON.parse(raw) as RunRecord[];
+        if (!Array.isArray(stored)) stored = [];
+      } catch {
+        stored = [];
+      }
       const legacy = readLegacyHistory();
       cache = stored.length > 0 ? stored : legacy;
       if (legacy.length > 0 && stored.length === 0) await secure.save(JSON.stringify(cache));

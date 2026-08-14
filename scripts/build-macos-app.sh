@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Build Pathline.app and Pathline Stop.app in the project root
+# Build Pathline.app and Pathline Stop.app Dock *launcher* wrappers in the project root.
+# These are not the signed Tauri release DMG. For a shippable desktop build see:
+#   PATHLINE_API_URL=https://… ./scripts/build-release-dmg.sh
+#   ./scripts/notarize-macos.sh path/to/bundle.dmg
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

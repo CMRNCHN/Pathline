@@ -1,3 +1,5 @@
+import type { Account } from "../persistence/accountsStore";
+import { accountInputNames } from "../persistence/accountsStore";
 import type { PathDocument } from "./types";
 import { isPlaceholderRule, isStepValid } from "./ruleIntent";
 
@@ -17,6 +19,19 @@ function referencedInputs(workflow: PathDocument): string[] {
     for (const match of step.then.matchAll(INPUT_REF)) names.add(match[1]);
   }
   return [...names];
+}
+
+/** Paths whose required setup.inputs are satisfied by the account (plain or vault-bound). */
+export function pathsAvailableForAccount(
+  account: Account,
+  paths: PathDocument[]
+): PathDocument[] {
+  const available = new Set(accountInputNames(account));
+  return paths.filter((path) => {
+    const required = path.setup.inputs.filter(Boolean);
+    if (required.length === 0) return getPathReadiness(path) === "ready";
+    return required.every((name) => available.has(name));
+  });
 }
 
 /** A Ready Workflow has complete setup, valid executable Steps, Inputs, and an end path. */

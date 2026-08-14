@@ -3,9 +3,17 @@ export const DTMF_INTER_DIGIT_MS = 550;
 
 /** Extra pause after # or * — many IVRs need a beat before the next action. */
 export const DTMF_POST_SPECIAL_MS = 200;
+/** ivr-tester-compatible pause marker in a DTMF sequence. */
+export const DTMF_WAIT_PAUSE_MS = 500;
 
 export function splitDtmfSequence(sequence: string): string[] {
-  return [...sequence].filter((ch) => /[0-9#*]/.test(ch));
+  return [...sequence]
+    .filter((ch) => /[0-9#*wW]/.test(ch))
+    .map((ch) => (ch.toLowerCase() === "w" ? "w" : ch));
+}
+
+export function countDtmfDigits(sequence: string): number {
+  return splitDtmfSequence(sequence).filter((ch) => ch !== "w").length;
 }
 
 export function dtmfStepDelayMs(digit: string, nextDigit?: string): number {
@@ -16,7 +24,7 @@ export function dtmfStepDelayMs(digit: string, nextDigit?: string): number {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 }
 
 export async function hashDtmfSequence(sequence: string): Promise<string> {
@@ -33,8 +41,12 @@ export async function sendDtmfSequence(
 ): Promise<void> {
   const digits = splitDtmfSequence(sequence);
   for (let i = 0; i < digits.length; i++) {
+    if (digits[i] === "w") {
+      await sleep(DTMF_WAIT_PAUSE_MS);
+      continue;
+    }
     await send(digits[i], digitDurationMs);
     const next = digits[i + 1];
-    if (next) await sleep(dtmfStepDelayMs(digits[i], next));
+    if (next && next !== "w") await sleep(dtmfStepDelayMs(digits[i], next));
   }
 }
