@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CopyButton } from "@/components/CopyButton";
 import {
   Select,
   SelectContent,
@@ -121,9 +122,15 @@ export function RunConfigureStep({
               {variableNames.map((name) => (
                 <div key={name} className="flex items-center justify-between gap-2 text-sm">
                   <span className="font-mono">{name}</span>
-                  <Badge variant={variables[name] ? "secondary" : "destructive"}>
-                    {variables[name] ? "Vault / profile ready" : "Missing"}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge variant={variables[name] ? "secondary" : "destructive"}>
+                      {variables[name] ? "Vault / profile ready" : "Missing"}
+                    </Badge>
+                    <CopyButton
+                      value={variables[name] ?? ""}
+                      label={`Copy ${name}`}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -149,13 +156,17 @@ export function RunConfigureStep({
             <label htmlFor="target" className="text-sm font-medium">
               Target number — local only
             </label>
-            <Input
-              id="target"
-              type="tel"
-              value={targetNumber}
-              onChange={(e) => onTargetNumberChange(e.target.value)}
-              required
-            />
+            <div className="flex items-center gap-1">
+              <Input
+                id="target"
+                type="tel"
+                value={targetNumber}
+                onChange={(e) => onTargetNumberChange(e.target.value)}
+                required
+                className="flex-1"
+              />
+              <CopyButton value={targetNumber} label="Copy target number" />
+            </div>
           </div>
 
           <Button

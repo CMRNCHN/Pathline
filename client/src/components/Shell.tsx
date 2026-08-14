@@ -40,7 +40,7 @@ export function Shell({
           searchQuery={searchQuery}
           onSearchChange={onSearchChange}
         />
-        <div className="flex-1 overflow-y-auto app-main min-w-0">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y app-main min-w-0">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

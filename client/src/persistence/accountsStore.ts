@@ -46,7 +46,7 @@ export function saveAccount(account: Account): void {
   writeAll(all);
 }
 
-export function createAccount(name = "New account"): Account {
+export function createAccount(name = "Untitled profile"): Account {
   const account: Account = {
     id: crypto.randomUUID(),
     name,

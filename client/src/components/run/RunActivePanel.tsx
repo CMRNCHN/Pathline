@@ -28,6 +28,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { CopyButton } from "@/components/CopyButton";
+import { formatFieldDisplay } from "@/lib/formatFieldValue";
 
 interface RunActivePanelProps {
   runSession: RunSession;
@@ -345,9 +347,24 @@ export function RunActivePanel({
             {Object.keys(run.collected).length > 0 && (
               <div className="space-y-2">
                 <h5 className="text-sm font-medium">Captured</h5>
-                <pre className="rounded-lg bg-muted p-3 text-xs font-mono overflow-x-auto">
-                  {JSON.stringify(run.collected, null, 2)}
-                </pre>
+                <ul className="m-0 space-y-1.5 rounded-lg border p-2 list-none">
+                  {Object.entries(run.collected).map(([key, value]) => (
+                    <li
+                      key={key}
+                      className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-2 py-1.5"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-mono text-[11px] text-muted-foreground">
+                          {key}
+                        </div>
+                        <div className="truncate font-mono text-xs">
+                          {formatFieldDisplay(key, value)}
+                        </div>
+                      </div>
+                      <CopyButton value={value} label={`Copy ${key}`} />
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

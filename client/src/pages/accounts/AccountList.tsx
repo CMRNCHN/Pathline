@@ -17,12 +17,12 @@ export function AccountList({ accounts, selectedId, onSelect, onCreate }: Accoun
     <div className="flex h-full min-h-0 flex-col gap-3">
       <Button type="button" size="sm" onClick={onCreate} className="w-full">
         <Plus className="size-4" />
-        New account
+        New profile
       </Button>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain touch-pan-y">
         {accounts.length === 0 ? (
-          <EmptyState icon={Users} title="No accounts yet">
-            Create an account to store Inputs for Paths.
+          <EmptyState icon={Users} title="No profiles yet">
+            Create a profile to store Inputs for Paths. Local only — no Microsoft or cloud sign-in.
           </EmptyState>
         ) : (
           accounts.map((account) => (

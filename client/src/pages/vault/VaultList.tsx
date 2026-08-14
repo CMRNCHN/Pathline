@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CopyButton } from "@/components/CopyButton";
 
 interface VaultEntryDialogProps {
   open: boolean;
@@ -55,7 +56,10 @@ export function VaultEntryDialog({ open, onClose, initial, onSaved }: VaultEntry
           onChange={(e) => setSecret(e.target.value)}
           placeholder={initial ? "New value (required to rotate)" : "Secret value"}
           aria-label="Secret value"
-          autoComplete="off"
+          autoComplete="new-password"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-form-type="other"
         />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex flex-wrap gap-2">
@@ -123,6 +127,7 @@ export function VaultEntryRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <CopyButton value={entry.key} label="Copy vault key" />
         <Badge variant="outline" className="text-xs">
           Sealed secret
         </Badge>

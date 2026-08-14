@@ -39,7 +39,7 @@ export function PathList({
           New
         </Button>
       </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain touch-pan-y pr-1">
         {paths.length === 0 ? (
           <EmptyState icon={GitBranch} title="No paths yet">
             Create a Path to build a call script.

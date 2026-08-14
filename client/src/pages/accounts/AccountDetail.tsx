@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type Account,
   type AccountField,
@@ -11,9 +11,11 @@ import { scriptDisplayName } from "@/script/storage";
 import { useScriptStore } from "@/store/ScriptStore";
 import type { AppView } from "@/navigation";
 import { AccountFieldRow } from "./AccountFieldRow";
+import { CopyButton } from "@/components/CopyButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { NO_AUTOFILL } from "@/lib/noAutofill";
 
 interface AccountDetailProps {
   account: Account;
@@ -27,6 +29,16 @@ export function AccountDetail({ account, onChange, onDeleted, onNavigate }: Acco
   const paths = mergeScripts(bundledScripts, customScripts);
   const readyPaths = useMemo(() => pathsAvailableForAccount(account, paths), [account, paths]);
   const [draftName, setDraftName] = useState(account.name);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraftName(account.name);
+    // New / empty profiles: focus the name so creation feels immediate (local only).
+    if (Object.keys(account.fields).length === 0) {
+      nameRef.current?.focus();
+      nameRef.current?.select();
+    }
+  }, [account.id, account.fields, account.name]);
 
   const persist = (next: Account) => {
     saveAccount(next);
@@ -69,23 +81,36 @@ export function AccountDetail({ account, onChange, onDeleted, onNavigate }: Acco
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
+    <form
+      className="flex h-full min-h-0 flex-col gap-4"
+      autoComplete="off"
+      data-form-type="other"
+      onSubmit={(e) => e.preventDefault()}
+    >
       <div className="space-y-2">
-        <Input
-          value={draftName}
-          onChange={(e) => setDraftName(e.target.value)}
-          onBlur={() => {
-            const name = draftName.trim() || "Untitled account";
-            setDraftName(name);
-            persist({ ...account, name });
-          }}
-          aria-label="Account name"
-        />
+        <div className="flex items-center gap-1">
+          <Input
+            ref={nameRef}
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onBlur={() => {
+              const name = draftName.trim() || "Untitled profile";
+              setDraftName(name);
+              persist({ ...account, name });
+            }}
+            aria-label="Profile name"
+            placeholder="Profile name"
+            className="flex-1"
+            {...NO_AUTOFILL}
+          />
+          <CopyButton value={draftName} label="Copy profile name" />
+        </div>
         <Textarea
           value={account.notes ?? ""}
           onChange={(e) => persist({ ...account, notes: e.target.value })}
           placeholder="Notes (optional)"
           rows={2}
+          {...NO_AUTOFILL}
         />
       </div>
 
@@ -98,7 +123,8 @@ export function AccountDetail({ account, onChange, onDeleted, onNavigate }: Acco
         </div>
         {fieldEntries.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Add fields that match Path Inputs (e.g. account_pin). Secrets bind to sealed keys.
+            Add fields that match Path Inputs (e.g. account_pin, cc_num). Secrets bind to sealed
+            keys — nothing is sent to Microsoft or any cloud IdP.
           </p>
         ) : (
           fieldEntries.map(([name, field]) => (
@@ -115,7 +141,7 @@ export function AccountDetail({ account, onChange, onDeleted, onNavigate }: Acco
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-medium">Paths ready for this account</h3>
+        <h3 className="text-sm font-medium">Paths ready for this profile</h3>
         {readyPaths.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No Paths match yet. Fill fields that cover each Path&apos;s Inputs.
@@ -144,13 +170,13 @@ export function AccountDetail({ account, onChange, onDeleted, onNavigate }: Acco
         type="button"
         variant="destructive"
         onClick={() => {
-          if (!confirm(`Delete account "${account.name}"?`)) return;
+          if (!confirm(`Delete profile "${account.name}"?`)) return;
           deleteAccount(account.id);
           onDeleted();
         }}
       >
-        Delete account
+        Delete profile
       </Button>
-    </div>
+    </form>
   );
 }

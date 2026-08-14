@@ -69,16 +69,18 @@ export function AccountsPage({ accountId, panel = "profile", onNavigate }: Accou
           <VaultList entries={entries} onRefresh={refreshVault} />
         </div>
       ) : (
-        <div className="grid min-h-[28rem] grid-cols-1 gap-4 lg:grid-cols-[minmax(14rem,18rem)_1fr]">
-          <AccountList
-            accounts={accounts}
-            selectedId={accountId}
-            onSelect={(id) =>
-              onNavigate({ category: "accounts", accountId: id, panel: "profile" })
-            }
-            onCreate={handleCreate}
-          />
-          <div className="min-h-[24rem] rounded-xl border bg-card/30 p-3 md:p-4">
+        <div className="grid h-[min(70vh,42rem)] min-h-[28rem] grid-cols-1 gap-4 lg:grid-cols-[minmax(14rem,18rem)_1fr]">
+          <div className="min-h-0">
+            <AccountList
+              accounts={accounts}
+              selectedId={accountId}
+              onSelect={(id) =>
+                onNavigate({ category: "accounts", accountId: id, panel: "profile" })
+              }
+              onCreate={handleCreate}
+            />
+          </div>
+          <div className="min-h-0 overflow-y-auto overscroll-contain touch-pan-y rounded-xl border bg-card/30 p-3 md:p-4">
             {selected ? (
               <AccountDetail
                 key={selected.id}
@@ -92,7 +94,7 @@ export function AccountsPage({ accountId, panel = "profile", onNavigate }: Accou
               />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Select an account or create one.
+                Select a profile or create one. Profiles stay on this device.
               </div>
             )}
           </div>

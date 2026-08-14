@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AccountField } from "@/persistence/accountsStore";
 import { listVaultEntries } from "@/persistence/vaultStore";
+import { CopyButton } from "@/components/CopyButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,6 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  formatFieldDisplay,
+  isCreditCardFieldName,
+  normalizeFieldStorage,
+} from "@/lib/formatFieldValue";
 
 interface AccountFieldRowProps {
   name: string;
@@ -28,14 +34,22 @@ export function AccountFieldRow({
 }: AccountFieldRowProps) {
   const vaultEntries = listVaultEntries();
   const [vaultPick, setVaultPick] = useState(field.kind === "secret" ? field.vaultKey : "");
+  const plainValue = field.kind === "plain" ? field.value : "";
+  const displayValue =
+    field.kind === "plain" ? formatFieldDisplay(name, plainValue) : "";
+  const copyValue =
+    field.kind === "plain"
+      ? plainValue
+      : field.vaultKey /* key name only — never reveal sealed secret */;
 
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_7rem_1fr_auto]">
+    <div className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_7rem_1fr_auto_auto]">
       <Input
         value={name}
         onChange={(e) => onChangeName(e.target.value)}
         placeholder="input_name"
         aria-label="Input name"
+        className="font-mono"
       />
       <Select
         value={field.kind}
@@ -54,10 +68,23 @@ export function AccountFieldRow({
       </Select>
       {field.kind === "plain" ? (
         <Input
-          value={field.value}
-          onChange={(e) => onChangeField({ kind: "plain", value: e.target.value })}
-          placeholder="Value"
+          value={displayValue}
+          onChange={(e) =>
+            onChangeField({
+              kind: "plain",
+              value: normalizeFieldStorage(name, e.target.value),
+            })
+          }
+          placeholder={
+            isCreditCardFieldName(name) ? "####-####-####-####" : "Value"
+          }
+          inputMode={isCreditCardFieldName(name) ? "numeric" : undefined}
+          autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-form-type="other"
           aria-label="Plain value"
+          className="font-mono"
         />
       ) : (
         <Select
@@ -86,6 +113,7 @@ export function AccountFieldRow({
           </SelectContent>
         </Select>
       )}
+      <CopyButton value={copyValue} label={`Copy ${name}`} />
       <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
         Remove
       </Button>

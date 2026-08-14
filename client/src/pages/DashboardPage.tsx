@@ -100,8 +100,8 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       primary: false,
     },
     {
-      label: "Add Account",
-      hint: "Profile + inputs",
+      label: "Add Profile",
+      hint: "Local inputs only",
       icon: Users,
       onClick: handleNewAccount,
       primary: false,

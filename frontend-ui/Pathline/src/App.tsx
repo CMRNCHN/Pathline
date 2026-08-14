@@ -36,6 +36,42 @@ interface AuditEntry {
   hash: string
 }
 
+const CC_FIELD = /^(cc|cc_num|cc_number|credit_card|creditcard|card_number|card_num|card)$/i
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
+/** Display CC values as ####-####-####-####. Does not log values. */
+function formatFieldValue(name: string, value: string): string {
+  if (!CC_FIELD.test(name.trim())) return value
+  const digits = digitsOnly(value).slice(0, 19)
+  if (!digits) return ''
+  return digits.replace(/(\d{4})(?=\d)/g, '$1-')
+}
+
+function CopyChip({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      title={copied ? 'Copied' : label}
+      aria-label={copied ? 'Copied' : label}
+      disabled={!value}
+      className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 cursor-pointer transition-colors"
+      onClick={() => {
+        if (!value) return
+        void navigator.clipboard.writeText(value).then(() => {
+          setCopied(true)
+          window.setTimeout(() => setCopied(false), 1200)
+        })
+      }}
+    >
+      {copied ? '✓' : '⧉'}
+    </button>
+  )
+}
+
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const PATHS: Path[] = [
@@ -85,6 +121,7 @@ const ACCOUNTS: Account[] = [
       { name: 'account_pin', value: 'PROD_PIN_KEY', type: 'vault' },
       { name: 'ssn_last4', value: 'SSN_SECRET_KEY', type: 'vault' },
       { name: 'account_number', value: '4821-0019-3847', type: 'plain' },
+      { name: 'cc_num', value: '4111111111111111', type: 'plain' },
     ],
     paths: ['Customer Support IVR Verification', 'Account Balance Check'],
   },
@@ -402,16 +439,16 @@ function pathOutcomeBadge(outcome: (typeof PATH_LATEST)[number]['outcome']): {
   return { variant: 'muted', label: 'Idle', dot: 'gray' }
 }
 
-function DashboardPage() {
+function DashboardPage({ onNav }: { onNav: (page: Page) => void }) {
   const ready = PATH_LATEST.filter(r => r.outcome === 'accepted' || r.outcome === 'completed').length
   const blocked = PATH_LATEST.filter(r => r.outcome === 'blocked' || r.outcome === 'idle').length
   const total = PATH_LATEST.length
 
   const actions = [
-    { label: 'New Path', hint: 'Build a call flow', icon: Icons.paths, primary: true },
-    { label: 'Dial Path', hint: 'Run against an account', icon: Icons.system, primary: false },
-    { label: 'Add Account', hint: 'Profile + inputs', icon: Icons.accounts, primary: false },
-    { label: 'Sealed secrets', hint: 'Under Accounts', icon: Icons.vault, primary: false },
+    { label: 'New Path', hint: 'Build a call flow', icon: Icons.paths, primary: true, page: 'paths' as Page },
+    { label: 'Dial Path', hint: 'Run against a profile', icon: Icons.system, primary: false, page: 'paths' as Page },
+    { label: 'Add Profile', hint: 'Local inputs only', icon: Icons.accounts, primary: false, page: 'accounts' as Page },
+    { label: 'Sealed secrets', hint: 'Under Accounts', icon: Icons.vault, primary: false, page: 'accounts' as Page },
   ]
 
   return (
@@ -422,7 +459,7 @@ function DashboardPage() {
           { label: 'Paths', value: String(total), sub: 'tracked' },
           { label: 'Succeeded', value: String(ready), sub: 'last run ok' },
           { label: 'Idle', value: String(blocked), sub: 'not run yet' },
-          { label: 'Accounts', value: '2', sub: 'ready to dial' },
+          { label: 'Profiles', value: '2', sub: 'ready to dial' },
         ].map(stat => (
           <div
             key={stat.label}
@@ -442,6 +479,8 @@ function DashboardPage() {
           {actions.map(a => (
             <button
               key={a.label}
+              type="button"
+              onClick={() => onNav(a.page)}
               className={`text-left rounded-md border px-2.5 py-2 transition-colors cursor-pointer surface-shadow ${
                 a.primary
                   ? 'bg-primary text-primary-foreground border-primary hover:opacity-90'
@@ -550,7 +589,7 @@ function PathsPage() {
           </div>
           <Btn variant="primary" size="sm" className="w-full justify-center">+ New Path</Btn>
         </div>
-        <div className="flex-1 overflow-y-auto py-1">
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y py-1">
           {filtered.map(path => (
             <button
               key={path.id}
@@ -692,11 +731,33 @@ function PathsPage() {
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
 
-function AccountsPage() {
-  const [selected, setSelected] = useState<Account>(ACCOUNTS[0])
+function AccountsPage({ onGoSecrets }: { onGoSecrets?: () => void }) {
+  const [accounts, setAccounts] = useState<Account[]>(() => [...ACCOUNTS])
+  const [selectedId, setSelectedId] = useState(ACCOUNTS[0]?.id ?? '')
   const [search, setSearch] = useState('')
 
-  const filtered = ACCOUNTS.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
+  const selected = accounts.find(a => a.id === selectedId) ?? accounts[0]
+  const filtered = accounts.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
+
+  const createProfile = () => {
+    const id = `acc_local_${Date.now()}`
+    const next: Account = {
+      id,
+      name: 'Untitled profile',
+      fields: [],
+      paths: [],
+    }
+    setAccounts(prev => [next, ...prev])
+    setSelectedId(id)
+  }
+
+  if (!selected) {
+    return (
+      <div className="flex h-full items-center justify-center gap-3 p-4">
+        <Btn variant="primary" size="md" onClick={createProfile}>+ New Profile</Btn>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -706,18 +767,21 @@ function AccountsPage() {
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-[11px]">⌕</span>
             <input
               className="w-full bg-card border border-border rounded-md pl-7 pr-3 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-colors"
-              placeholder="Search accounts…"
+              placeholder="Search profiles…"
               value={search}
               onChange={e => setSearch(e.target.value)}
+              autoComplete="off"
+              data-form-type="other"
             />
           </div>
-          <Btn variant="primary" size="sm" className="w-full justify-center">+ New Profile</Btn>
+          <Btn variant="primary" size="sm" className="w-full justify-center" onClick={createProfile}>+ New Profile</Btn>
         </div>
-        <div className="flex-1 overflow-y-auto py-1">
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y py-1">
           {filtered.map(acc => (
             <button
               key={acc.id}
-              onClick={() => setSelected(acc)}
+              type="button"
+              onClick={() => setSelectedId(acc.id)}
               className={`w-full text-left px-3 py-2 border-b border-border transition-all cursor-pointer ${
                 selected.id === acc.id
                   ? 'bg-primary-soft border-l-2 border-l-primary'
@@ -735,11 +799,21 @@ function AccountsPage() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border flex-shrink-0 bg-card/50">
-          <h2 className="text-[15px] font-semibold text-foreground">{selected.name}</h2>
-          <div className="text-[11px] text-muted-foreground font-mono mt-0.5">ID: {selected.id}</div>
+          <input
+            className="w-full bg-transparent text-[15px] font-semibold text-foreground focus:outline-none"
+            value={selected.name}
+            autoComplete="off"
+            data-1p-ignore="true"
+            data-form-type="other"
+            onChange={e => {
+              const name = e.target.value
+              setAccounts(prev => prev.map(a => (a.id === selected.id ? { ...a, name } : a)))
+            }}
+          />
+          <div className="text-[11px] text-muted-foreground font-mono mt-0.5">ID: {selected.id} · local only</div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-4 flex flex-col gap-3">
           <div>
             <SectionLabel>Input Fields</SectionLabel>
             <div className="rounded-lg border border-border overflow-hidden bg-card surface-shadow">
@@ -749,47 +823,88 @@ function AccountsPage() {
                     <th className="text-left px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Field Name</th>
                     <th className="text-left px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Value / Binding</th>
                     <th className="text-left px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Type</th>
+                    <th className="w-10" />
                   </tr>
                 </thead>
                 <tbody>
-                  {selected.fields.map((field, i) => (
-                    <tr key={i} className="border-b border-border last:border-0 hover:bg-accent/50">
-                      <td className="px-3 py-1.5 font-mono text-[11px] text-primary">{field.name}</td>
-                      <td className="px-3 py-1.5 text-ink-soft">
-                        {field.type === 'vault' ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="text-warning font-mono text-[10px]">KEY</span>
-                            <span className="font-mono text-[11px] text-warning">{field.value}</span>
-                          </span>
-                        ) : (
-                          <span className="font-mono text-[11px]">{field.value}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <Badge variant={field.type === 'vault' ? 'warning' : 'muted'}>
-                          {field.type === 'vault' ? 'Vault Key' : 'Plain'}
-                        </Badge>
+                  {selected.fields.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-4 text-[12px] text-muted-foreground">
+                        No fields yet. Add inputs that match your Path (e.g. cc_num). Nothing leaves this device.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    selected.fields.map((field, i) => (
+                      <tr key={i} className="border-b border-border last:border-0 hover:bg-accent/50">
+                        <td className="px-3 py-1.5 font-mono text-[11px] text-primary">{field.name}</td>
+                        <td className="px-3 py-1.5 text-ink-soft">
+                          {field.type === 'vault' ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="text-warning font-mono text-[10px]">KEY</span>
+                              <span className="font-mono text-[11px] text-warning">{field.value}</span>
+                            </span>
+                          ) : (
+                            <span className="font-mono text-[11px]">{formatFieldValue(field.name, field.value)}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <Badge variant={field.type === 'vault' ? 'warning' : 'muted'}>
+                            {field.type === 'vault' ? 'Vault Key' : 'Plain'}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          <CopyChip value={field.value} label={`Copy ${field.name}`} />
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
-            <div className="mt-3">
-              <Btn variant="secondary" size="sm">+ Add Field</Btn>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Btn
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setAccounts(prev =>
+                    prev.map(a =>
+                      a.id === selected.id
+                        ? {
+                            ...a,
+                            fields: [
+                              ...a.fields,
+                              { name: `input_${a.fields.length + 1}`, value: '', type: 'plain' },
+                            ],
+                          }
+                        : a
+                    )
+                  )
+                }}
+              >
+                + Add Field
+              </Btn>
+              {onGoSecrets && (
+                <Btn variant="ghost" size="sm" onClick={onGoSecrets}>
+                  Open sealed secrets
+                </Btn>
+              )}
             </div>
           </div>
 
           <div>
             <SectionLabel>Compatible Paths</SectionLabel>
             <div className="flex flex-col gap-1.5">
-              {selected.paths.map((p, i) => (
-                <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-md bg-success-soft border border-success-border">
-                  <span className="text-success text-[11px]">✓</span>
-                  <span className="text-[12px] text-ink-soft">{p}</span>
-                  <Badge variant="success">Ready</Badge>
-                </div>
-              ))}
+              {selected.paths.length === 0 ? (
+                <p className="text-[12px] text-muted-foreground">Fill fields to match Path inputs.</p>
+              ) : (
+                selected.paths.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-md bg-success-soft border border-success-border">
+                    <span className="text-success text-[11px]">✓</span>
+                    <span className="text-[12px] text-ink-soft">{p}</span>
+                    <Badge variant="success">Ready</Badge>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -1013,7 +1128,7 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header page={page} />
         <main className="flex-1 overflow-hidden">
-          {page === 'dashboard' && <DashboardPage />}
+          {page === 'dashboard' && <DashboardPage onNav={setPage} />}
           {page === 'paths' && <PathsPage />}
           {page === 'accounts' && <AccountsPage />}
           {page === 'system' && <SystemPage />}
