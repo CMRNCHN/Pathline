@@ -36,6 +36,16 @@ For normal desktop development, run `npm run desktop:dev`; it starts/reuses the
 thin API and launches the Tauri window. For a live lab call, run
 `./scripts/lab-desktop.sh` to start Asterisk, API, UI, and desktop together.
 
+### Cloud Agent environment
+`.cursor/environment.json` provisions the browser dev path (the desktop Tauri
+endpoint is macOS/native and out of scope for the Linux Cloud Agent VM):
+- `install` runs `./scripts/cloud-agent-install.sh` — apt-installs `python3.12-venv`,
+  creates `.venv`, editable-installs `packages/shared-python` + `services/api[test]`,
+  and runs `npm install` in `client/`. It is idempotent.
+- Two `terminals` auto-start on boot: `api` (uvicorn on :8000, dev secret defaults)
+  and `client` (Vite on :3000, proxies `/api` → :8000). No secrets are required in
+  development; the API falls back to `dev-secret-change-me` / `dev-pepper-change-me`.
+
 ### Current live-call blockers
 Do not describe the desktop loop as live-E2E complete until all of these land:
 - One recorded macOS/Tauri/Asterisk dial → RTP → local STT → keypad → encrypted
