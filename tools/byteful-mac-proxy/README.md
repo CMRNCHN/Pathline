@@ -44,7 +44,29 @@ For each selected network service it:
 
 macOS may ask for an administrator password.
 
-## Limits
+## If Authenticated Proxy Enabled stays 0
+
+Recent macOS often will not store Byteful’s password in System Settings (Keychain loops, flag stays `0`). Use the local forwarder instead: macOS talks to `127.0.0.1` with **no password**; the script adds Byteful auth.
+
+Leave this running in Terminal:
+
+```bash
+python3 tools/byteful-mac-proxy/byteful_local_forwarder.py \
+  --user 'YOUR_BYTEFUL_USER' \
+  --password 'YOUR_BYTEFUL_PASS'
+```
+
+Then point only HTTP/HTTPS at the local port (SOCKS off — no Keychain):
+
+```bash
+sudo networksetup -setwebproxy "Wi-Fi" 127.0.0.1 8118 off
+sudo networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 8118 off
+sudo networksetup -setwebproxystate "Wi-Fi" on
+sudo networksetup -setsecurewebproxystate "Wi-Fi" on
+sudo networksetup -setsocksfirewallproxystate "Wi-Fi" off
+```
+
+Safari → https://ipinfo.io should show the Byteful Virginia exit. Stop the Python process and turn those proxies off when you are done.
 
 - Run this on the Mac you want to proxy. It cannot push settings to an iPhone.
 - Some apps ignore System Settings. Terminal programs that ignore the OS proxy still need:
