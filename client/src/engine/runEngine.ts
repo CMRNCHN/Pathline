@@ -12,6 +12,8 @@ export interface ProcessPhraseResult {
   state: RunState;
   matched: boolean;
   shouldComplete: boolean;
+  /** Path step id/label when `matched` is true. Observation-only — never phrase text. */
+  matchedStep?: string;
   dtmfAction?: {
     step: string;
     sequence: string;
@@ -96,6 +98,7 @@ export function processPhrase(
           log: [...prev.log, logEntry(`Pass: "${step.detect}"`, "pass")],
         },
         matched: true,
+        matchedStep: step.triggerLabel ?? step.detect,
         shouldComplete: false,
       };
     }
@@ -121,6 +124,7 @@ export function processPhrase(
         return {
           state: { ...base, log },
           matched: true,
+          matchedStep: stepName,
           shouldComplete: false,
           ...(isSpeech
             ? { speechAction: { step: stepName, text: resolved } }
@@ -135,6 +139,7 @@ export function processPhrase(
             log: [...log, logEntry("Speech action requires a speech-capable transport", "unknown")],
           },
           matched: true,
+          matchedStep: stepName,
           shouldComplete: false,
         };
       }
@@ -145,7 +150,7 @@ export function processPhrase(
         pendingDtmf: resolved,
         pendingTrigger: step.detect,
       };
-      return { state, matched: true, shouldComplete: false };
+      return { state, matched: true, matchedStep: stepName, shouldComplete: false };
     }
 
     case "extract": {
@@ -165,6 +170,7 @@ export function processPhrase(
       return {
         state: { ...base, collected, log },
         matched: Boolean(value && field),
+        matchedStep: Boolean(value && field) ? (step.triggerLabel ?? step.detect) : undefined,
         shouldComplete: false,
       };
     }
@@ -180,7 +186,12 @@ export function processPhrase(
           ok ? "validate" : "unknown"
         ),
       ];
-      return { state: { ...base, log }, matched: ok, shouldComplete: false };
+      return {
+        state: { ...base, log },
+        matched: ok,
+        matchedStep: ok ? (step.triggerLabel ?? "validate") : undefined,
+        shouldComplete: false,
+      };
     }
 
     case "end": {
@@ -188,6 +199,7 @@ export function processPhrase(
       return {
         state: { ...base, log, completed: true },
         matched: true,
+        matchedStep: step.triggerLabel ?? step.detect,
         shouldComplete: true,
       };
     }

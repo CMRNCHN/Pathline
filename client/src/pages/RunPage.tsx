@@ -15,6 +15,7 @@ import {
   pathFromScript,
   projectLiveStatus,
   callFromSession,
+  exportLedgerDigest,
   type CallEvent,
 } from "../callstate";
 import type { Path } from "../script/types";
@@ -187,7 +188,7 @@ function RunFlow({
     transcriptHash: string,
     callEvents: CallEvent[]
   ) => {
-    if (!token || !session) return;
+    if (!token || !session || !activeRun) return;
     setLoading(true);
     setError(null);
     const completedAt = new Date().toISOString();
@@ -204,6 +205,7 @@ function RunFlow({
         idempotencyKey: `callstate-${session.sessionId}`,
       };
       setPendingUpload(upload);
+      const ledgerHead = await exportLedgerDigest(callEvents);
       // Crash-safe ordering: persist local History, the audit chain, and the
       // exact idempotent retry payload before attempting any network upload.
       await recordRun({
@@ -215,7 +217,9 @@ function RunFlow({
         completedAt,
         captured: collected,
         ledgerEvents: callEvents,
-        ledgerHead: transcriptHash,
+        ledgerHead,
+        collectedHash: transcriptHash,
+        definedSteps: pathFromScript(activeRun.script).definedSteps,
         uploadState: "pending",
         pendingUpload: upload,
       });

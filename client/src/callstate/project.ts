@@ -2,7 +2,7 @@ import type { Call, CallOutcome, LiveStatus } from "./types";
 
 const TERMINAL: CallOutcome[] = ["COMPLETED", "FAILED", "ABANDONED"];
 
-function stepFromMetadata(metadata?: Record<string, unknown>): string | null {
+export function stepFromMetadata(metadata?: Record<string, unknown>): string | null {
   const step = metadata?.step;
   return typeof step === "string" ? step : null;
 }

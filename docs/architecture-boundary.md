@@ -43,8 +43,8 @@ Pathline Client
 
 1. **runEngine** decides step state, expected phrases, and next actions. It does not know SIP or PSTN.
 2. **CallTransport** owns media. The engine never talks to carriers directly.
-3. **callstate** is observation-only. Events: `CALL_STARTED`, `PROMPT_DETECTED`, `PHRASE_MATCHED`, `DTMF_SENT`, `STEP_COMPLETED`, `CALL_ENDED`. No secrets, transcripts, or audio in events.
-4. **DTMF audit** stores `{ step, digits: count, hash }` — never plaintext sequences.
+3. **callstate** is observation-only. Events: `CALL_STARTED`, `PROMPT_DETECTED`, `PHRASE_MATCHED`, `DTMF_SENT`, `STEP_COMPLETED`, `CALL_ENDED`. No secrets, transcripts, or audio in events. Inspection is a local projection of this ledger (`client/src/audit/`) — never a server stage.
+4. **DTMF audit** stores `{ step, digits: count, hash }` — never plaintext sequences. The ledger chain uses `{ prevHash, chainHash }` so the DTMF `hash` is not overwritten.
 5. **Softphone-as-dependency is removed.** External softphones cannot be the automation endpoint.
 
 ## Removed from roadmap

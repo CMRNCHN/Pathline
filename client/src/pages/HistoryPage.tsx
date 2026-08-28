@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock, Download, Trash2 } from "lucide-react";
+import { Clock, Download, Package, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageLayout } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -18,12 +18,19 @@ import {
   TableCell,
   TableRow,
 } from "../components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
   deleteRun,
   loadRunHistory,
   subscribeRunHistory,
   type RunRecord,
 } from "../history/runHistory";
+import { inspectRun, buildEvidencePack, downloadEvidencePack, type RunInspectionReport } from "@/audit";
+import { pathFromScript } from "@/callstate";
+import { RunInspectionPanel } from "@/components/history/RunInspectionPanel";
+import { RunReplayPanel } from "@/components/history/RunReplayPanel";
+import { getActiveScript } from "@/script/selectors";
+import { useScriptStore } from "@/store/ScriptStore";
 
 type RunFilter = "all" | "completed" | "failed" | "abandoned";
 
@@ -54,9 +61,15 @@ export function HistoryPage() {
 }
 
 export function RunsPage() {
+  const { bundledScripts, customScripts } = useScriptStore();
   const [records, setRecords] = useState<RunRecord[]>(() => loadRunHistory());
   const [openId, setOpenId] = useState<string | null>(null);
   const [filter, setFilter] = useState<RunFilter>("all");
+  const [tab, setTab] = useState("captured");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [report, setReport] = useState<RunInspectionReport | null>(null);
+  const [inspecting, setInspecting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => subscribeRunHistory(() => setRecords(loadRunHistory())), []);
 
@@ -66,6 +79,39 @@ export function RunsPage() {
   }, [records, filter]);
 
   const open = openId ? records.find((r) => r.runId === openId) : undefined;
+  const liveScript = open
+    ? getActiveScript(bundledScripts, customScripts, open.pathId)
+    : undefined;
+  const definedSteps = useMemo(() => {
+    if (open?.definedSteps && open.definedSteps.length > 0) return open.definedSteps;
+    if (liveScript) return pathFromScript(liveScript).definedSteps;
+    return [];
+  }, [open, liveScript]);
+
+  useEffect(() => {
+    setTab("captured");
+    setSelectedIndex(Math.max((open?.ledgerEvents?.length ?? 1) - 1, 0));
+    setExportError(null);
+  }, [openId]);
+
+  useEffect(() => {
+    if (!open) {
+      setReport(null);
+      return;
+    }
+    let cancelled = false;
+    setInspecting(true);
+    void inspectRun({ ...open, definedSteps })
+      .then((next) => {
+        if (!cancelled) setReport(next);
+      })
+      .finally(() => {
+        if (!cancelled) setInspecting(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, definedSteps]);
 
   const counts = useMemo(
     () => ({
@@ -76,6 +122,22 @@ export function RunsPage() {
     }),
     [records]
   );
+
+  const handleEvidence = async () => {
+    if (!open || !report) return;
+    setExportError(null);
+    try {
+      const pack = await buildEvidencePack({ ...open, definedSteps }, report);
+      downloadEvidencePack(pack);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Evidence export failed");
+    }
+  };
+
+  const showCitedEvent = (eventIndex: number) => {
+    setSelectedIndex(eventIndex);
+    setTab("timeline");
+  };
 
   return (
     <PageLayout
@@ -160,33 +222,71 @@ export function RunsPage() {
               </CardHeader>
 
               <CardContent className="space-y-4">
-                <div>
-                  <h4 className="mb-2 text-sm font-medium">Captured</h4>
-                  {Object.keys(open.captured).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Nothing was captured on this Run.
-                    </p>
-                  ) : (
-                    <Table>
-                      <TableBody>
-                        {Object.entries(open.captured).map(([key, value]) => (
-                          <TableRow key={key}>
-                            <TableCell className="font-mono text-muted-foreground">
-                              {key}
-                            </TableCell>
-                            <TableCell className="font-mono">{value}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
+                <Tabs value={tab} onValueChange={(value) => typeof value === "string" && setTab(value)}>
+                  <TabsList>
+                    <TabsTrigger value="captured">Captured</TabsTrigger>
+                    <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                    <TabsTrigger value="inspection">Inspection</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="captured" className="pt-4">
+                    {Object.keys(open.captured).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Nothing was captured on this Run.
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableBody>
+                          {Object.entries(open.captured).map(([key, value]) => (
+                            <TableRow key={key}>
+                              <TableCell className="font-mono text-muted-foreground">
+                                {key}
+                              </TableCell>
+                              <TableCell className="font-mono">{value}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="timeline" className="pt-4">
+                    <RunReplayPanel
+                      runId={open.runId}
+                      pathId={open.pathId}
+                      pathIntent={open.pathName}
+                      definedSteps={definedSteps}
+                      events={open.ledgerEvents ?? []}
+                      selectedIndex={selectedIndex}
+                      onSelectedIndexChange={setSelectedIndex}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="inspection" className="pt-4">
+                    <RunInspectionPanel
+                      report={report}
+                      loading={inspecting}
+                      onCiteEvent={showCitedEvent}
+                    />
+                  </TabsContent>
+                </Tabs>
+                {exportError ? <p className="text-sm text-destructive">{exportError}</p> : null}
               </CardContent>
 
               <CardFooter className="gap-2 border-t">
                 <Button type="button" variant="outline" size="sm" onClick={() => exportRun(open)}>
                   <Download />
                   Export
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!report || inspecting}
+                  onClick={() => void handleEvidence()}
+                >
+                  <Package />
+                  Export evidence
                 </Button>
                 <Button
                   type="button"
