@@ -1,0 +1,20 @@
+{
+  "name": "Pathline (API + browser client)",
+  "install": "./scripts/cloud-agent-install.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "description": "Thin FastAPI service (identity + encrypted artifact storage) on http://localhost:8000 (/health, /docs). Uses development secret defaults.",
+      "command": "source .venv/bin/activate && uvicorn pathline_api.main:app --host 127.0.0.1 --port 8000 --reload"
+    },
+    {
+      "name": "client",
+      "description": "Vite React authoring / manual-fallback client on http://localhost:3000. Proxies /api -> :8000.",
+      "command": "cd client && npm run dev -- --host 127.0.0.1 --port 3000 --strictPort"
+    }
+  ],
+  "ports": [
+    { "name": "client", "port": 3000 },
+    { "name": "api", "port": 8000 }
+  ]
+}
