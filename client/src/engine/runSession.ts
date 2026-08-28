@@ -148,14 +148,26 @@ export class RunSession {
   async processPhrase(text: string): Promise<ProcessPhraseResult> {
     const { path, variables, transport } = this.options;
     const automated = transport !== null;
+    const phrase = text.trim();
+    const heard = Boolean(phrase && !this.state.completed && phrase !== this.state.lastPhrase);
 
     const result = processPhrase(text, path, variables, this.state, { automated });
     this.state = result.state;
 
+    if (heard) {
+      await this.ledger.append({
+        type: "PROMPT_DETECTED",
+        metadata: { phraseLength: phrase.length },
+      });
+    }
+
     if (result.matched) {
       await this.ledger.append({
         type: "PHRASE_MATCHED",
-        metadata: { phraseLength: text.trim().length },
+        metadata: {
+          phraseLength: phrase.length,
+          ...(result.matchedStep ? { step: result.matchedStep } : {}),
+        },
       });
     }
 

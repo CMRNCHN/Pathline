@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LedgerEventRow } from "@/components/history/LedgerEventRow";
 import { CallStateBoard } from "@/components/CallStateBoard";
 import { DtmfGuide } from "@/components/DtmfGuide";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@/callstate";
 import type { CallEvent } from "@/callstate";
 import type { RunLifecycle, RunSession } from "@/engine/runSession";
+import { hashCollected } from "@/engine/runEngine";
 import { recordRun } from "@/history/runHistory";
 import { isSpeechRecognitionAvailable } from "@/localStt";
 import { createSttEngine } from "@/stt";
@@ -161,19 +163,23 @@ export function RunActivePanel({
       !historyRef.current
     ) {
       historyRef.current = true;
-      void runSession.getLedgerDigest().then((ledgerHead) =>
-        recordRun({
-          runId: sessionId,
-          pathId: script.id,
-          pathName: scriptDisplayName(script),
-          outcome: lifecycle.phase === "failed" ? "failed" : "abandoned",
-          startedAt: startedAtRef.current,
-          completedAt: new Date().toISOString(),
-          captured: runSession.getState().collected,
-          ledgerEvents: runSession.getEvents(),
-          ledgerHead,
-          uploadState: "not-requested",
-        })
+      const collected = runSession.getState().collected;
+      void Promise.all([runSession.getLedgerDigest(), hashCollected(collected)]).then(
+        ([ledgerHead, collectedHash]) =>
+          recordRun({
+            runId: sessionId,
+            pathId: script.id,
+            pathName: scriptDisplayName(script),
+            outcome: lifecycle.phase === "failed" ? "failed" : "abandoned",
+            startedAt: startedAtRef.current,
+            completedAt: new Date().toISOString(),
+            captured: collected,
+            ledgerEvents: runSession.getEvents(),
+            ledgerHead,
+            collectedHash,
+            definedSteps: path.definedSteps,
+            uploadState: "not-requested",
+          })
       );
     }
   }, [
@@ -330,6 +336,17 @@ export function RunActivePanel({
 
           <TabsContent value="audit" className="pt-4">
             <CallStateBoard liveStatus={liveStatus} path={path} label="Live callstate" />
+            {ledgerEvents.length > 0 && (
+              <ScrollArea className="mt-4 h-48 rounded-lg border">
+                <ul className="p-1">
+                  {ledgerEvents.map((event, index) => (
+                    <li key={event.id}>
+                      <LedgerEventRow event={event} index={index} />
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            )}
             {run.log.length > 0 && (
               <ScrollArea className="mt-4 h-48 rounded-lg border p-3">
                 <ul className="space-y-1 text-xs font-mono">

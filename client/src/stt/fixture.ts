@@ -151,12 +151,17 @@ export async function runPipelineFixture(): Promise<FixtureResult> {
   // Privacy: no transcript text may appear in the audit ledger.
   const transcriptLeakInLedger = scripted.some((p) => ledgerJson.includes(p));
 
+  const promptEvents = events.filter((event) => event.type === "PROMPT_DETECTED");
+  const matchedEvents = events.filter((event) => event.type === "PHRASE_MATCHED");
+
   const checks = {
     fourPhrasesTranscribed: phrases.length === 4,
     mainMenuAndPinDtmf: dtmf === "11234#",
     balanceCaptured: state.collected.account_balance === "the code 1234",
     runCompleted: state.completed === true,
     noTranscriptInLedger: !transcriptLeakInLedger,
+    promptsRecorded: promptEvents.length === 4,
+    matchedStepsPresent: matchedEvents.every((event) => typeof event.metadata?.step === "string"),
   };
 
   const ok = Object.values(checks).every(Boolean);

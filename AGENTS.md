@@ -78,3 +78,11 @@ endpoint. `Ctrl+C` (or `./scripts/stop.sh`) stops background services. Logs:
   call for a production Run.
 - Lab dialing requires `PATHLINE_SIP_PROFILE=lab` on loopback (`lab-desktop.sh`
   sets this). Plain RTP is lab-only.
+
+### On-device inspection
+Replay timeline, Path-aware anomalies, and evidence packs live in
+`client/src/audit/` and the History UI. They read the on-device `EventLedger`
+only. Inspection reports and evidence zips must never be posted to the API.
+Call audio is not retained (PCM is transcribed in memory and discarded).
+Do not merge `next/replay-and-runtime-usability` or `migrate/analyst-telecom`;
+those trees are a Twilio/discovery lineage, not the shipping path.

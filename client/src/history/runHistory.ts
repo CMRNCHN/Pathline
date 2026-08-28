@@ -13,7 +13,12 @@ export interface RunRecord {
   completedAt: string;
   captured: Record<string, string>;
   ledgerEvents?: CallEvent[];
+  /** SHA-256 digest of the full event array (`exportLedgerDigest`). */
   ledgerHead?: string;
+  /** SHA-256 of captured fields JSON. Distinct from `ledgerHead`. */
+  collectedHash?: string;
+  /** Workflow step labels at Run time — inspection must not depend on later edits. */
+  definedSteps?: string[];
   uploadState?: UploadState;
   uploadError?: string;
   pendingUpload?: {

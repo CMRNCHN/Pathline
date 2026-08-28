@@ -45,8 +45,10 @@ describe("runtime action dispatch", () => {
     const speech = processPhrase("say name", document, {}, initialRunState(), { automated: true });
 
     expect(keypad.dtmfAction?.sequence).toBe("1234#");
+    expect(keypad.matchedStep).toBe("keys");
     expect(keypad.speechAction).toBeUndefined();
     expect(speech.speechAction?.text).toBe("Cameron");
+    expect(speech.matchedStep).toBe("speech");
     expect(speech.dtmfAction).toBeUndefined();
   });
 });
