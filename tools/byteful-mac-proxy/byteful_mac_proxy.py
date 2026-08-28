@@ -10,6 +10,7 @@ import re
 import secrets
 import shlex
 import socket
+import subprocess
 import threading
 import urllib.parse
 import webbrowser
@@ -708,8 +709,8 @@ def serve(port: int, open_browser: bool) -> None:
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     httpd.token = token  # type: ignore[attr-defined]
     url = f"http://127.0.0.1:{port}/?token={token}"
-    print(f"Byteful Mac Proxy GUI: {url}")
-    print("Leave this terminal open. Press Ctrl+C to quit.")
+    print(f"Byteful Mac Proxy GUI: {url}", flush=True)
+    print("Leave this terminal open. Press Ctrl+C to quit.", flush=True)
     if open_browser:
         threading.Timer(0.3, lambda: webbrowser.open(url)).start()
     try:
@@ -775,6 +776,16 @@ def self_test() -> int:
     if any("secret" in line for line in public):
         failed += 1
         print("FAIL password leaked in public command list")
+    probe = test_proxy(ProxySpec("127.0.0.1", 1, "user", "secret"))
+    if "subprocess" in str(probe).lower() and "not defined" in str(probe).lower():
+        failed += 1
+        print(f"FAIL test_proxy crashed: {probe}")
+    if probe.get("ok") is True:
+        failed += 1
+        print("FAIL test_proxy unexpectedly succeeded against 127.0.0.1:1")
+    if probe.get("ok") is False and not probe.get("error"):
+        failed += 1
+        print(f"FAIL test_proxy returned no error: {probe}")
     if failed:
         print(f"{failed} self-test(s) failed")
         return 1
