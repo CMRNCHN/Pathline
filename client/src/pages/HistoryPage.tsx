@@ -26,7 +26,7 @@ import {
   type RunRecord,
 } from "../history/runHistory";
 import { inspectRun, buildEvidencePack, downloadEvidencePack, type RunInspectionReport } from "@/audit";
-import { pathFromScript } from "@/callstate";
+import { definedStepsForRecord, pathFromScript } from "@/callstate";
 import { RunInspectionPanel } from "@/components/history/RunInspectionPanel";
 import { RunReplayPanel } from "@/components/history/RunReplayPanel";
 import { getActiveScript } from "@/script/selectors";
@@ -83,7 +83,10 @@ export function RunsPage() {
     ? getActiveScript(bundledScripts, customScripts, open.pathId)
     : undefined;
   const definedSteps = useMemo(() => {
-    if (open?.definedSteps && open.definedSteps.length > 0) return open.definedSteps;
+    if (open) {
+      const stored = definedStepsForRecord(open);
+      if (stored.length > 0) return stored;
+    }
     if (liveScript) return pathFromScript(liveScript).definedSteps;
     return [];
   }, [open, liveScript]);

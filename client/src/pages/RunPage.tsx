@@ -13,6 +13,8 @@ import type { LocalCall } from "../types";
 import { CallStateBoard } from "../components/CallStateBoard";
 import {
   pathFromScript,
+  pathSnapshotFromScript,
+  definedStepsFromSnapshot,
   projectLiveStatus,
   callFromSession,
   exportLedgerDigest,
@@ -208,6 +210,7 @@ function RunFlow({
       const ledgerHead = await exportLedgerDigest(callEvents);
       // Crash-safe ordering: persist local History, the audit chain, and the
       // exact idempotent retry payload before attempting any network upload.
+      const snapshot = pathSnapshotFromScript(activeRun.script);
       await recordRun({
         runId: session.sessionId,
         pathId: session.scriptId,
@@ -219,7 +222,8 @@ function RunFlow({
         ledgerEvents: callEvents,
         ledgerHead,
         collectedHash: transcriptHash,
-        definedSteps: pathFromScript(activeRun.script).definedSteps,
+        definedSteps: definedStepsFromSnapshot(snapshot),
+        pathSnapshot: snapshot,
         uploadState: "pending",
         pendingUpload: upload,
       });

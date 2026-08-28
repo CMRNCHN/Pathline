@@ -1,4 +1,5 @@
 import type { CallEvent } from "../callstate";
+import type { PathSnapshot } from "../callstate/adapters";
 
 export type RunOutcome = "completed" | "failed" | "abandoned";
 export type UploadState = "pending" | "uploaded" | "failed" | "not-requested";
@@ -19,6 +20,8 @@ export interface RunRecord {
   collectedHash?: string;
   /** Workflow step labels at Run time — inspection must not depend on later edits. */
   definedSteps?: string[];
+  /** Observation-only Workflow snapshot (labels + rule types, no When/Then). */
+  pathSnapshot?: PathSnapshot;
   uploadState?: UploadState;
   uploadError?: string;
   pendingUpload?: {

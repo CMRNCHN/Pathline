@@ -153,6 +153,9 @@ export async function runPipelineFixture(): Promise<FixtureResult> {
 
   const promptEvents = events.filter((event) => event.type === "PROMPT_DETECTED");
   const matchedEvents = events.filter((event) => event.type === "PHRASE_MATCHED");
+  const completedSteps = events
+    .filter((event) => event.type === "STEP_COMPLETED")
+    .map((event) => event.metadata?.step);
 
   const checks = {
     fourPhrasesTranscribed: phrases.length === 4,
@@ -162,6 +165,8 @@ export async function runPipelineFixture(): Promise<FixtureResult> {
     noTranscriptInLedger: !transcriptLeakInLedger,
     promptsRecorded: promptEvents.length === 4,
     matchedStepsPresent: matchedEvents.every((event) => typeof event.metadata?.step === "string"),
+    extractAndEndCompleted:
+      completedSteps.includes("read_status") && completedSteps.includes("end_call"),
   };
 
   const ok = Object.values(checks).every(Boolean);

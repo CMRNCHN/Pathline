@@ -1,4 +1,4 @@
-import { stepFromMetadata, type CallEvent } from "../callstate";
+import { definedStepsForRecord, stepFromMetadata, type CallEvent } from "../callstate";
 import type { RunRecord } from "../history/runHistory";
 import { statusAtOffset } from "./cursor";
 import type { ArtifactAvailability, ChronologyEntry, RunInspectionReport } from "./types";
@@ -47,7 +47,7 @@ function artifactAvailability(events: CallEvent[]): ArtifactAvailability[] {
 
 export async function inspectRun(record: RunRecord): Promise<RunInspectionReport> {
   const events = record.ledgerEvents ?? [];
-  const definedSteps = record.definedSteps ?? [];
+  const definedSteps = definedStepsForRecord(record);
   const ledger = await verifyLedger(record.runId, events);
   const chronology = buildChronology(events);
   const origin = events[0] ? parseTime(events[0].timestamp) : 0;
@@ -94,6 +94,7 @@ export async function inspectRun(record: RunRecord): Promise<RunInspectionReport
       skippedSteps,
       activeStep: live.activeStep,
       finalOutcome: live.finalOutcome,
+      pathSnapshot: record.pathSnapshot,
     },
     correlation: {
       startToFirstPromptMs: firstPrompt ? Math.max(0, parseTime(firstPrompt.timestamp) - origin) : null,

@@ -1,3 +1,5 @@
+import type { PathSnapshot } from "../callstate/adapters";
+
 export type AnomalySeverity = "info" | "warn" | "error";
 
 export type AnomalyCode =
@@ -83,6 +85,7 @@ export interface RunInspectionReport {
     skippedSteps: string[];
     activeStep: string | null;
     finalOutcome: string | null;
+    pathSnapshot?: PathSnapshot;
   };
   correlation: {
     startToFirstPromptMs: number | null;

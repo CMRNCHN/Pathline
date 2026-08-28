@@ -208,6 +208,13 @@ export class RunSession {
       await this.ledger.append({ type: "STEP_COMPLETED", metadata: { step } });
     }
 
+    if (result.completeStep && result.matchedStep && !result.dtmfAction && !result.speechAction) {
+      await this.ledger.append({
+        type: "STEP_COMPLETED",
+        metadata: { step: result.matchedStep },
+      });
+    }
+
     if (result.shouldComplete) {
       // A transport disconnect may already be flushing final STT. In that
       // case the disconnect finalizer observes state.completed after this

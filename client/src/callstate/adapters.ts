@@ -1,15 +1,50 @@
 import type { PathDocument, RunLogEntry } from "../script/types";
 import type { Call, CallEvent, CallEventType } from "./types";
 
-export function pathFromScript(script: PathDocument) {
+/** Observation-only Workflow snapshot stored with a Run. No When/Then secrets. */
+export interface PathSnapshot {
+  id: string;
+  version: number;
+  name: string;
+  steps: { id: string; label: string; rule: string }[];
+}
+
+export function pathSnapshotFromScript(script: PathDocument): PathSnapshot {
   const steps = script.steps
     .filter((r) => r.rule !== "End call")
-    .map((r) => r.label || r.when.slice(0, 32));
-
+    .map((r) => ({
+      id: r.id,
+      label: r.label || r.when.slice(0, 32),
+      rule: r.rule,
+    }));
   return {
     id: script.id,
-    intent: script.setup.name || script.id,
-    definedSteps: steps.length ? steps : ["start"],
+    version: script.version,
+    name: script.setup.name || script.id,
+    steps,
+  };
+}
+
+export function definedStepsFromSnapshot(snapshot: PathSnapshot): string[] {
+  const labels = snapshot.steps.map((step) => step.label).filter(Boolean);
+  return labels.length ? labels : ["start"];
+}
+
+export function definedStepsForRecord(record: {
+  definedSteps?: string[];
+  pathSnapshot?: PathSnapshot;
+}): string[] {
+  if (record.pathSnapshot) return definedStepsFromSnapshot(record.pathSnapshot);
+  if (record.definedSteps && record.definedSteps.length > 0) return record.definedSteps;
+  return [];
+}
+
+export function pathFromScript(script: PathDocument) {
+  const snapshot = pathSnapshotFromScript(script);
+  return {
+    id: snapshot.id,
+    intent: snapshot.name,
+    definedSteps: definedStepsFromSnapshot(snapshot),
   };
 }
 

@@ -5,6 +5,8 @@ import { DtmfGuide } from "@/components/DtmfGuide";
 import {
   callFromSession,
   pathFromScript,
+  pathSnapshotFromScript,
+  definedStepsFromSnapshot,
   projectLiveStatus,
   runLogToCallEvents,
 } from "@/callstate";
@@ -164,6 +166,7 @@ export function RunActivePanel({
     ) {
       historyRef.current = true;
       const collected = runSession.getState().collected;
+      const snapshot = pathSnapshotFromScript(script);
       void Promise.all([runSession.getLedgerDigest(), hashCollected(collected)]).then(
         ([ledgerHead, collectedHash]) =>
           recordRun({
@@ -177,7 +180,8 @@ export function RunActivePanel({
             ledgerEvents: runSession.getEvents(),
             ledgerHead,
             collectedHash,
-            definedSteps: path.definedSteps,
+            definedSteps: definedStepsFromSnapshot(snapshot),
+            pathSnapshot: snapshot,
             uploadState: "not-requested",
           })
       );

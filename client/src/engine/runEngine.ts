@@ -14,6 +14,8 @@ export interface ProcessPhraseResult {
   shouldComplete: boolean;
   /** Path step id/label when `matched` is true. Observation-only — never phrase text. */
   matchedStep?: string;
+  /** True when this match finishes a non-injection step (extract/end/pass/validate). */
+  completeStep?: boolean;
   dtmfAction?: {
     step: string;
     sequence: string;
@@ -99,6 +101,7 @@ export function processPhrase(
         },
         matched: true,
         matchedStep: step.triggerLabel ?? step.detect,
+        completeStep: true,
         shouldComplete: false,
       };
     }
@@ -171,6 +174,7 @@ export function processPhrase(
         state: { ...base, collected, log },
         matched: Boolean(value && field),
         matchedStep: Boolean(value && field) ? (step.triggerLabel ?? step.detect) : undefined,
+        completeStep: Boolean(value && field),
         shouldComplete: false,
       };
     }
@@ -190,6 +194,7 @@ export function processPhrase(
         state: { ...base, log },
         matched: ok,
         matchedStep: ok ? (step.triggerLabel ?? "validate") : undefined,
+        completeStep: ok,
         shouldComplete: false,
       };
     }
@@ -200,6 +205,7 @@ export function processPhrase(
         state: { ...base, log, completed: true },
         matched: true,
         matchedStep: step.triggerLabel ?? step.detect,
+        completeStep: true,
         shouldComplete: true,
       };
     }

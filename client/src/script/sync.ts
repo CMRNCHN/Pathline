@@ -48,7 +48,7 @@ export function syncConversationFlowFromRules(
         id: prev?.id ?? newId(),
         detect,
         action,
-        triggerLabel: action === "trigger" || action === "extract" ? step.label : undefined,
+        triggerLabel: step.label.trim() ? step.label : undefined,
       };
     });
 }

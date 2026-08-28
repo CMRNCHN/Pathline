@@ -1,4 +1,4 @@
-import { sha256Bytes } from "../callstate";
+import { sha256Bytes, definedStepsForRecord } from "../callstate";
 import type { RunRecord } from "../history/runHistory";
 import type { RunInspectionReport } from "./types";
 import { buildStoreZip, type ZipFile } from "./zip";
@@ -25,7 +25,8 @@ function sanitizeRun(record: RunRecord): Record<string, unknown> {
     ledgerEvents: record.ledgerEvents ?? [],
     ledgerHead: record.ledgerHead,
     collectedHash: record.collectedHash,
-    definedSteps: record.definedSteps ?? [],
+    definedSteps: definedStepsForRecord(record),
+    pathSnapshot: record.pathSnapshot,
     uploadState: record.uploadState,
   };
 }

@@ -78,6 +78,11 @@ endpoint. `Ctrl+C` (or `./scripts/stop.sh`) stops background services. Logs:
   call for a production Run.
 - Lab dialing requires `PATHLINE_SIP_PROFILE=lab` on loopback (`lab-desktop.sh`
   sets this). Plain RTP is lab-only.
+- The interactive Tauri/Asterisk GUI Run (`docs/production-acceptance.md`) is an
+  **operator gate**. Headless cloud VMs typically lack Docker Asterisk, the
+  bundled Whisper model, and a signed macOS desktop. Do not check that gate off
+  from a simulated ledger. Use `SKIP_LAB_PREFLIGHT=1 bash scripts/lab-verify-flow.sh`
+  plus `client/src/engine/labLedger.test.ts` for engine-chain inspection.
 
 ### On-device inspection
 Replay timeline, Path-aware anomalies, and evidence packs live in
