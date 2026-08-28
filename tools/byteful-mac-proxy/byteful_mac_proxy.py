@@ -329,8 +329,13 @@ def apply_spec(spec: ProxySpec, scope: str) -> dict:
         commands = apply_commands(spec, services)
         return {
             "ok": False,
-            "error": "This helper only writes macOS System Settings. Run it on your MacBook.",
+            "error": (
+                "Nothing was changed. This window is running on Linux/Windows, "
+                "not macOS, so it cannot edit your MacBook. Copy the script below "
+                "into Terminal on the Mac, or run this same Python file on the Mac."
+            ),
             "would_run": _public_commands(commands),
+            "mac_script": mac_apply_script(spec),
             "services": services,
         }
     services = services_for_scope(scope)
@@ -343,13 +348,61 @@ def disable_proxy(scope: str) -> dict:
         services = ["Wi-Fi"]
         return {
             "ok": False,
-            "error": "This helper only writes macOS System Settings. Run it on your MacBook.",
+            "error": (
+                "Nothing was changed. This window is not running on macOS. "
+                "Copy the script below into Terminal on your MacBook to turn the proxy off."
+            ),
             "would_run": _public_commands(off_commands(services)),
+            "mac_script": mac_off_script(),
             "services": services,
         }
     services = services_for_scope(scope)
     results = _run_all(off_commands(services))
     return {"ok": True, "services": services, "results": results}
+
+
+def mac_apply_script(spec: ProxySpec) -> str:
+    user = shlex.quote(spec.username)
+    password = shlex.quote(spec.password)
+    host = shlex.quote(spec.host)
+    port = shlex.quote(str(spec.port))
+    bypass = " ".join(shlex.quote(item) for item in BYPASS_DOMAINS)
+    return f"""#!/bin/bash
+set -euo pipefail
+USER={user}
+PASS={password}
+HOST={host}
+PORT={port}
+networksetup -listallnetworkservices | awk 'NR>1 && $0 !~ /^\\*/' | while IFS= read -r S; do
+  echo "Applying Byteful proxy on $S"
+  networksetup -setproxyautodiscovery "$S" off
+  networksetup -setautoproxystate "$S" off
+  networksetup -setwebproxy "$S" "$HOST" "$PORT" on "$USER" "$PASS"
+  networksetup -setwebproxystate "$S" on
+  networksetup -setsecurewebproxy "$S" "$HOST" "$PORT" on "$USER" "$PASS"
+  networksetup -setsecurewebproxystate "$S" on
+  networksetup -setftpproxystate "$S" off
+  networksetup -setstreamingproxystate "$S" off
+  networksetup -setgopherproxystate "$S" off
+  networksetup -setsocksfirewallproxy "$S" "$HOST" "$PORT" on "$USER" "$PASS"
+  networksetup -setsocksfirewallproxystate "$S" on
+  networksetup -setproxybypassdomains "$S" {bypass}
+done
+echo "Done. Test: curl -sS -x http://$USER@$HOST:$PORT https://ipinfo.io/json"
+"""
+
+
+def mac_off_script() -> str:
+    return """#!/bin/bash
+set -euo pipefail
+networksetup -listallnetworkservices | awk 'NR>1 && $0 !~ /^\\*/' | while IFS= read -r S; do
+  echo "Clearing proxy on $S"
+  networksetup -setwebproxystate "$S" off
+  networksetup -setsecurewebproxystate "$S" off
+  networksetup -setsocksfirewallproxystate "$S" off
+done
+echo "System proxy off."
+"""
 
 
 def current_status(scope: str) -> dict:
@@ -694,7 +747,10 @@ PAGE_HTML = """<!DOCTYPE html>
       if (!res.ok || data.ok === false) {
         let msg = data.error || ("Request failed (" + res.status + ")");
         if (data.would_run && data.would_run.length) {
-          msg += "\\n\\nCommands that would run on a Mac:\\n" + data.would_run.join("\\n");
+          msg += "\\n\\nPreview (password hidden):\\n" + data.would_run.join("\\n");
+        }
+        if (data.mac_script) {
+          msg += "\\n\\nPaste this into Terminal on your MacBook:\\n" + data.mac_script;
         }
         throw new Error(msg);
       }
@@ -994,6 +1050,10 @@ def self_test() -> int:
     if "portsmouth" not in spec_label(csv_specs[0]) or "AAA" not in spec_label(csv_specs[0]):
         failed += 1
         print(f"FAIL label: {spec_label(csv_specs[0])}")
+    script = mac_apply_script(csv_specs[0])
+    if "networksetup -setwebproxy" not in script or "secret" not in script:
+        failed += 1
+        print("FAIL mac_apply_script missing HTTP proxy or password")
     probe = test_proxy(ProxySpec("127.0.0.1", 1, "user", "secret"))
     if "subprocess" in str(probe).lower() and "not defined" in str(probe).lower():
         failed += 1
