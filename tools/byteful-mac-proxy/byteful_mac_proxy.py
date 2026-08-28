@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import platform
 import re
@@ -21,8 +23,21 @@ from typing import Iterable
 DEFAULT_HOST = "residential.byteful.com"
 DEFAULT_PORT = 8000
 BYPASS_DOMAINS = ["127.0.0.1", "localhost", "*.local", "::1"]
-TEST_URL = "https://api.ipify.org"
+TEST_URL = "https://ipinfo.io/json"
 IS_MAC = platform.system() == "Darwin"
+AUTH_PROXY_FLAGS = {
+    "-setsocksfirewallproxy",
+    "-setwebproxy",
+    "-setsecurewebproxy",
+}
+CURL_PROXY_RE = re.compile(
+    r"(?:^|\s)(?:-x|--proxy|--socks5-hostname|--socks5)\s+['\"]?(\S+)",
+    re.I,
+)
+CURL_USER_RE = re.compile(
+    r"(?:^|\s)(?:-U|--proxy-user)\s+['\"]?([^'\"\s]+)",
+    re.I,
+)
 
 
 @dataclass
@@ -43,11 +58,85 @@ def _unquote(value: str) -> str:
 
 
 def parse_proxy_string(raw: str) -> ProxySpec:
-    """Parse a Byteful (or generic) proxy string into host/port/user/pass."""
+    """Parse the first proxy from a Byteful string, curl command, or CSV."""
+    return parse_proxy_input(raw)[0]
+
+
+def parse_proxy_input(raw: str) -> list[ProxySpec]:
+    text = (raw or "").strip().strip("\ufeff")
+    if not text:
+        raise ParseError("Paste a Byteful proxy string, curl -x command, or CSV first.")
+
+    curl_proxy = _extract_curl_proxy(text)
+    if curl_proxy:
+        return [_parse_one_proxy(curl_proxy)]
+
+    csv_specs = _parse_csv(text)
+    if csv_specs:
+        return csv_specs
+
+    specs: list[ProxySpec] = []
+    for line in text.splitlines():
+        line = line.strip().strip('"').strip("'")
+        if not line or line.startswith("#"):
+            continue
+        specs.append(_parse_one_proxy(line))
+    if not specs:
+        raise ParseError("Could not parse that Byteful paste.")
+    return specs
+
+
+def _extract_curl_proxy(text: str) -> str | None:
+    match = CURL_PROXY_RE.search(text)
+    if not match:
+        return None
+    token = match.group(1).strip().strip("'\"")
+    user = CURL_USER_RE.search(text)
+    if user and "@" not in token:
+        creds = user.group(1).strip().strip("'\"")
+        if "://" in token:
+            scheme, rest = token.split("://", 1)
+            token = f"{scheme}://{creds}@{rest}"
+        else:
+            token = f"http://{creds}@{token}"
+    return token
+
+
+def _parse_csv(text: str) -> list[ProxySpec] | None:
+    first = text.splitlines()[0].strip().lower()
+    if "host" not in first or "port" not in first:
+        return None
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return None
+    mapping = {name.strip().lower(): name for name in reader.fieldnames if name}
+    if "host" not in mapping or "port" not in mapping:
+        return None
+    specs: list[ProxySpec] = []
+    for row in reader:
+        host = _csv_get(row, mapping, "host", "hostname", "server")
+        port = _csv_get(row, mapping, "port")
+        if not host or not port:
+            continue
+        username = _csv_get(row, mapping, "username", "user", "proxy_user")
+        password = _csv_get(row, mapping, "password", "pass")
+        scheme = _csv_get(row, mapping, "scheme", "protocol", "type") or "socks5h"
+        specs.append(_spec(host, port, username, password, scheme))
+    return specs or None
+
+
+def _csv_get(row: dict, mapping: dict[str, str], *names: str) -> str:
+    for name in names:
+        key = mapping.get(name)
+        if key is not None:
+            return (row.get(key) or "").strip()
+    return ""
+
+
+def _parse_one_proxy(raw: str) -> ProxySpec:
     text = (raw or "").strip().strip('"').strip("'")
     if not text:
         raise ParseError("Paste a Byteful proxy string first.")
-    text = text.splitlines()[0].strip().strip('"').strip("'")
     text = text.rstrip("/")
 
     if "://" in text.split("@", 1)[-1] or re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", text):
@@ -75,8 +164,8 @@ def _parse_url(text: str) -> ProxySpec:
     scheme = (parsed.scheme or "socks5h").lower()
     if scheme in {"socks", "socks5"}:
         scheme = "socks5h"
-    elif scheme in {"http", "https"}:
-        scheme = "socks5h"
+    elif scheme == "https":
+        scheme = "http"
     return _spec(
         parsed.hostname,
         str(port),
@@ -84,6 +173,15 @@ def _parse_url(text: str) -> ProxySpec:
         _unquote(parsed.password or ""),
         scheme,
     )
+
+
+def _normalize_scheme(scheme: str) -> str:
+    value = (scheme or "socks5h").strip().lower()
+    if value in {"socks", "socks5", "socks5h"}:
+        return "socks5h"
+    if value in {"http", "https"}:
+        return "http"
+    return "socks5h"
 
 
 def _spec(host: str, port_s: str, username: str, password: str, scheme: str = "socks5h") -> ProxySpec:
@@ -101,12 +199,29 @@ def _spec(host: str, port_s: str, username: str, password: str, scheme: str = "s
         port=port,
         username=_unquote(username.strip()),
         password=_unquote(password),
-        scheme=scheme or "socks5h",
+        scheme=_normalize_scheme(scheme),
     )
 
 
-def spec_from_fields(host: str, port: str | int, username: str, password: str) -> ProxySpec:
-    return _spec(host, str(port).strip(), username, password)
+def spec_label(spec: ProxySpec) -> str:
+    session = ""
+    match = re.search(r"_s_([A-Za-z0-9]+)", spec.username)
+    if match:
+        session = match.group(1)
+    city = ""
+    match = re.search(r"_city_(.+?)(?:_state_|_s_|_ttl_|_asn_|$)", spec.username)
+    if match:
+        city = match.group(1).replace("us_va_", "").replace("_", " ")
+    parts = [f"{spec.host}:{spec.port}", spec.scheme]
+    if city:
+        parts.append(city)
+    if session:
+        parts.append(f"sticky {session}")
+    return " · ".join(parts)
+
+
+def spec_from_fields(host: str, port: str | int, username: str, password: str, scheme: str = "socks5h") -> ProxySpec:
+    return _spec(host, str(port).strip(), username, password, scheme)
 
 
 def network_services() -> list[str]:
@@ -168,8 +283,10 @@ def apply_commands(spec: ProxySpec, services: Iterable[str]) -> list[list[str]]:
             [
                 ["networksetup", "-setproxyautodiscovery", service, "off"],
                 ["networksetup", "-setautoproxystate", service, "off"],
-                ["networksetup", "-setwebproxystate", service, "off"],
-                ["networksetup", "-setsecurewebproxystate", service, "off"],
+                ["networksetup", "-setwebproxy", service, spec.host, str(spec.port), *auth],
+                ["networksetup", "-setwebproxystate", service, "on"],
+                ["networksetup", "-setsecurewebproxy", service, spec.host, str(spec.port), *auth],
+                ["networksetup", "-setsecurewebproxystate", service, "on"],
                 ["networksetup", "-setftpproxystate", service, "off"],
                 ["networksetup", "-setstreamingproxystate", service, "off"],
                 ["networksetup", "-setgopherproxystate", service, "off"],
@@ -182,7 +299,16 @@ def apply_commands(spec: ProxySpec, services: Iterable[str]) -> list[list[str]]:
 
 
 def off_commands(services: Iterable[str]) -> list[list[str]]:
-    return [["networksetup", "-setsocksfirewallproxystate", service, "off"] for service in services]
+    commands: list[list[str]] = []
+    for service in services:
+        commands.extend(
+            [
+                ["networksetup", "-setwebproxystate", service, "off"],
+                ["networksetup", "-setsecurewebproxystate", service, "off"],
+                ["networksetup", "-setsocksfirewallproxystate", service, "off"],
+            ]
+        )
+    return commands
 
 
 def socks_status(services: Iterable[str]) -> list[dict[str, str]]:
@@ -234,13 +360,24 @@ def current_status(scope: str) -> dict:
 
 
 def test_proxy(spec: ProxySpec) -> dict:
+    order = ["http", "socks5h"] if spec.scheme == "http" else ["socks5h", "http"]
+    last: dict = {"ok": False, "error": "Proxy test failed."}
+    for scheme in order:
+        last = _curl_via(spec, scheme)
+        if last.get("ok"):
+            return last
+    return last
+
+
+def _curl_via(spec: ProxySpec, scheme: str) -> dict:
+    prefix = "http" if scheme == "http" else "socks5h"
     cmd = [
         "curl",
         "-sS",
         "-m",
         "20",
         "--proxy",
-        f"socks5h://{spec.host}:{spec.port}",
+        f"{prefix}://{spec.host}:{spec.port}",
     ]
     if spec.username:
         cmd.extend(["--proxy-user", f"{spec.username}:{spec.password}"])
@@ -253,11 +390,32 @@ def test_proxy(spec: ProxySpec) -> dict:
         return {"ok": False, "error": "The test timed out talking to Byteful."}
     if completed.returncode != 0:
         err = (completed.stderr or completed.stdout or "curl failed").strip()
-        return {"ok": False, "error": _redact(err, spec)}
-    ip = (completed.stdout or "").strip()
-    if not re.match(r"^[0-9a-fA-F:.]+$", ip):
+        return {"ok": False, "error": _redact(err, spec), "via": f"{prefix}://{spec.host}:{spec.port}"}
+    body = (completed.stdout or "").strip()
+    details = _parse_ipinfo(body)
+    if not details:
         return {"ok": False, "error": "Unexpected test response from the proxy."}
-    return {"ok": True, "exit_ip": ip, "via": f"socks5h://{spec.host}:{spec.port}"}
+    return {
+        "ok": True,
+        "exit_ip": details["ip"],
+        "city": details.get("city") or "",
+        "region": details.get("region") or "",
+        "country": details.get("country") or "",
+        "org": details.get("org") or "",
+        "via": f"{prefix}://{spec.host}:{spec.port}",
+    }
+
+
+def _parse_ipinfo(body: str) -> dict | None:
+    if re.match(r"^[0-9a-fA-F:.]+$", body):
+        return {"ip": body}
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict) or not data.get("ip"):
+        return None
+    return data
 
 
 def _redact(text: str, spec: ProxySpec) -> str:
@@ -269,14 +427,15 @@ def _redact(text: str, spec: ProxySpec) -> str:
     return redacted
 
 
+def _redact_cmd(cmd: list[str]) -> list[str]:
+    shown = list(cmd)
+    if any(flag in shown for flag in AUTH_PROXY_FLAGS) and len(shown) >= 8 and shown[-3] == "on":
+        shown[-1] = "***"
+    return shown
+
+
 def _public_commands(commands: list[list[str]]) -> list[str]:
-    public = []
-    for cmd in commands:
-        shown = list(cmd)
-        if "-setsocksfirewallproxy" in shown and len(shown) >= 8 and shown[-3] == "on":
-            shown[-1] = "***"
-        public.append(shlex.join(shown))
-    return public
+    return [shlex.join(_redact_cmd(cmd)) for cmd in commands]
 
 
 def _run(cmd: list[str], check: bool = False) -> subprocess.CompletedProcess[str]:
@@ -293,7 +452,7 @@ def _run_all(commands: list[list[str]]) -> list[str]:
             break
         if completed.returncode != 0:
             detail = (completed.stderr or completed.stdout or "command failed").strip()
-            raise RuntimeError(f"{shlex.join(_public_cmd(cmd))}\n{detail}")
+            raise RuntimeError(f"{shlex.join(_redact_cmd(cmd))}\n{detail}")
         summary = cmd[1] if len(cmd) > 1 else cmd[0]
         service = cmd[2] if len(cmd) > 2 else ""
         lines.append(f"{summary} {service}".strip())
@@ -306,13 +465,6 @@ def _run_all(commands: list[list[str]]) -> list[str]:
         detail = (completed.stderr or completed.stdout or "administrator command failed").strip()
         raise RuntimeError(detail)
     return [f"{cmd[1]} {cmd[2]}".strip() for cmd in commands if len(cmd) > 2]
-
-
-def _public_cmd(cmd: list[str]) -> list[str]:
-    shown = list(cmd)
-    if "-setsocksfirewallproxy" in shown and len(shown) >= 8 and shown[-3] == "on":
-        shown[-1] = "***"
-    return shown
 
 
 def _needs_admin(completed: subprocess.CompletedProcess[str]) -> bool:
@@ -385,8 +537,11 @@ PAGE_HTML = """<!DOCTYPE html>
       padding: 10px 12px;
       font: inherit;
     }
-    textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    textarea { min-height: 88px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
     .row { display: grid; grid-template-columns: 1fr 120px; gap: 12px; }
+    .file-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .file-row input[type=file] { padding: 6px 0; border: 0; background: transparent; }
+    #sessionWrap { display: none; }
     .stack { margin-bottom: 14px; }
     .hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
     .scope {
@@ -446,12 +601,19 @@ PAGE_HTML = """<!DOCTYPE html>
 <body>
   <main>
     <h1>Byteful Mac Proxy</h1>
-    <p class="lede">Paste a residential proxy from Byteful. This writes SOCKS into macOS System Settings for the selected network services.</p>
+    <p class="lede">Paste a Byteful residential CSV, a curl -x command, or a single proxy string. This writes HTTP, HTTPS, and SOCKS into macOS System Settings.</p>
     <form id="form">
       <div class="stack">
-        <label for="raw">Byteful proxy string</label>
-        <textarea id="raw" placeholder="residential.byteful.com:8000:username:password" autocomplete="off" spellcheck="false"></textarea>
-        <p class="hint">Also accepts socks5h://user:pass@host:port and user:pass@host:port.</p>
+        <label for="raw">Byteful paste</label>
+        <textarea id="raw" placeholder="curl -x http://user:pass@residential.byteful.com:8166 https://ipinfo.io/json" autocomplete="off" spellcheck="false"></textarea>
+        <div class="file-row">
+          <input id="csv" type="file" accept=".csv,text/csv,text/plain" />
+        </div>
+        <p class="hint">Accepts Byteful CSV (Scheme,Host,Port,Username,Password), curl -x, socks5h://, or host:port:user:pass.</p>
+      </div>
+      <div class="stack" id="sessionWrap">
+        <label for="session">Sticky session</label>
+        <select id="session"></select>
       </div>
       <div class="row stack">
         <div>
@@ -470,6 +632,7 @@ PAGE_HTML = """<!DOCTYPE html>
       <div class="stack">
         <label for="password">Password</label>
         <input id="password" type="password" autocomplete="off" />
+        <input id="scheme" type="hidden" value="socks5h" />
       </div>
       <div class="stack">
         <label>Apply to</label>
@@ -480,25 +643,35 @@ PAGE_HTML = """<!DOCTYPE html>
       </div>
       <div class="actions">
         <button class="primary" type="submit">Apply to this Mac</button>
-        <button class="secondary" id="test" type="button">Test SOCKS5h</button>
+        <button class="secondary" id="test" type="button">Test proxy</button>
         <button class="danger" id="off" type="button">Turn proxy off</button>
       </div>
       <div id="log">Ready. Paste a Byteful string, then apply.</div>
     </form>
     <footer>
-      Byteful auto-detects HTTP vs SOCKS on the same host:port. This app always enables the macOS SOCKS proxy.
-      Safari and most system apps follow that setting. Some apps ignore it. macOS still resolves some DNS locally;
-      the Test button uses SOCKS5h (remote DNS) through curl.
+      Byteful auto-detects HTTP vs SOCKS on the same host:port. Apply enables HTTP, HTTPS, and SOCKS so Safari and curl -x both follow the proxy.
+      Sticky CSV rows keep their _s_ session IDs. The Test button tries SOCKS5h and HTTP against ipinfo.io.
     </footer>
   </main>
   <script>
     const token = new URLSearchParams(location.search).get("token") || "";
     const logEl = document.getElementById("log");
     const rawEl = document.getElementById("raw");
+    const sessionWrap = document.getElementById("sessionWrap");
+    const sessionEl = document.getElementById("session");
+    let proxies = [];
 
     function log(msg, kind) {
       logEl.textContent = msg;
       logEl.className = kind || "";
+    }
+    function fill(spec) {
+      if (!spec) return;
+      document.getElementById("host").value = spec.host;
+      document.getElementById("port").value = spec.port;
+      document.getElementById("username").value = spec.username || "";
+      document.getElementById("password").value = spec.password || "";
+      document.getElementById("scheme").value = spec.scheme || "socks5h";
     }
     function payload() {
       return {
@@ -507,6 +680,7 @@ PAGE_HTML = """<!DOCTYPE html>
         port: document.getElementById("port").value,
         username: document.getElementById("username").value,
         password: document.getElementById("password").value,
+        scheme: document.getElementById("scheme").value,
         scope: document.querySelector("input[name=scope]:checked").value
       };
     }
@@ -531,42 +705,59 @@ PAGE_HTML = """<!DOCTYPE html>
       if (!raw) return;
       try {
         const data = await api("/api/parse", { raw });
-        document.getElementById("host").value = data.host;
-        document.getElementById("port").value = data.port;
-        document.getElementById("username").value = data.username || "";
-        document.getElementById("password").value = data.password || "";
-        log("Parsed " + data.host + ":" + data.port + (data.username ? " as " + data.username : "") + ".", "ok");
+        proxies = data.proxies || [data];
+        sessionEl.innerHTML = "";
+        proxies.forEach((spec, index) => {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = spec.label || (spec.host + ":" + spec.port);
+          sessionEl.appendChild(option);
+        });
+        sessionWrap.style.display = proxies.length > 1 ? "block" : "none";
+        fill(proxies[0]);
+        const extra = proxies.length > 1 ? (" Loaded " + proxies.length + " sticky sessions.") : "";
+        log("Parsed " + (proxies[0].label || (data.host + ":" + data.port)) + "." + extra, "ok");
       } catch (err) {
         log(err.message, "err");
       }
     }
+    sessionEl.addEventListener("change", () => {
+      fill(proxies[Number(sessionEl.value)]);
+    });
+    document.getElementById("csv").addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      rawEl.value = await file.text();
+      parsePaste();
+    });
     rawEl.addEventListener("paste", () => setTimeout(parsePaste, 0));
     rawEl.addEventListener("blur", parsePaste);
     document.getElementById("form").addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
-        log("Applying SOCKS proxy…");
+        log("Applying HTTP, HTTPS, and SOCKS…");
         const data = await api("/api/apply");
         const extra = (data.would_run || []).join("\\n");
-        log("Applied SOCKS on: " + (data.services || []).join(", ") + (extra ? "\\n" + extra : ""), "ok");
+        log("Applied proxy on: " + (data.services || []).join(", ") + (extra ? "\\n" + extra : ""), "ok");
       } catch (err) {
         log(err.message, "err");
       }
     });
     document.getElementById("test").addEventListener("click", async () => {
       try {
-        log("Testing SOCKS5h through Byteful…");
+        log("Testing Byteful through ipinfo.io…");
         const data = await api("/api/test");
-        log("Proxy is working. Exit IP: " + data.exit_ip + "\\n" + data.via, "ok");
+        const place = [data.city, data.region, data.country].filter(Boolean).join(", ");
+        log("Proxy is working. Exit IP: " + data.exit_ip + (place ? "\\n" + place : "") + "\\n" + data.via, "ok");
       } catch (err) {
         log(err.message, "err");
       }
     });
     document.getElementById("off").addEventListener("click", async () => {
       try {
-        log("Turning SOCKS proxy off…");
+        log("Turning system proxy off…");
         const data = await api("/api/off");
-        log("SOCKS proxy off on: " + (data.services || []).join(", "), "ok");
+        log("Proxy off on: " + (data.services || []).join(", "), "ok");
       } catch (err) {
         log(err.message, "err");
       }
@@ -631,12 +822,13 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         try:
             data = self._read_json()
-            spec = _spec_from_request(data)
             if parsed.path == "/api/parse":
-                parsed_spec = parse_proxy_string(data.get("raw") or "")
-                payload = asdict(parsed_spec)
-                self._json(200, {"ok": True, **payload})
+                specs = parse_proxy_input(data.get("raw") or "")
+                first = asdict(specs[0])
+                proxies = [{**asdict(spec), "label": spec_label(spec)} for spec in specs]
+                self._json(200, {"ok": True, "count": len(specs), "proxies": proxies, **first})
                 return
+            spec = _spec_from_request(data)
             if parsed.path == "/api/apply":
                 result = apply_spec(spec, data.get("scope") or "all")
                 status = 200 if result.get("ok") else 400
@@ -686,8 +878,9 @@ def _spec_from_request(data: dict) -> ProxySpec:
     port = data.get("port") or ""
     username = data.get("username") or ""
     password = data.get("password") or ""
+    scheme = data.get("scheme") or "socks5h"
     if host and str(port).strip():
-        return spec_from_fields(host, port, username, password)
+        return spec_from_fields(host, port, username, password, scheme)
     if raw:
         return parse_proxy_string(raw)
     raise ParseError("Enter a Byteful server and port, or paste a proxy string.")
@@ -748,7 +941,7 @@ SELF_TESTS = [
     ),
     (
         "http://stevejobs:p%40ss@residential.byteful.com:8000",
-        ProxySpec("residential.byteful.com", 8000, "stevejobs", "p@ss"),
+        ProxySpec("residential.byteful.com", 8000, "stevejobs", "p@ss", "http"),
     ),
     (
         "  'residential.byteful.com:8000:stevejobs:apple:123'  ",
@@ -757,6 +950,16 @@ SELF_TESTS = [
     (
         "residential.byteful.com:8000",
         ProxySpec("residential.byteful.com", 8000, "", ""),
+    ),
+    (
+        'curl -x http://demo_c_us_city_portsmouth_s_ABC123:secret@residential.byteful.com:8166 "https://ipinfo.io/json"',
+        ProxySpec(
+            "residential.byteful.com",
+            8166,
+            "demo_c_us_city_portsmouth_s_ABC123",
+            "secret",
+            "http",
+        ),
     ),
 ]
 
@@ -772,10 +975,25 @@ def self_test() -> int:
     if not any(cmd[1] == "-setsocksfirewallproxy" and "secret" in cmd for cmd in cmds):
         failed += 1
         print("FAIL apply_commands did not include authenticated SOCKS setup")
+    if not any(cmd[1] == "-setwebproxy" and "secret" in cmd for cmd in cmds):
+        failed += 1
+        print("FAIL apply_commands did not include authenticated HTTP proxy setup")
     public = _public_commands(cmds)
     if any("secret" in line for line in public):
         failed += 1
         print("FAIL password leaked in public command list")
+    csv_text = (
+        "Scheme,Host,Port,Username,Password\n"
+        "socks5,residential.byteful.com,8166,demo_c_us_city_portsmouth_s_AAA,secret\n"
+        "socks5,residential.byteful.com,8305,demo_c_us_city_portsmouth_s_BBB,secret\n"
+    )
+    csv_specs = parse_proxy_input(csv_text)
+    if len(csv_specs) != 2 or csv_specs[0].port != 8166 or csv_specs[0].scheme != "socks5h":
+        failed += 1
+        print(f"FAIL CSV parse: {csv_specs}")
+    if "portsmouth" not in spec_label(csv_specs[0]) or "AAA" not in spec_label(csv_specs[0]):
+        failed += 1
+        print(f"FAIL label: {spec_label(csv_specs[0])}")
     probe = test_proxy(ProxySpec("127.0.0.1", 1, "user", "secret"))
     if "subprocess" in str(probe).lower() and "not defined" in str(probe).lower():
         failed += 1
