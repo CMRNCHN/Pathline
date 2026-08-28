@@ -369,26 +369,26 @@ def mac_apply_script(spec: ProxySpec) -> str:
     bypass = " ".join(shlex.quote(item) for item in BYPASS_DOMAINS)
     return f"""#!/bin/bash
 set -euo pipefail
-USER={user}
-PASS={password}
-HOST={host}
-PORT={port}
+PROXY_USER={user}
+PROXY_PASS={password}
+PROXY_HOST={host}
+PROXY_PORT={port}
 networksetup -listallnetworkservices | awk 'NR>1 && $0 !~ /^\\*/' | while IFS= read -r S; do
   echo "Applying Byteful proxy on $S"
   networksetup -setproxyautodiscovery "$S" off
   networksetup -setautoproxystate "$S" off
-  networksetup -setwebproxy "$S" "$HOST" "$PORT" on "$USER" "$PASS"
+  networksetup -setwebproxy "$S" "$PROXY_HOST" "$PROXY_PORT" on "$PROXY_USER" "$PROXY_PASS"
   networksetup -setwebproxystate "$S" on
-  networksetup -setsecurewebproxy "$S" "$HOST" "$PORT" on "$USER" "$PASS"
+  networksetup -setsecurewebproxy "$S" "$PROXY_HOST" "$PROXY_PORT" on "$PROXY_USER" "$PROXY_PASS"
   networksetup -setsecurewebproxystate "$S" on
   networksetup -setftpproxystate "$S" off
   networksetup -setstreamingproxystate "$S" off
   networksetup -setgopherproxystate "$S" off
-  networksetup -setsocksfirewallproxy "$S" "$HOST" "$PORT" on "$USER" "$PASS"
+  networksetup -setsocksfirewallproxy "$S" "$PROXY_HOST" "$PROXY_PORT" on "$PROXY_USER" "$PROXY_PASS"
   networksetup -setsocksfirewallproxystate "$S" on
   networksetup -setproxybypassdomains "$S" {bypass}
 done
-echo "Done. Test: curl -sS -x http://$USER@$HOST:$PORT https://ipinfo.io/json"
+echo "Done. Test with curl --proxy http://$PROXY_HOST:$PROXY_PORT --proxy-user \\"$PROXY_USER:****\\" https://ipinfo.io/json"
 """
 
 
