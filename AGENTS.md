@@ -23,7 +23,9 @@ browser automate calls.
 
 `frontend-ui/`, external-softphone flows, and `services/deferred/*` are not part
 of the shipping path. The SIP `lab/` (Asterisk/Docker) is development-only test
-infrastructure. `client-native/` is docs only.
+infrastructure. `client-native/` is docs only. `tools/byteful-mac-proxy/` is a
+standalone Mac system-SOCKS helper for Byteful proxies; it is not part of the
+shipping Pathline desktop or call path.
 
 ### Services (v1)
 | Service | Dir | Dev command | URL |
