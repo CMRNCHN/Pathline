@@ -82,7 +82,9 @@ export async function buildEvidencePack(
 }
 
 export function downloadEvidencePack(pack: EvidencePack): void {
-  const blob = new Blob([pack.bytes], { type: "application/zip" });
+  const copy = new Uint8Array(pack.bytes.byteLength);
+  copy.set(pack.bytes);
+  const blob = new Blob([copy.buffer], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
