@@ -11,6 +11,16 @@ function fieldRef(fieldPath: string, label: string): Reference {
   return { kind: "report_field", label, fieldPath };
 }
 
+function lastReachedIndex(events: CallEvent[]): number {
+  for (let index = events.length - 1; index >= 0; index--) {
+    const type = events[index].type;
+    if (type === "STEP_COMPLETED" || type === "PHRASE_MATCHED" || type === "DTMF_SENT") {
+      return index;
+    }
+  }
+  return events.length ? events.length - 1 : -1;
+}
+
 export function detectAnomalies(report: RunInspectionReport, events: CallEvent[]): Anomaly[] {
   const anomalies: Anomaly[] = [];
 
@@ -61,13 +71,19 @@ export function detectAnomalies(report: RunInspectionReport, events: CallEvent[]
 
   if (report.path.definedSteps.length > 0 && report.path.skippedSteps.length > 0) {
     const completed = report.identity.outcome === "completed";
+    const lastReached = lastReachedIndex(events);
     anomalies.push({
       code: "STEP_SKIPPED",
       severity: completed ? "warn" : "info",
       explanation: completed
         ? `Completed Run skipped ${report.path.skippedSteps.length} defined step(s): ${report.path.skippedSteps.join(", ")}.`
         : `Defined step(s) were not reached: ${report.path.skippedSteps.join(", ")}.`,
-      references: [fieldRef("path.skippedSteps", "skipped steps")],
+      references: [
+        fieldRef("path.skippedSteps", "skipped steps"),
+        ...(lastReached >= 0
+          ? [eventRef(events[lastReached]?.id, lastReached, "last reached event")]
+          : []),
+      ],
     });
   }
 

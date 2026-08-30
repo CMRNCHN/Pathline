@@ -160,7 +160,14 @@ describe("detectAnomalies", () => {
       { type: "CALL_ENDED", metadata: { outcome: "COMPLETED" } },
     ]);
     const report = await inspectRun(recordFor(events, { outcome: "completed" }));
-    expect(report.anomalies.map((anomaly) => anomaly.code)).toContain("STEP_SKIPPED");
+    const skipped = report.anomalies.find((anomaly) => anomaly.code === "STEP_SKIPPED");
+    expect(skipped).toBeDefined();
+    expect(skipped?.references.some((ref) => ref.kind === "event" && ref.eventIndex === 2)).toBe(
+      true
+    );
+    expect(report.nextSteps.some((step) => step.cites.some((cite) => cite.kind === "event"))).toBe(
+      true
+    );
   });
 
   it("flags a consecutive step loop", async () => {
