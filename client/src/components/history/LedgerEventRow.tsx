@@ -32,6 +32,7 @@ export function LedgerEventRow({ event, index, active, onSelect }: LedgerEventRo
   return (
     <button
       type="button"
+      id={`ledger-event-${index}`}
       onClick={() => onSelect?.(index)}
       className={cn(
         "flex w-full items-start gap-3 rounded-md px-2.5 py-2 text-left text-sm transition-colors",

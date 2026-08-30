@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { CallStateBoard } from "@/components/CallStateBoard";
 import { LedgerEventRow } from "@/components/history/LedgerEventRow";
@@ -34,6 +34,10 @@ export function RunReplayPanel({
     () => statusAtOffset(runId, pathId, definedSteps, events, offset),
     [definedSteps, events, offset, pathId, runId]
   );
+
+  useEffect(() => {
+    document.getElementById(`ledger-event-${offset}`)?.scrollIntoView({ block: "nearest" });
+  }, [offset]);
 
   const diff = useMemo(() => {
     if (compareFrom === null || events.length === 0) return null;

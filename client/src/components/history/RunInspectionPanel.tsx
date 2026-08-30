@@ -102,13 +102,19 @@ function NextStepRow({
 }) {
   const eventCite = step.cites.find((cite) => cite.kind === "event" && cite.eventIndex !== undefined);
   return (
-    <li className="flex items-start justify-between gap-3 rounded-lg border p-3">
+    <li className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3">
       <div>
         <p className="text-sm font-medium">{step.action}</p>
         <p className="text-xs text-muted-foreground">{step.rationale}</p>
       </div>
       {eventCite?.eventIndex !== undefined ? (
-        <Button type="button" size="sm" variant="outline" onClick={() => onCiteEvent(eventCite.eventIndex!)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="shrink-0"
+          onClick={() => onCiteEvent(eventCite.eventIndex!)}
+        >
           Show event
         </Button>
       ) : null}
