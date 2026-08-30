@@ -175,7 +175,7 @@ export function RunsPage() {
             : "Try another filter."}
         </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(16rem,22rem)_1fr]">
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)]">
           <Card size="sm">
             <CardContent className="flex flex-col gap-2 pt-0">
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
