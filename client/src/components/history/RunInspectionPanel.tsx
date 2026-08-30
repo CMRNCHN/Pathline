@@ -66,15 +66,31 @@ export function RunInspectionPanel({ report, loading, onCiteEvent }: RunInspecti
           <p className="text-sm text-muted-foreground">No anomalies on this ledger.</p>
         ) : (
           <ul className="space-y-2">
-            {report.anomalies.map((anomaly) => (
-              <li key={anomaly.code} className="rounded-lg border p-3">
-                <div className="mb-1 flex items-center gap-2">
-                  <Badge variant={severityVariant(anomaly.severity)}>{anomaly.severity}</Badge>
-                  <span className="font-mono text-xs">{anomaly.code}</span>
-                </div>
-                <p className="text-sm">{anomaly.explanation}</p>
-              </li>
-            ))}
+            {report.anomalies.map((anomaly) => {
+              const eventCite = anomaly.references.find(
+                (cite) => cite.kind === "event" && cite.eventIndex !== undefined
+              );
+              return (
+                <li key={anomaly.code} className="rounded-lg border p-3">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Badge variant={severityVariant(anomaly.severity)}>{anomaly.severity}</Badge>
+                    <span className="font-mono text-xs">{anomaly.code}</span>
+                  </div>
+                  <p className="text-sm">{anomaly.explanation}</p>
+                  {eventCite?.eventIndex !== undefined ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => onCiteEvent(eventCite.eventIndex!)}
+                    >
+                      Show event
+                    </Button>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -102,13 +118,18 @@ function NextStepRow({
 }) {
   const eventCite = step.cites.find((cite) => cite.kind === "event" && cite.eventIndex !== undefined);
   return (
-    <li className="flex items-start justify-between gap-3 rounded-lg border p-3">
-      <div>
+    <li className="flex flex-col items-start gap-2 rounded-lg border p-3">
+      <div className="min-w-0">
         <p className="text-sm font-medium">{step.action}</p>
         <p className="text-xs text-muted-foreground">{step.rationale}</p>
       </div>
       {eventCite?.eventIndex !== undefined ? (
-        <Button type="button" size="sm" variant="outline" onClick={() => onCiteEvent(eventCite.eventIndex!)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onCiteEvent(eventCite.eventIndex!)}
+        >
           Show event
         </Button>
       ) : null}
