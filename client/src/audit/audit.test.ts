@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EventLedger, eventChainHash, type CallEvent } from "../callstate";
+import { EventLedger, eventChainHash, sha256Hex, type CallEvent } from "../callstate";
 import type { RunRecord } from "../history/runHistory";
 import { detectAnomalies } from "./anomalies";
 import { diffStatus, statusAtOffset } from "./cursor";
@@ -63,6 +63,49 @@ describe("verifyLedger", () => {
     expect(result.ok).toBe(false);
     expect(result.breakIndex).toBe(1);
   });
+
+  it("detects a tampered legacy metadata.hash used as the chain", async () => {
+    const timestamp = "2026-01-01T00:00:00.000Z";
+    const hash = await sha256Hex(
+      JSON.stringify({
+        callId: "run-1",
+        prevHash: "",
+        type: "CALL_STARTED",
+        timestamp,
+        metadata: {},
+      })
+    );
+    const events: CallEvent[] = [
+      {
+        id: "e1",
+        timestamp,
+        type: "CALL_STARTED",
+        metadata: { hash, prevHash: "" },
+      },
+    ];
+    expect((await verifyLedger("run-1", events)).ok).toBe(true);
+
+    const tampered = [{ ...events[0], metadata: { ...events[0].metadata, hash: "0".repeat(64) } }];
+    const result = await verifyLedger("run-1", tampered);
+    expect(result.ok).toBe(false);
+    expect(result.breakIndex).toBe(0);
+  });
+
+  it("detects a tampered DTMF payload hash on a modern chain", async () => {
+    const events = await eventsFor("run-1", [
+      { type: "CALL_STARTED" },
+      { type: "DTMF_SENT", metadata: { step: "main_menu", digits: 1, hash: "dtmf-payload" } },
+    ]);
+    expect(events[1].metadata?.hash).toBe("dtmf-payload");
+    expect(typeof events[1].metadata?.chainHash).toBe("string");
+
+    const tampered = events.map((event, index) =>
+      index === 1 ? { ...event, metadata: { ...event.metadata, hash: "forged-dtmf" } } : event
+    );
+    const result = await verifyLedger("run-1", tampered);
+    expect(result.ok).toBe(false);
+    expect(result.breakIndex).toBe(1);
+  });
 });
 
 describe("statusAtOffset", () => {
@@ -89,6 +132,26 @@ describe("statusAtOffset", () => {
 });
 
 describe("detectAnomalies", () => {
+  it("flags an empty ledger", async () => {
+    const report = await inspectRun(recordFor([]));
+    expect(report.anomalies.map((anomaly) => anomaly.code)).toContain("EMPTY_LEDGER");
+    expect(report.ledger.reason).toBe("empty");
+    expect(report.artifactAvailability.find((item) => item.artifact === "recording")?.available).toBe(
+      false
+    );
+  });
+
+  it("flags a broken chain as LEDGER_INTEGRITY_BREAK", async () => {
+    const events = await eventsFor("run-1", [
+      { type: "CALL_STARTED" },
+      { type: "CALL_ENDED", metadata: { outcome: "FAILED" } },
+    ]);
+    events[1] = { ...events[1], metadata: { ...events[1].metadata, chainHash: "0".repeat(64) } };
+    const report = await inspectRun(recordFor(events, { outcome: "failed" }));
+    expect(report.anomalies.map((anomaly) => anomaly.code)).toContain("LEDGER_INTEGRITY_BREAK");
+    expect(report.nextSteps.some((step) => step.cites.length > 0)).toBe(true);
+  });
+
   it("flags skipped steps on a completed run", async () => {
     const events = await eventsFor("run-1", [
       { type: "CALL_STARTED" },
@@ -160,6 +223,21 @@ describe("detectAnomalies", () => {
       events
     );
     expect(anomalies.map((anomaly) => anomaly.code)).toContain("STALLED_RUN");
+  });
+
+  it("flags a failed run that idles after the last prompt", async () => {
+    const events = await eventsFor("run-1", [
+      { type: "CALL_STARTED" },
+      { type: "PROMPT_DETECTED", metadata: { phraseLength: 8 } },
+      { type: "PHRASE_MATCHED", metadata: { step: "main_menu" } },
+      { type: "CALL_ENDED", metadata: { outcome: "FAILED" } },
+    ]);
+    events[events.length - 1] = {
+      ...events[events.length - 1],
+      timestamp: new Date(Date.parse(events[1].timestamp) + 45_000).toISOString(),
+    };
+    const report = await inspectRun(recordFor(events, { outcome: "failed" }));
+    expect(report.anomalies.map((anomaly) => anomaly.code)).toContain("STALLED_RUN");
   });
 
   it("flags non-monotonic timestamps", async () => {

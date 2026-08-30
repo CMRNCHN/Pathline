@@ -140,6 +140,20 @@ export function detectAnomalies(report: RunInspectionReport, events: CallEvent[]
       explanation: "The ledger has no CALL_ENDED event.",
       references: [eventRef(events[events.length - 1]?.id, events.length - 1, "last event")],
     });
+  } else if (
+    (report.identity.outcome === "failed" || report.identity.outcome === "abandoned") &&
+    lastPromptIndex >= 0
+  ) {
+    const lastPromptAt = Date.parse(events[lastPromptIndex].timestamp);
+    const lastAt = Date.parse(events[events.length - 1].timestamp);
+    if (!Number.isNaN(lastPromptAt) && !Number.isNaN(lastAt) && lastAt - lastPromptAt >= 30_000) {
+      anomalies.push({
+        code: "STALLED_RUN",
+        severity: "warn",
+        explanation: "Failed or abandoned Run sat idle for at least 30s after the last prompt.",
+        references: [eventRef(events[lastPromptIndex]?.id, lastPromptIndex, "last prompt")],
+      });
+    }
   }
 
   return anomalies;
