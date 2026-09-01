@@ -7,24 +7,51 @@ import argparse
 import csv
 import io
 import json
+import os
 import platform
 import re
 import secrets
 import shlex
 import socket
 import subprocess
+import sys
 import threading
+import time
 import urllib.parse
 import webbrowser
 from dataclasses import asdict, dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Iterable
 
 DEFAULT_HOST = "residential.byteful.com"
 DEFAULT_PORT = 8000
-BYPASS_DOMAINS = ["127.0.0.1", "localhost", "*.local", "::1"]
+BYPASS_DOMAINS = ["localhost", "*.local"]
 TEST_URL = "https://ipinfo.io/json"
 IS_MAC = platform.system() == "Darwin"
+LOCAL_PROXY_HOST = "127.0.0.1"
+LOCAL_PROXY_PORT = 8118
+FORWARDER_PID_PATH = Path.home() / ".byteful-forwarder.pid"
+PREFERRED_CITIES = {
+    "portsmouth",
+    "norfolk",
+    "chesapeake",
+    "virginia beach",
+    "hampton",
+    "newport news",
+    "suffolk",
+}
+REJECT_CITY_MARKERS = (
+    "washington",
+    "arlington",
+    "alexandria",
+    "reston",
+    "mclean",
+    "tysons",
+    "fairfax",
+    "bethesda",
+    "silver spring",
+)
 AUTH_PROXY_FLAGS = {
     "-setsocksfirewallproxy",
     "-setwebproxy",
@@ -275,23 +302,22 @@ def services_for_scope(scope: str) -> list[str]:
     return all_services
 
 
-def apply_commands(spec: ProxySpec, services: Iterable[str]) -> list[list[str]]:
+def apply_commands(_spec: ProxySpec, services: Iterable[str]) -> list[list[str]]:
+    """Point macOS at the local forwarder. No Byteful password in Keychain."""
     commands: list[list[str]] = []
-    auth = ["on", spec.username, spec.password] if spec.username else ["off"]
     for service in services:
         commands.extend(
             [
                 ["networksetup", "-setproxyautodiscovery", service, "off"],
                 ["networksetup", "-setautoproxystate", service, "off"],
-                ["networksetup", "-setwebproxy", service, spec.host, str(spec.port), *auth],
+                ["networksetup", "-setwebproxy", service, LOCAL_PROXY_HOST, str(LOCAL_PROXY_PORT), "off"],
                 ["networksetup", "-setwebproxystate", service, "on"],
-                ["networksetup", "-setsecurewebproxy", service, spec.host, str(spec.port), *auth],
+                ["networksetup", "-setsecurewebproxy", service, LOCAL_PROXY_HOST, str(LOCAL_PROXY_PORT), "off"],
                 ["networksetup", "-setsecurewebproxystate", service, "on"],
                 ["networksetup", "-setftpproxystate", service, "off"],
                 ["networksetup", "-setstreamingproxystate", service, "off"],
                 ["networksetup", "-setgopherproxystate", service, "off"],
-                ["networksetup", "-setsocksfirewallproxy", service, spec.host, str(spec.port), *auth],
-                ["networksetup", "-setsocksfirewallproxystate", service, "on"],
+                ["networksetup", "-setsocksfirewallproxystate", service, "off"],
                 ["networksetup", "-setproxybypassdomains", service, *BYPASS_DOMAINS],
             ]
         )
@@ -323,27 +349,155 @@ def socks_status(services: Iterable[str]) -> list[dict[str, str]]:
     return rows
 
 
+def geo_rank(city: str, region: str) -> int:
+    """3=Portsmouth, 2=Hampton Roads, 1=other Virginia, -1=DC metro or elsewhere."""
+    city_l = (city or "").strip().lower()
+    region_l = (region or "").strip().lower()
+    blob = f"{city_l} {region_l}"
+    if any(marker in blob for marker in REJECT_CITY_MARKERS) or city_l in {"dc", "d.c.", "d.c"}:
+        return -1
+    if city_l == "portsmouth":
+        return 3
+    if city_l in PREFERRED_CITIES:
+        return 2
+    if "virginia" in region_l or region_l == "va":
+        return 1
+    return -1
+
+
+def pick_spec(specs: list[ProxySpec]) -> tuple[ProxySpec, dict]:
+    if not specs:
+        raise RuntimeError("No Byteful sessions to test.")
+    best: ProxySpec | None = None
+    best_rank = -1
+    best_info: dict = {}
+    for spec in specs[:8]:
+        info = test_proxy(spec)
+        if not info.get("ok"):
+            continue
+        rank = geo_rank(str(info.get("city") or ""), str(info.get("region") or ""))
+        if rank > best_rank:
+            best_rank = rank
+            best = spec
+            best_info = info
+        if rank >= 2:
+            break
+    if best is None:
+        raise RuntimeError("Byteful rejected every probed session. Check the username and password.")
+    if best_rank < 0:
+        place = f"{best_info.get('city')}, {best_info.get('region')}"
+        raise RuntimeError(
+            f"Probed exits were DC-metro or outside Virginia ({place}). "
+            "Generate a new Portsmouth sticky CSV in Byteful and Apply again."
+        )
+    return best, best_info
+
+
+def start_forwarder(spec: ProxySpec) -> int:
+    stop_forwarder()
+    script = Path(__file__).resolve().parent / "byteful_local_forwarder.py"
+    if not script.is_file():
+        raise RuntimeError(f"Missing {script.name}. Keep it next to byteful_mac_proxy.py.")
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            str(script),
+            "--user",
+            spec.username,
+            "--password",
+            spec.password,
+            "--upstream-host",
+            spec.host,
+            "--upstream-port",
+            str(spec.port),
+            "--listen-host",
+            LOCAL_PROXY_HOST,
+            "--listen-port",
+            str(LOCAL_PROXY_PORT),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    FORWARDER_PID_PATH.write_text(str(proc.pid), encoding="utf-8")
+    for _ in range(40):
+        if _port_open(LOCAL_PROXY_HOST, LOCAL_PROXY_PORT):
+            return proc.pid
+        if proc.poll() is not None:
+            break
+        time.sleep(0.1)
+    stop_forwarder()
+    raise RuntimeError("The local Byteful forwarder did not start.")
+
+
+def stop_forwarder() -> None:
+    pid = None
+    if FORWARDER_PID_PATH.is_file():
+        raw = FORWARDER_PID_PATH.read_text(encoding="utf-8").strip()
+        if raw.isdigit():
+            pid = int(raw)
+        try:
+            FORWARDER_PID_PATH.unlink()
+        except OSError:
+            pass
+    if pid:
+        try:
+            os.kill(pid, 15)
+        except OSError:
+            pass
+
+
+def _port_open(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=0.2):
+            return True
+    except OSError:
+        return False
+
+
 def apply_spec(spec: ProxySpec, scope: str) -> dict:
+    return apply_specs([spec], scope)
+
+
+def apply_specs(specs: list[ProxySpec], scope: str) -> dict:
+    chosen, geo = pick_spec(specs)
     if not IS_MAC:
         services = ["Wi-Fi"]
-        commands = apply_commands(spec, services)
+        commands = apply_commands(chosen, services)
         return {
             "ok": False,
             "error": (
-                "Nothing was changed. This window is running on Linux/Windows, "
-                "not macOS, so it cannot edit your MacBook. Copy the script below "
-                "into Terminal on the Mac, or run this same Python file on the Mac."
+                "Nothing was changed on this computer. Run this helper on the MacBook, "
+                "or paste the script below into Terminal.app there. It uses a local "
+                "forwarder so Keychain is not involved, and it skips DC exits."
             ),
             "would_run": _public_commands(commands),
-            "mac_script": mac_apply_script(spec),
+            "mac_script": mac_apply_script(chosen),
             "services": services,
+            "chosen": {**asdict(chosen), "password": "***"},
+            "exit_ip": geo.get("exit_ip"),
+            "city": geo.get("city"),
+            "region": geo.get("region"),
         }
+    pid = start_forwarder(chosen)
     services = services_for_scope(scope)
-    results = _run_all(apply_commands(spec, services))
-    return {"ok": True, "services": services, "results": results}
+    results = _run_all(apply_commands(chosen, services))
+    return {
+        "ok": True,
+        "services": services,
+        "results": results,
+        "forwarder_pid": pid,
+        "listen": f"{LOCAL_PROXY_HOST}:{LOCAL_PROXY_PORT}",
+        "exit_ip": geo.get("exit_ip"),
+        "city": geo.get("city"),
+        "region": geo.get("region"),
+        "org": geo.get("org"),
+        "session": spec_label(chosen),
+    }
 
 
 def disable_proxy(scope: str) -> dict:
+    stop_forwarder()
     if not IS_MAC:
         services = ["Wi-Fi"]
         return {
@@ -362,44 +516,52 @@ def disable_proxy(scope: str) -> dict:
 
 
 def mac_apply_script(spec: ProxySpec) -> str:
+    here = shlex.quote(str(Path(__file__).resolve().parent))
     user = shlex.quote(spec.username)
     password = shlex.quote(spec.password)
     host = shlex.quote(spec.host)
     port = shlex.quote(str(spec.port))
-    bypass = " ".join(shlex.quote(item) for item in BYPASS_DOMAINS)
+    listen = shlex.quote(str(LOCAL_PROXY_PORT))
     return f"""#!/bin/bash
 set -euo pipefail
+DIR={here}
 PROXY_USER={user}
 PROXY_PASS={password}
 PROXY_HOST={host}
 PROXY_PORT={port}
+LISTEN={listen}
+cd "$DIR"
+python3 "$DIR/byteful_local_forwarder.py" --user "$PROXY_USER" --password "$PROXY_PASS" --upstream-host "$PROXY_HOST" --upstream-port "$PROXY_PORT" --listen-port "$LISTEN" >/tmp/byteful-forwarder.log 2>&1 &
+echo $! > "$HOME/.byteful-forwarder.pid"
+sleep 0.5
+sudo -v
 networksetup -listallnetworkservices | awk 'NR>1 && $0 !~ /^\\*/' | while IFS= read -r S; do
-  echo "Applying Byteful proxy on $S"
-  networksetup -setproxyautodiscovery "$S" off
-  networksetup -setautoproxystate "$S" off
-  networksetup -setwebproxy "$S" "$PROXY_HOST" "$PROXY_PORT" on "$PROXY_USER" "$PROXY_PASS"
-  networksetup -setwebproxystate "$S" on
-  networksetup -setsecurewebproxy "$S" "$PROXY_HOST" "$PROXY_PORT" on "$PROXY_USER" "$PROXY_PASS"
-  networksetup -setsecurewebproxystate "$S" on
-  networksetup -setftpproxystate "$S" off
-  networksetup -setstreamingproxystate "$S" off
-  networksetup -setgopherproxystate "$S" off
-  networksetup -setsocksfirewallproxy "$S" "$PROXY_HOST" "$PROXY_PORT" on "$PROXY_USER" "$PROXY_PASS"
-  networksetup -setsocksfirewallproxystate "$S" on
-  networksetup -setproxybypassdomains "$S" {bypass}
+  echo "Pointing $S at local Byteful forwarder 127.0.0.1:$LISTEN"
+  sudo networksetup -setproxyautodiscovery "$S" off
+  sudo networksetup -setautoproxystate "$S" off
+  sudo networksetup -setwebproxy "$S" 127.0.0.1 "$LISTEN" off
+  sudo networksetup -setwebproxystate "$S" on
+  sudo networksetup -setsecurewebproxy "$S" 127.0.0.1 "$LISTEN" off
+  sudo networksetup -setsecurewebproxystate "$S" on
+  sudo networksetup -setsocksfirewallproxystate "$S" off
 done
-echo "Done. Test with curl --proxy http://$PROXY_HOST:$PROXY_PORT --proxy-user \\"$PROXY_USER:****\\" https://ipinfo.io/json"
+echo "Done. Leave the Python forwarder running. Safari -> https://ipinfo.io"
 """
 
 
 def mac_off_script() -> str:
     return """#!/bin/bash
 set -euo pipefail
+if [ -f "$HOME/.byteful-forwarder.pid" ]; then
+  kill "$(cat "$HOME/.byteful-forwarder.pid")" 2>/dev/null || true
+  rm -f "$HOME/.byteful-forwarder.pid"
+fi
+sudo -v
 networksetup -listallnetworkservices | awk 'NR>1 && $0 !~ /^\\*/' | while IFS= read -r S; do
   echo "Clearing proxy on $S"
-  networksetup -setwebproxystate "$S" off
-  networksetup -setsecurewebproxystate "$S" off
-  networksetup -setsocksfirewallproxystate "$S" off
+  sudo networksetup -setwebproxystate "$S" off
+  sudo networksetup -setsecurewebproxystate "$S" off
+  sudo networksetup -setsocksfirewallproxystate "$S" off
 done
 echo "System proxy off."
 """
@@ -428,7 +590,7 @@ def _curl_via(spec: ProxySpec, scheme: str) -> dict:
         "curl",
         "-sS",
         "-m",
-        "20",
+        "12",
         "--proxy",
         f"{prefix}://{spec.host}:{spec.port}",
     ]
@@ -702,8 +864,8 @@ PAGE_HTML = """<!DOCTYPE html>
       <div id="log">Ready. Paste a Byteful string, then apply.</div>
     </form>
     <footer>
-      Byteful auto-detects HTTP vs SOCKS on the same host:port. Apply enables HTTP, HTTPS, and SOCKS so Safari and curl -x both follow the proxy.
-      Sticky CSV rows keep their _s_ session IDs. The Test button tries SOCKS5h and HTTP against ipinfo.io.
+      Apply starts a local forwarder on 127.0.0.1 so macOS never stores the Byteful password (no Keychain spam).
+      It probes sticky sessions and skips Washington DC. Leave this window open while you browse. VPN and Limit IP address tracking must stay off.
     </footer>
   </main>
   <script>
@@ -791,10 +953,17 @@ PAGE_HTML = """<!DOCTYPE html>
     document.getElementById("form").addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
-        log("Applying HTTP, HTTPS, and SOCKS…");
+        log("Finding a Hampton Roads exit and applying the local forwarder…");
         const data = await api("/api/apply");
         const extra = (data.would_run || []).join("\\n");
-        log("Applied proxy on: " + (data.services || []).join(", ") + (extra ? "\\n" + extra : ""), "ok");
+        const place = [data.city, data.region].filter(Boolean).join(", ");
+        log(
+          "Using " + (data.session || "Byteful") +
+          (place ? "\\nExit: " + data.exit_ip + " " + place : "") +
+          (data.listen ? "\\nMac proxy: " + data.listen + " (leave this app running)" : "") +
+          (extra ? "\\n" + extra : ""),
+          "ok"
+        );
       } catch (err) {
         log(err.message, "err");
       }
@@ -886,7 +1055,21 @@ class Handler(BaseHTTPRequestHandler):
                 return
             spec = _spec_from_request(data)
             if parsed.path == "/api/apply":
-                result = apply_spec(spec, data.get("scope") or "all")
+                raw = (data.get("raw") or "").strip()
+                if raw:
+                    try:
+                        specs = parse_proxy_input(raw)
+                    except ParseError:
+                        specs = [spec]
+                else:
+                    specs = [spec]
+                rest = [
+                    item
+                    for item in specs
+                    if (item.host, item.port, item.username) != (spec.host, spec.port, spec.username)
+                ]
+                specs = [spec, *rest]
+                result = apply_specs(specs, data.get("scope") or "all")
                 status = 200 if result.get("ok") else 400
                 self._json(status, result)
                 return
@@ -1028,12 +1211,15 @@ def self_test() -> int:
             failed += 1
             print(f"FAIL {raw!r}\n  got      {got}\n  expected {expected}")
     cmds = apply_commands(ProxySpec("residential.byteful.com", 8000, "stevejobs", "secret"), ["Wi-Fi"])
-    if not any(cmd[1] == "-setsocksfirewallproxy" and "secret" in cmd for cmd in cmds):
+    if not any(cmd[1] == "-setwebproxy" and LOCAL_PROXY_HOST in cmd for cmd in cmds):
         failed += 1
-        print("FAIL apply_commands did not include authenticated SOCKS setup")
-    if not any(cmd[1] == "-setwebproxy" and "secret" in cmd for cmd in cmds):
+        print("FAIL apply_commands did not point HTTP at the local forwarder")
+    if any("secret" in cmd for cmd in cmds):
         failed += 1
-        print("FAIL apply_commands did not include authenticated HTTP proxy setup")
+        print("FAIL apply_commands leaked Byteful password into networksetup")
+    if not any(cmd[1] == "-setsocksfirewallproxystate" and cmd[-1] == "off" for cmd in cmds):
+        failed += 1
+        print("FAIL apply_commands should disable system SOCKS")
     public = _public_commands(cmds)
     if any("secret" in line for line in public):
         failed += 1
@@ -1051,9 +1237,15 @@ def self_test() -> int:
         failed += 1
         print(f"FAIL label: {spec_label(csv_specs[0])}")
     script = mac_apply_script(csv_specs[0])
-    if "networksetup -setwebproxy" not in script or "secret" not in script:
+    if "127.0.0.1" not in script or "byteful_local_forwarder.py" not in script:
         failed += 1
-        print("FAIL mac_apply_script missing HTTP proxy or password")
+        print("FAIL mac_apply_script should use the local forwarder")
+    if geo_rank("Portsmouth", "Virginia") < 2 or geo_rank("Washington", "District of Columbia") >= 0:
+        failed += 1
+        print("FAIL geo_rank Portsmouth/DC")
+    if geo_rank("Norfolk", "Virginia") < 2 or geo_rank("Arlington", "Virginia") >= 0:
+        failed += 1
+        print("FAIL geo_rank Norfolk/Arlington")
     probe = test_proxy(ProxySpec("127.0.0.1", 1, "user", "secret"))
     if "subprocess" in str(probe).lower() and "not defined" in str(probe).lower():
         failed += 1
@@ -1072,8 +1264,8 @@ def self_test() -> int:
 
 
 def cli_apply(raw: str, scope: str) -> int:
-    spec = parse_proxy_string(raw)
-    result = apply_spec(spec, scope)
+    specs = parse_proxy_input(raw)
+    result = apply_specs(specs, scope)
     print(json.dumps(result, indent=2))
     return 0 if result.get("ok") else 1
 

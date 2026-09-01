@@ -1,87 +1,31 @@
 # Byteful Mac Proxy
 
-A small local GUI that turns a Byteful residential proxy into the macOS system HTTP, HTTPS, and SOCKS proxies.
+Standalone helper (not part of the Pathline call path). It pastes a Byteful CSV and routes the Mac through a **local forwarder** so System Settings never stores the Byteful password (avoids Keychain loops and `Authenticated Proxy Enabled: 0`).
 
-This is a standalone helper. It is not part of the Pathline desktop call path.
+Apply probes sticky sessions and **skips Washington DC**. It prefers Portsmouth / Norfolk / Chesapeake.
 
-## On your MacBook
+## On the MacBook
 
 ```bash
 python3 tools/byteful-mac-proxy/byteful_mac_proxy.py
 ```
 
-Or double-click `Byteful Mac Proxy.command` in Finder. A browser window opens on `127.0.0.1` only.
+Or double-click `Byteful Mac Proxy.command`.
 
-1. Paste a Byteful CSV, a `curl -x` command, or a single proxy string. You can also choose the CSV with the file picker.
-2. If the CSV has many sticky rows, pick a session from the dropdown (each `_s_` id is a different sticky IP).
-3. Click **Apply to this Mac**.
-4. Click **Test proxy** to hit `https://ipinfo.io/json` (SOCKS5h, then HTTP if needed).
-5. Click **Turn proxy off** when you want your normal IP back.
+1. Paste the Byteful CSV (or pick the file).
+2. Click **Apply to this Mac**. Keep this process running.
+3. Turn **VPN** and **Limit IP address tracking** off.
+4. Safari → https://ipinfo.io — expect Hampton Roads, Virginia, not DC.
+5. **Turn proxy off** when done (also stops the forwarder).
 
-Accepted paste formats:
+macOS may ask for an administrator password once. `Authenticated Proxy Enabled: 0` is expected: the Mac talks to `127.0.0.1:8118` with no password; the forwarder adds Byteful auth.
 
-```
-Scheme,Host,Port,Username,Password
-socks5,residential.byteful.com,8166,user_c_us_city_portsmouth_s_SESSION,password
-
-curl -x http://user:pass@residential.byteful.com:8166 "https://ipinfo.io/json"
-
-socks5h://user:pass@residential.byteful.com:8166
-residential.byteful.com:8166:user:password
-```
-
-Username targeting (`_s_`, `_ttl_`, `_c_`, `_city_`, `_state_`, `_smartpath`) is left intact. Byteful auto-detects HTTP vs SOCKS on the same host and port. Apply enables **HTTP, HTTPS, and SOCKS** so Safari and `curl -x http://…` both follow the proxy.
-
-## What it changes
-
-For each selected network service it:
-
-- Sets the HTTP, HTTPS, and SOCKS proxies to the Byteful host/port with your username and password
-- Turns off FTP, streaming, Gopher, PAC, and auto-discovery
-- Bypasses `localhost`, `127.0.0.1`, `::1`, and `*.local`
-
-**Entire Mac** updates every enabled service (Wi-Fi, Ethernet, USB, Thunderbolt, …). **Active network only** updates the default-route service.
-
-macOS may ask for an administrator password.
-
-## If Authenticated Proxy Enabled stays 0
-
-Recent macOS often will not store Byteful’s password in System Settings (Keychain loops, flag stays `0`). Use the local forwarder instead: macOS talks to `127.0.0.1` with **no password**; the script adds Byteful auth.
-
-Leave this running in Terminal:
-
-```bash
-python3 tools/byteful-mac-proxy/byteful_local_forwarder.py \
-  --user 'YOUR_BYTEFUL_USER' \
-  --password 'YOUR_BYTEFUL_PASS'
-```
-
-Then point only HTTP/HTTPS at the local port (SOCKS off — no Keychain):
-
-```bash
-sudo networksetup -setwebproxy "Wi-Fi" 127.0.0.1 8118 off
-sudo networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 8118 off
-sudo networksetup -setwebproxystate "Wi-Fi" on
-sudo networksetup -setsecurewebproxystate "Wi-Fi" on
-sudo networksetup -setsocksfirewallproxystate "Wi-Fi" off
-```
-
-Safari → https://ipinfo.io should show the Byteful Virginia exit. Stop the Python process and turn those proxies off when you are done.
-
-- Run this on the Mac you want to proxy. It cannot push settings to an iPhone.
-- Some apps ignore System Settings. Terminal programs that ignore the OS proxy still need:
-
-```bash
-export ALL_PROXY="socks5h://USER:PASS@HOST:PORT"
-# or, matching a Byteful curl -x:
-export https_proxy="http://USER:PASS@HOST:PORT"
-export NO_PROXY="localhost,127.0.0.1,.local"
-```
+Leave the Python GUI/forwarder running. If you quit it, Safari drops off Byteful.
 
 ## Without the GUI
 
 ```bash
-python3 tools/byteful-mac-proxy/byteful_mac_proxy.py --apply 'curl -x http://USER:PASS@residential.byteful.com:8166 https://ipinfo.io/json'
+python3 tools/byteful-mac-proxy/byteful_mac_proxy.py --apply "$(cat your-byteful.csv)"
 python3 tools/byteful-mac-proxy/byteful_mac_proxy.py --off
 python3 tools/byteful-mac-proxy/byteful_mac_proxy.py --self-test
 ```
